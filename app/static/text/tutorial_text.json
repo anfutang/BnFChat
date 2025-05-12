@@ -1,4 +1,0 @@
-{
-    "generalInstruction": "Dans ce test, nous allons tenter de désambiguïser votre requête à travers des dialogues basés sur un modèle de langage (LLM), et nous vous demanderons d'évaluer si nos clarifications vous ont été utiles. Ce test se déroulera en trois sessions, chacune utilisant un mode d'interaction différent pour communiquer avec vous. Avant chaque session, nous vous présenterons chaque mode et vous guiderons sur la manière de procéder au test. La page suivante contient une présentation écrite de l'ensemble du test. Nous vous invitons à la lire attentivement et à bien comprendre les objectifs de ce test.",
-    "textualInstruction": "sdasfb"
-}
