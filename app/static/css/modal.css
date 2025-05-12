@@ -1,0 +1,124 @@
+:root{
+    --modal-header-color: rgb(248, 172, 58);
+    --modal-bg-color: rgb(238, 219, 157);
+    --not-pure-black: rgb(59, 55, 55);
+    --like-lemon: #d9eb38;
+    --modal-normal-font-family: "monospace";
+}
+
+
+/* this controls the general style of the modal, parent container of modal-header, body and footer */
+/* extra space between .info-modal and .modal-content means the selector applies this style to all .modal-content elements that are descendants of an 'info-modal' class */
+/* .a.b the selector chooses an element with both 'a' and 'b' in its 'class' value */
+
+@keyframes modal-jumping {
+    0%, 100% {
+      transform: translateY(0); 
+    }
+    50% {
+      transform: translateY(-3%); 
+    }
+}
+
+@keyframes shining {
+    0%, 100% {
+        filter: brightness(1);
+        transform: scale(1);
+    }
+    50% {
+        filter: brightness(1.1);
+        transform: scale(1.1);
+    }
+}
+
+.fixed-modal-aspect {
+    aspect-ratio: 4 / 3; 
+    max-width: 50%;      
+    max-height: 80%;
+    margin: auto;
+  }
+
+.info-modal .modal-content { 
+    background-color: var(--modal-bg-color); 
+    border: 5px solid rgb(10, 7, 0);
+    border-radius: 1%; 
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); 
+    font-size: 1rem;
+    font-family: var(--modal-normal-font-family);
+    /* max-width: 60%;      
+    max-height: 80%;    */
+    /* width: 60%;
+    height: 50%; */
+    overflow-y: auto;
+    /* margin: auto;  */
+}
+
+/* Customize the modal header */
+.info-modal .modal-header {
+    background-color: var(--modal-header-color);
+    color: var(not-pure-black);
+    border-bottom: none; /* Remove border */
+    /* border: 2px solid rgb(230, 65, 53); */
+    font-size: 1rem;
+    font-family: var(--modal-normal-font-family);
+}
+
+.info-modal .modal-body {
+    padding: 2rem;
+    font-size: 1.1rem;
+    color: var(--not-pure-black);
+    /* border: 2px solid greenyellow; */
+    font-family: var(--modal-normal-font-family);
+    font-weight: 100;
+    overflow-y: auto;
+}
+
+/* Customize the modal footer */
+.info-modal .modal-footer {
+    background-color: rgb(235, 211, 104);
+    border: none; /* Remove border */
+    /* border: 3px solid var(--not-pure-black); */
+}
+
+.info-modal.jumping {
+    animation: modal-jumping 1s ease-in-out infinite;
+}
+
+.modal-confirm-button {
+    background-color: var(--like-lemon);
+    border:3px solid #000;
+    border-radius: 5px;
+    font-size: 1rem;
+    font-family: var(--modal-normal-font-family);
+    box-shadow: 0px 1px 2px rgb(32, 30, 30);
+    /* color: rgb(17, 151, 5); */
+}
+
+
+.tutorial-h {
+    color: rgb(20, 20, 20);
+    font-family: var(--modal-normal-font-family);
+}
+
+.tutorial-p {
+    color: var(--not-pure-black);
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+.modal-confirm-button.shining {
+    animation: shining 1s linear infinite;
+}
+
+.modal-confirm-button:hover {
+    background-color: #e6c71a;
+    box-shadow: 0px 2px 4px rgb(32, 30, 30);
+    transition: background-color 0.5s linear;
+}
+
+.modal-confirm-button:active,
+.modal-confirm-button:focus {
+    box-shadow: none; 
+    outline: none;    
+}
+
+

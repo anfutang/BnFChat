@@ -1,0 +1,51 @@
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/user_interface.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+{% endblock %}
+
+<div class="conversation-annotation-showbox">
+    {% for ky in ["username", "timestamp", "status", "free_test", "chat_mode", "label"] %}
+        <p>{{ ky }} : {{ chat_data[ky] }}</p>
+    {% endfor %}
+</div>
+
+{% set chat_history = chat_data["chat_history"] %}
+
+{% if chat_history %}
+    {% for conv in chat_history %}
+        <!-- always fetch the last saved conversation, in case the user refreshes, don't show the abandoned responses -->
+        {% set user_message = conv[-1][0] %}
+        {% set llm_responses = conv[-1][1] %}
+        {% set evals = conv[-1][2] %}
+        {% if user_message %}
+            <div class="user-message-container message-fade-in">
+                <div class="user-message">
+                    {{ user_message }}
+                </div>
+            </div>
+        {% endif %}
+        <div class="llm-response-container message-fade-in">
+            <img src="{{ url_for('static', filename='img/llm_avatar.png') }}" class="llm-avatar">
+            <div class="llm-message-container">
+                {% for llm_response in llm_responses %}
+                    {% set index = loop.index0 %}
+                    <div class="llm-message-annotation-container">
+                        {% if index == evals["selectedResponseIndex"] %}
+                            <div class="llm-message selected">
+                                {{ llm_response }}
+                            </div>
+                        {% elif index in evals["eliminatedResponseIndexes"] %}
+                            <div class="llm-message eliminated">
+                                {{ llm_response }}
+                            </div>
+                        {% else %}
+                            <div class="llm-message">
+                                {{ llm_response }}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+{% endif %}

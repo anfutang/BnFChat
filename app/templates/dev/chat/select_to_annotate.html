@@ -1,0 +1,19 @@
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+{% endblock %}
+
+{% if llm_responses %}
+    {% for llm_response in llm_responses %}
+        {% set index = loop.index0 %}
+        <div class="llm-message-annotation-container">
+            <button type="button" class="llm-message" id="selection-{{ index }}" data-index="selection-{{ index }}" onclick="handleSelection(this);">
+                {{ llm_response[0] }}
+            </button>
+            <button type="button" class="llm-message-elimination-button" id="elimination-{{ index }}" data-index="elimination-{{ index }}" onclick="handleElimination(this);">✖</button>
+        </div>
+    {% endfor %}
+    <button type="button" class="end-turn-button" id="end-turn-button" onclick="submitUserAnnotation();" style="left: 5%; width: 20%;">➡ soumettre</button>
+{% elif sru_query %}
+    <p id="target-sru-url" style="font-family: 'Times New Roman', Times, serif; color: white;">{{ sru_query }}</p>
+{% endif %}
+

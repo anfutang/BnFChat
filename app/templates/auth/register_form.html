@@ -1,0 +1,488 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/register.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="content-area fade-in-out-registration-success" id="loading-animation" style="display: none; width: 50%; text-align: center; margin-left: 25vw; margin-top: 15vh;">
+    <img src="https://api.dicebear.com/9.x/thumbs/svg?seed=1" alt="avatar" class="clickable-avatar" id="registered-user-avatar" style="filter: none; pointer-events: none;"> 
+    <h1 id="registered-username" style="font-size: 1.2rem; font-family: fantasy; color: black; margin-top: 1vh; height: 3vh;">&nbsp;</h1>
+    <br><br>
+
+    <p id="registered-success-message" style="font-size: 1.2rem; font-family: fantasy; color: #e9492d; margin-top: 1vh;">🙂 Votre profil a été créé <br> 
+        <span style="font-size: 0.8em;">Vous allez être redirigé la page d'accueil...</span></p>
+    <br><br>
+    <div id="progress">
+        <div class="moving-chick" id="moving-chick" style="margin-top: -1.25vh;">
+            <img src="{{ url_for('static', filename='img/baby_chick.png') }}" alt="chick" style="width: 6vh;">
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+    </div>
+</div>
+
+<div class="registration-page" id="registration-page">
+    <div id="nav-button-container" class="nav-button-container">
+        <!-- <button id="prevButton" onclick="previousPage()">&#11164</button> -->
+        <button id="nextButton" onclick="nextPage()" style="right: 10%;">→</button>
+    </div>
+
+    <p class="warning-message" id="incomplete-warning-message" style="top: 5%; font-weight: bold; font-size: 1rem; position: absolute;">&nbsp;</p>
+
+    <div class="content-area" id="profile-qs"> 
+        <div class="page fade-in-page" id="page1">
+            <label class="label-q" for="age">Q1. Quel âge avez-vous?</label>
+            <br>
+            <input class="input-a" type="age" name="age" id="age" required>
+            <br>
+
+            <label class="label-q" for="diploma">Q2. Quel est votre diplôme le plus élevé ?</label>
+            <br>
+            <select name="diploma" id="diploma">
+                <option value=""></option>
+                <option value="brevet des collèges">brevet des collèges</option>
+                <option value="baccalauréat">baccalauréat</option>
+                <option value="licence">licence</option>
+                <option value="master">master</option>
+                <option value="doctorat">doctorat</option>
+                <option value="autre">autre</option>
+            </select>
+            <br><br>
+
+            <label class="label-q" for="situation">Q3. Actuellement, quelle est votre situation?</label>
+            <br>
+            <select name="situation" id="situation">
+                <option value=""></option>
+                <option value="activité professionelle">exerçant  une activité professionnelle (actifs, apprentis, stagiaire)</option>
+                <option value="à la recherche d'un emploi">à la recherche d'un emploi</option>
+                <option value="à la retraite ou en pré-retraite">à la retraite ou en pré-retraite</option>
+                <option value="lycéen / étudiant">lycéen ou étudiant</option>
+                <option value="homme / femme au foyer">homme ou femme au foyer</option>
+                <option value="autres situations">dans une autre situation</option>
+            </select>
+            <br><br>
+
+            <div class="fade-in-extra-qs" id="other-situation-input">
+                <label class="label-q" for="other-situation">Veuillez préciser :</label>
+                <input type="text" class="input-a" id="other-situation" name="other-situation">
+            </div>
+        </div>
+
+        <!-- Page 2 -->
+        <div class="page fade-in-page" id="page2">
+            <label class="label-q" for="engaged-in-academic-research-activities">Q4. Etes-vous actuellement engagé(e) dans une activité de recherche académique <br>(doctorat, post-doctorat, enseignement supérieur et recherche) ?</label>
+            <br>
+            <div class="select-button-group" id="engaged-in-academic-research-activities">
+                <button id="yesButton" class="select-button" onclick="handleChoice('oui',this)">
+                    &#9989;Oui
+                </button>
+                <button id="noButton" class="select-button" onclick="handleChoice('non',this)">
+                    &#10060;Non
+                </button>
+            </div>
+            <br>
+
+            <label class="label-q" for="engaged-in-amateur-research-activities">Q5. Etes-vous actuellement engagé(e) ou avez-vous pratiqué par le passé une activité de recherche en amateur (recherches généalogiques ou historiques, activité scientifique comme l'observation des étoile, l'ornithologie ou la collecte de données sur la biodoversité...) ?</label>
+            <br>
+            <div class="select-button-group" id="engaged-in-amateur-research-activities">
+                <button id="yesButton" class="select-button" onclick="handleChoice('oui',this)">
+                    &#9989;Oui
+                </button>
+                <button id="noButton" class="select-button" onclick="handleChoice('non',this)">
+                    &#10060;Non
+                </button>
+            </div>
+        </div>
+
+        <!-- Page 3 -->
+        <div class="page fade-in-page" id="page3" style="margin-right: 10vw; white-space: nowrap;">
+            <label class="label-q" for="is-gallica-user">Q6. Avez-vous déjà utilisé Gallica, la bibliothèque <br>numérique de la BnF ?</label>
+            <br>
+            <div class="select-button-group" id="is-gallica-user">
+                <button id="yesButton" class="select-button" onclick="handleChoice('oui',this)">
+                    &#9989;Oui
+                </button>
+                <button id="noButton" class="select-button" onclick="handleChoice('non',this)">
+                    &#10060;Non
+                </button>
+            </div>
+            <br>
+
+            <div class="fade-in-extra-qs" id="frequency-usage-gallica-input">
+                <label class="label-q" for="frequency-usage-gallica">Q7. Utilisez-vous Gallica :</label>
+                <br>
+                <select name="frequency-usage-gallica" id="frequency-usage-gallica">
+                    <option value=""></option>
+                    <option value="plusieurs fois par semaine">plusieurs fois par semaine</option>
+                    <option value="plusieurs fois par mois">plusieurs fois par mois</option>
+                    <option value="quelques fois par an">quelques fois par an</option>
+                    <option value="de manière exceptionnelle">de manière exceptionnelle</option>
+                </select>
+            </div>
+            <br>
+            
+            <div class="fade-in-extra-qs" id="time-usage-gallica-input">
+                <label class="label-q" for="time-usage-gallica">Q8. Depuis combien de temps utilisez-vous Gallica ?</label>
+                <br>
+                <select name="time-usage-gallica" id="time-usage-gallica">
+                    <option value=""></option>
+                    <option value="un mois ou moins">un mois ou moins</option>
+                    <option value="un an environ">un an environ</option>
+                    <option value="deux ans environ">deux ans environ</option>
+                    <option value="deux ans ou plus">deux ans ou plus</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="page fade-in-page" id="page4">
+            <label class="label-q" for="accept-further-contact">Q9. Accepteriez-vous d'être contacté.e à nouveau dans le cadre de cette enquête?</label>
+            <br>
+            <div class="select-button-group" id="accept-further-contact">
+                <button id="yesButton" class="select-button" onclick="handleChoice('oui',this)">
+                    &#9989;Oui
+                </button>
+                <button id="noButton" class="select-button" onclick="handleChoice('non',this)">
+                    &#10060;Non
+                </button>
+            </div>
+            <br>
+        </div>
+
+        <div class="page fade-in-page" id="page5">
+            <label class="label-q" for="avatar-seed" style="margin-left:-15vw; margin-top: -15vh;">Choisissez un avatar</label>
+            <div class="clickable-avatar-container" id="avatar-seed"></div>
+        </div>
+    </div>
+
+    <!-- Page Navigation -->
+    <!-- <div class="page-number-list">
+        <span class="page-number" onclick="showPage(1)">1</span>
+        <span class="page-number" onclick="showPage(2)">2</span>
+        <span class="page-number" onclick="showPage(3)">3</span>
+        <span class="page-number" onclick="showPage(4)">4</span>
+        <span class="page-number" onclick="showPage(5)">5</span>
+    </div> -->
+
+    <!-- <a href="{{ url_for('auth.login') }}" style="color: #f04e26; font-size: 1rem; font-family: 'Impact'; bottom: 2%; position: absolute;">Déjà un compte? Connectez-vous</a> -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPage = 1;
+    const totalPages = 5;
+    const incompleteWarningMessage = document.getElementById('incomplete-warning-message');
+
+    localStorage.setItem("firstEntry", true);
+
+    const questionsOnEachPage = {
+        1: { Q1: 'age', Q2: 'diploma', Q3: 'situation', specifySituation: 'other-situation' },
+        2: { Q4: 'engaged-in-academic-research-activities', Q5: 'engaged-in-amateur-research-activities' },
+        3: { Q6: 'is-gallica-user', Q7: 'frequency-usage-gallica', Q8: 'time-usage-gallica' },
+        4: { Q9: 'accept-further-contact' },
+        5: { selectAvatar: 'avatar-seed' },
+    };
+
+
+    const avatarContainer = document.getElementById("avatar-seed");
+    const avatarsPerRow = [6, 8, 10, 8, 6];
+    const avatarSeeds = ['a-75','a-25','a-69','a-55','a-19','avatar-57','avatar-33','avatar-43','avatar-69','avatar-63',
+                        'user-15','user-71','user-79','user-73','user-21','utilisateur-17','utilisateur-23','utilisateur-33','utilisateur-75','utilisateur-53',
+                        'bnf-45','bnf-77','bnf-9','bnf-63','bnf-57','scai-39','scai-69','scai-53','scai-67','scai-61',
+                        'scai-73','scai-63','scai-41','bnf-scai-11','bnf-scai-69','bnf-scai-7','bnf-scai-17','bnf-scai-63'];
+
+    let avatarCount = 0;
+    let previousSelectedAvatar = null;
+
+    avatarsPerRow.forEach((numAvatars, rowIndex) => {
+        const row = document.createElement("div");
+        row.className = "clickable-avatar-row";
+
+        // Generate avatars for the current row
+        for (let i = 0; i < numAvatars; i++) {
+            const avatar = document.createElement("img");
+            const seed = avatarSeeds[avatarCount];
+
+            avatar.src = `https://api.dicebear.com/9.x/thumbs/svg?seed=${seed}`;
+            avatar.alt = "avatar";
+            avatar.className = "clickable-avatar";
+            avatar.setAttribute("data-seed",seed)
+
+            avatarCount ++;
+
+            avatar.onclick = function() {
+                avatarContainer.setAttribute("data-selected-value",this.dataset.seed);
+                if (previousSelectedAvatar) {
+                    previousSelectedAvatar.classList.remove('selected');
+                }
+                this.classList.add('selected');
+                previousSelectedAvatar = this;
+            };
+
+            row.appendChild(avatar); 
+        }
+
+        avatarContainer.appendChild(row); 
+    });
+
+    function showPage(pageNumber) {
+        const pages = document.querySelectorAll('.page');
+        const pageNumbers = document.querySelectorAll('.page-number');
+        
+        // Hide all pages
+        pages.forEach(page => page.style.display = 'none');
+        
+        // Show the selected page
+        document.getElementById('page' + pageNumber).style.display = 'block';
+        
+        // Update active class for page numbers
+        pageNumbers.forEach((number, index) => {
+        if (index + 1 === pageNumber) {
+            number.classList.add('active');
+        } else {
+            number.classList.remove('active');
+        }
+        });
+
+        currentPage = pageNumber;
+        // updateButtons();
+    }
+
+    function submitRegistrationData() {
+        const div = document.getElementById("profile-qs");
+        const inputs = div.querySelectorAll("input, select, textarea");
+        const data = {};
+
+        inputs.forEach(input => {
+            data[input.name] = input.value; 
+        });
+
+        const divs = document.querySelectorAll('#engaged-in-academic-research-activities, #engaged-in-amateur-research-activities, #is-gallica-user, #accept-further-contact, #avatar-seed');
+
+        divs.forEach(div=>{
+            data[div.id] = div.getAttribute('data-selected-value');
+        })
+
+        return data;
+    }
+
+    function previousPage() {
+        incompleteWarningMessage.textContent = '\u00A0';
+
+        if (currentPage > 1) {
+        currentPage--;
+        showPage(currentPage);
+        }
+    }
+
+    function nextPage() {
+        if (isCurrentPageCompleted(currentPage)) {
+            if (currentPage < totalPages) {
+                currentPage++;
+                showPage(currentPage);
+            } else {
+                const registerData = submitRegistrationData();
+                let permissionLevel;
+                let registeredUserName;
+
+                fetch("/auth/profile_submit", {
+                    method: 'POST',
+                    headers: { 'Content-Type' : 'application/json' },
+                    body: JSON.stringify({ userProfileData: registerData })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    permissionLevel = data.permission_level;
+                    registeredUserName = data.username;
+
+                    document.getElementById('registered-user-avatar').src = `https://api.dicebear.com/9.x/thumbs/svg?seed=${registerData['avatar-seed']}`;
+                    document.getElementById('registered-username').textContent = `Bienvenue, ${registeredUserName}`;
+
+                    document.getElementById('registration-page').style.display = 'none';
+                    document.getElementById('loading-animation').style.display = 'block';
+
+                    setTimeout(() => {
+                        if (permissionLevel === 0) {
+                            window.location.href = "{{ url_for('user.index') }}";
+                        } else {
+                            window.location.href = "{{ url_for('admin.index') }}";
+                        }
+                    }, 3000); // show the loading page for 3 seconds
+                    })
+                .catch(error => console.error('Error:', error));
+            }
+        }
+    }
+
+    // function updateButtons() {
+    //     // Disable/enable buttons based on the current page
+    //     // document.getElementById('prevButton').disabled = currentPage === 1;
+        
+    //     // Update button labels
+    //     // document.getElementById('prevButton').style.display = currentPage > 1 ? 'inline-block' : 'none';
+    // }
+
+    function isCurrentPageCompleted() {
+        const pageQuestions = questionsOnEachPage[currentPage];
+        const emptyFields = [];
+        let elementValue;
+        let ageErrorMessage = '';
+
+        for (const questionKey in pageQuestions) {
+            const currentElement = document.getElementById(pageQuestions[questionKey]);
+            const currentParentElement = currentElement.parentElement;
+            
+            if (currentElement.tagName === 'DIV') {
+                elementValue = currentElement.getAttribute('data-selected-value');
+            } else {
+                elementValue = currentElement.value;
+            }
+
+            // ensure "age" input is a valid integer
+            if (pageQuestions[questionKey] === 'age') {
+                const age = parseInt(elementValue, 10);
+                if (!Number.isInteger(age)) {
+                    ageErrorMessage = '😦Veuillez saisir un entier valide';
+                    markElementAsError(currentElement);
+                } else if (age <= 10) {
+                    ageErrorMessage = '🤥Vous êtes si jeune ! 😏pas possible, veuillez saisir votre âge réel';
+                    markElementAsError(currentElement);
+                } else if (age > 120) {
+                    ageErrorMessage = '🤥Vous avez vraiment une longue vie ! 😏pas possible, veuillez saisir votre âge réel';
+                    markElementAsError(currentElement);
+                }
+            }
+            
+            // console.log(pageQuestions[questionKey]);
+            // console.log(elementValue);
+
+            if ((!elementValue) || (currentElement && elementValue && elementValue.trim() === '')) {
+                // always visible questions
+                if (!currentParentElement.classList.contains('fade-in-extra-qs')) {
+                    markElementAsError(currentElement);
+                    emptyFields.push(questionKey); 
+                }
+                // not visible questions; if they are currently visible, thier values could not be empty
+                else if (currentParentElement.classList.contains('fade-in-extra-qs') && currentParentElement.classList.contains('visible')){
+                    markElementAsError(currentElement);
+                    emptyFields.push(questionKey); 
+                }
+            } else {
+                unmarkElementAsError(currentElement);
+            }
+        }
+
+        if (emptyFields.length > 1) {
+            updateIncompleteErrorMessage('😦Veillez à bien remplir tous les champs');
+            return false;
+        } else if (emptyFields.length === 1) {
+            if (emptyFields[0] === 'specifySituation') {
+                updateIncompleteErrorMessage(`😦Veuillez préciser votre situation`);
+            } else if (emptyFields[0] === 'selectAvatar') {
+                updateIncompleteErrorMessage(`😦Veuillez sélectionner un avatar, choisissez librement !`);
+            } else {
+                updateIncompleteErrorMessage(`😦Vous n'avez pas répondu à ${emptyFields[0]}`);
+            }
+            return false;
+        } else {
+            if (ageErrorMessage !== '') {
+                updateIncompleteErrorMessage(ageErrorMessage);
+                markElementAsError(document.getElementById('age'));
+                return false;
+            } else {
+                incompleteWarningMessage.textContent = '\u00A0';
+                return true;
+            }
+        }
+    }
+
+    function updateIncompleteErrorMessage(newMessage) {
+        incompleteWarningMessage.classList.remove('tremble');
+        void incompleteWarningMessage.offsetWidth;
+        incompleteWarningMessage.textContent = newMessage;
+        incompleteWarningMessage.classList.add('tremble');
+    }
+
+    function markElementAsError(e) {
+        const label = document.querySelector(`label[for="${e.id}"]`);
+        label.classList.add('incomplete');
+
+        if (e.tagName !== 'DIV') {
+            e.classList.add('incomplete');
+        }
+    }
+
+    function unmarkElementAsError(e) {
+        const label = document.querySelector(`label[for="${e.id}"]`);
+        label.classList.remove('incomplete');
+
+        if (e.tagName !== 'DIV') {
+            e.classList.remove('incomplete');
+        }
+    }
+
+    showPage(currentPage);
+</script>
+
+
+<script>
+    // handle the pair of oui-non select buttons
+    function handleChoice(value, button) {
+        // Get the parent element of the clicked button
+        const parent = button.parentElement;
+        parent.setAttribute('data-selected-value', value);
+
+        // Get the paired buttons within the parent
+        const yesButton = parent.querySelector("#yesButton");
+        const noButton = parent.querySelector("#noButton");
+
+        // Check which button was clicked and update the status
+        if (value === 'oui') {
+            // Set the clicked yesButton to 'selected' and the noButton to 'unselected'
+            yesButton.classList.add('selected');
+            yesButton.classList.remove('unselected');
+            
+            noButton.classList.remove('selected');
+            noButton.classList.add('unselected');
+        } else if (value === 'non') {
+            // Set the clicked noButton to 'selected' and the yesButton to 'unselected'
+            noButton.classList.add('selected');
+            noButton.classList.remove('unselected');
+            
+            yesButton.classList.remove('selected');
+            yesButton.classList.add('unselected');
+        }
+
+        if (parent.id === 'is-gallica-user') {
+            const frequencyUsageGallicaInput = document.getElementById('frequency-usage-gallica-input');
+            const timeUsageGallicaInput = document.getElementById('time-usage-gallica-input');
+
+            if (value === 'oui') {
+                frequencyUsageGallicaInput.classList.add('visible');    
+                timeUsageGallicaInput.classList.add('visible');  
+            } else {
+                frequencyUsageGallicaInput.classList.remove('visible');    
+                document.getElementById('frequency-usage-gallica').value = "";
+        
+                timeUsageGallicaInput.classList.remove('visible');    
+                document.getElementById('time-usage-gallica').value = "";
+            }
+        }
+    }
+</script>
+
+<script>
+    const situationSelect = document.getElementById('situation');
+    const otherSituationInput = document.getElementById('other-situation-input');
+  
+    situationSelect.addEventListener('change', function() {
+        if (this.value === 'autres situations') {
+            otherSituationInput.classList.add('visible');    
+        } else {
+            otherSituationInput.classList.remove('visible');
+        }
+    });
+</script>
+{% endblock %}

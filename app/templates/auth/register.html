@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="login-area-container fade-in">
+  <h1 class="login-title">Inscription</h1>
+  <form method="post" id="login-form" class="login-input-area-container">
+    <div class="login-block" style="top: 5%;">
+      <label for="username" class="login-label">Nouveau Identifiant</label>
+      <div class="login-input-container">
+        <input class="login-input" name="username" id="username" style="padding-right: 3rem;">
+        <span id="username-status" style="position: relative;"></span> 
+        <!-- <p id="username-status-message" style="position: absolute; top: 100%; right: 0.5rem; margin-top: 0.2rem; font-size: 1rem; font-family: monospace;">&nbsp;</p> -->
+      </div>
+      <p id="username-status-message" class="login-error-message">&nbsp;</p>
+    </div>
+
+    <div class="login-block" style="bottom: 5%;">
+      <label for="password" class="login-label">Mot de passe</label>
+      <div class="login-input-container">
+        <input class="login-input" type="password" name="password" id="password" style="flex-shrink: 0; margin-top: -1vh;">
+        <input id="next-step" type="submit" value="➡" class="login-confirm-button">
+      </div>
+    </div>
+  </form>
+  <a href="{{ url_for('auth.login') }}" class="login-register-switch-link">Déjà un compte? Connectez-vous</a>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('login-form');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const usernameStatus = document.getElementById('username-status');
+    const usernameStatusMessage = document.getElementById('username-status-message');
+    const confirmNextStep = document.getElementById('next-step');
+
+    form.addEventListener('submit', (event) => {
+      let valid = true;
+
+      if (usernameInput.value.trim() === '') {
+        usernameInput.classList.add('error'); 
+        usernameInput.placeholder = 'Veuillez renseigner votre identifiant.';
+        valid = false;
+      } else {
+        usernameInput.placeholder = ''; 
+        usernameInput.classList.remove('error');
+
+        if (passwordInput.value.trim() === '') {
+          passwordInput.placeholder = 'Veuillez renseigner votre mot de passe.';
+          passwordInput.classList.add('error'); 
+          valid = false;
+        } else {
+          passwordInput.placeholder = ''; 
+          passwordInput.classList.remove('error');
+        }
+      }
+      
+      if (!valid) {
+        event.preventDefault();
+      }
+    });
+
+    // if user restarts to input in username, erase previous status (marked by green or red borders)
+    usernameInput.addEventListener('click', () => {
+      usernameInput.placeholder = ''; 
+      usernameInput.classList.remove('error'); 
+      usernameInput.classList.remove('success');
+      usernameStatus.innerHTML = ''; 
+      usernameStatusMessage.textContent = '\u00A0';
+    });
+
+    passwordInput.addEventListener('click', () => {
+      passwordInput.placeholder = ''; 
+      passwordInput.classList.remove('error'); 
+    });
+
+    // check username availability once the user's cursor leaves the username input box
+    usernameInput.addEventListener('blur', () => {
+      usernameInput.classList.remove('error', 'success');
+      usernameStatus.innerHTML = ''; 
+
+      if (usernameInput.value) {
+        fetch("{{ url_for('auth.check_username_availability') }}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: usernameInput.value })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.available) {
+            // Username is available
+            usernameInput.classList.add('success');
+            usernameStatus.innerHTML = '😆'; 
+            usernameStatusMessage.textContent = "Nom d'utilisateur valide";
+            usernameStatusMessage.style.color = 'green';
+            
+            passwordInput.disabled = false; // Enable password input
+            confirmNextStep.disabled = false;
+
+          } else {
+            // Username is not available
+            usernameInput.classList.add('error');
+            usernameStatus.innerHTML = '🫢'; // Error icon
+            usernameStatusMessage.textContent = "Nom d'utilisateur déjà pris";
+            usernameStatusMessage.style.color = 'red';
+
+            passwordInput.disabled = true; // Disable password input
+            confirmNextStep.disabled = true;
+          }
+        })
+        .catch(error => console.error('Error:', error));
+      }
+    });
+});
+</script>
+{% endblock %}

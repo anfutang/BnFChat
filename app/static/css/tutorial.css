@@ -1,0 +1,149 @@
+:root {
+    --overlay-bg-color: rgba(32, 32, 32, 0.7);
+    --tutorial-box-bg-color: #fcf3e0;
+}
+
+@keyframes shining {
+    0%, 100% {
+        filter: brightness(1);
+        transform: scale(1);
+    }
+    50% {
+        filter: brightness(1.1);
+        transform: scale(1.1);
+    }
+}
+
+.overlay::before {
+    content: ''; /* Required for pseudo-elements */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--overlay-bg-color); 
+    pointer-events: auto; 
+    z-index: 1001;
+}
+
+.highlight {
+    /* position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%; */
+    z-index: 1100; 
+    mix-blend-mode: normal; 
+}
+
+.highlight::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    pointer-events: auto; 
+    border: 3px dashed black;
+    box-shadow: 0 0 5px 5px #ecbb6b; 
+    z-index: 1105; 
+}
+
+.focus-button {
+    animation: shining 1.2s linear infinite;
+}
+
+.tutorial-tooltip {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    left: 0;
+    top: 0;
+    width: 50%;
+    height: 30%;
+    border: 2px solid black;
+    border-radius: 10px;
+    background-color: var(--tutorial-box-bg-color);
+    margin: 0;
+    font-size: 0.9rem;
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    padding: 1%;
+    z-index: 1200; 
+}
+
+.tutorial-text {
+    position: absolute;
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+    top: 0;
+    left: 0;
+    margin: 0;
+    padding: 1%;
+    width: 100%;
+    height: 80%;
+    /* border: 3px solid rgb(6, 255, 26); */
+    border-radius: 5px;
+    color: black;
+    font-size: 0.9rem;
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    z-index: 1200;
+}
+
+/* .tutorial-text::before {
+    content: '';
+    position: absolute;
+    top: -20%; 
+    left: 0; 
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 3px 5px 3px; 
+    border-color: black black var(--tutorial-box-bg-color) black;
+} */
+
+.tutorial-next-button {
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: fit-content;
+    height: 1.5rem;
+    /* top: calc(80% - 2rem); */
+    bottom: 5%;
+    right: 2%;
+    border: 2px solid black;
+    border-radius: 5px;
+    background-color: #ecbb6b;
+    box-shadow: 0px 1px 2px rgb(32, 30, 30);
+    font-size: 0.8rem;
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    z-index: 1500;
+}
+
+.tutorial-next-button:hover {
+    filter: brightness(1.2);
+    box-shadow: 1px 2px 3px rgb(32, 30, 30);
+}
+
+.tutorial-next-button:focus {
+    outline: none;
+}
+
+.tutorial-next-button.shining {
+    animation: shining 1.5s linear infinite;
+}
+
+.tutorial-cursor {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 1.2rem;
+    height: 1.2rem;
+    border-radius: 50%;
+    z-index: 1500;
+    pointer-events: none;
+}

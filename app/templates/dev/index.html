@@ -1,0 +1,703 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/user_interface.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tutorial.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="time-area-container" id="time-area-container"></div>
+<div class="thought-area-container" id="thought-area-container"></div>
+<div class="user-area-container" id="user-area-container">
+    <div class="eot-button-container" id="eot-button-container">
+        <!-- <button class="eot-button" id="reset-button" onclick="endConv('reset');">Reset</button> -->
+        <button class="eot-button" id="reset-button" onclick="eraseCurrentConversation();">Reset</button>
+        <p class="eot-button" id="status-text" style="width: 80%; left: 14%; color: whitesmoke; background-color: #3b3b3b; border: none;"></p>
+    </div>
+    <div class="chat-area-container" id="chat-area-container">
+        <div class="chat-container" id="chat-container"></div>
+        <form action="/input" id="user-input-form" method="POST" style="margin: 0;">
+            <div class="input-box-container" id="input-box-container">
+                <input class="input-box" id="user-input" rows="1" name="user-input" placeholder="Saisissez votre message ici…"> 
+            </div>
+            <button class="input-submit-button" type="submit" id="user-input-submit">&#8629;</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade info-modal" id="warningModal">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable fixed-modal-aspect">
+        <div class="modal-content">
+            <div class="modal-header" id="warning-modal-header"></div>
+            <div class="modal-body" id="warning-modal-body"></div>
+            <div class="modal-footer">
+                <button class="modal-confirm-button" style="font-size: 1rem;" onclick="$(document.getElementById('warningModal')).modal('hide');">J'ai compris</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // layout related
+    // fetch the user's avatar as the image alongside user messages
+    // const userAvatar = `https://api.dicebear.com/9.x/lorelei/svg?seed={{ session['avatar-seed'] }}`;
+
+    // set parameters for all modals to avoid repeating; avoid users to close modals by clicking outside or pressing ESC
+    document.querySelectorAll('.info-modal').forEach(modal => {
+        modal.setAttribute('tabindex', '-1');
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.setAttribute('data-backdrop', 'static');
+        modal.setAttribute('data-keyboard', 'false');
+    });
+
+    function grayOutInterface() {
+       document.getElementById('session-info-container').classList.add('grayed-out');
+       document.getElementById('user-area-container').classList.add('grayed-out');
+    }
+
+    function degrayOutInterface() {
+        document.getElementById('session-info-container').classList.remove('grayed-out');
+        document.getElementById('user-area-container').classList.remove('grayed-out');
+    }
+</script>
+
+<script>
+    // chat visualisation related
+
+    // update an element's innerHTML and execute javascript codes in it
+    // 2024.11.23: deprecated, I changed to put all codes in index.html; set check conditions to avoid loading elements that exist only in the chat container (after the user starts to chat).
+    // function updateContentWithScripts(container, html) {
+    //     container.innerHTML = html;
+
+    //     const scripts = container.querySelectorAll("script");
+    //     scripts.forEach(script => {
+    //         const newScript = document.createElement("script");
+    //         if (script.src) {
+    //             newScript.src = script.src;
+    //         } else {
+    //             newScript.textContent = script.textContent;
+    //         }
+    //         document.body.appendChild(newScript); // Add and execute the script
+    //         document.body.removeChild(newScript); // Clean up the script element
+    //     });
+    // }
+
+    const chatInterface = document.getElementById('chat-interface');
+    const chatContainer = document.getElementById('chat-container');
+    const userInputContainer = document.getElementById('input-box-container');
+    const userInputField = document.getElementById('user-input');
+    const userInputSubmitButton = document.getElementById('user-input-submit');
+    const statusText = document.getElementById('status-text');
+    let firstInput = localStorage.getItem('firstInput') ? JSON.parse(localStorage.getItem('firstInput')) : true;
+    let sessionId = 1;
+    let turnCount = 1;
+    let numRetrievedDocs = 0;
+
+    function scrollToBottom() {
+        chatContainer.scroll({
+            top: chatContainer.scrollHeight,
+            behavior: 'smooth'
+        });
+    }
+
+    // 2024.11.24: NOTE that directly set chatContainer.innerHTML = '' won't do it; seems like that fetching an empty select_to_annotate.html still keeps the layout styles.
+    //             setting chatContainer.innerHTML = '' will not hold the places of user messages and LLM responses.
+    function eraseCurrentConversation() {
+        fetch('/dev/erase_chat', {
+            method: 'POST',
+        })
+        .then(response => response.text())
+        .then(html => {
+            chatContainer.innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Error',error);
+        });
+
+        userInputField.disabled = false;
+        userInputSubmitButton.disabled = false;
+        // resetTurnLevelButtons(true);
+
+        document.getElementById('time-area-container').innerHTML = '';
+        document.getElementById('thought-area-container').innerText = '';
+        updateInputStatus(false);
+
+        firstInput = true;
+        localStorage.setItem('firstInput',true);
+    }
+
+    function updateInputStatus(awaitResponse) {
+        if (awaitResponse) {
+            // if the input is submitted, disable input field and button
+            userInputField.value = '';
+            userInputField.disabled = true;
+            userInputSubmitButton.innerHTML = '<p style="font-size: 0.8rem; padding-top: 50%;">⬛</p>';
+            userInputSubmitButton.disabled = true;
+        } else {
+            // re-allow the user to input
+            userInputField.disabled = false;
+            userInputSubmitButton.textContent = '↩';
+            userInputSubmitButton.disabled = false;
+        }
+    }
+
+    let isPreviousInputValid = true;
+
+    function generateUserInputHtml(userInputContent) {
+        const userMessageContainer = document.createElement('div');
+        userMessageContainer.classList.add('user-message-container', 'message-fade-in');
+        userMessageContainer.id = 'currentUserInput';
+
+        // Create the user-message div
+        const userMessage = document.createElement('div');
+        userMessage.classList.add('user-message');
+        userMessage.textContent = `${userInputContent}`;  
+
+        userMessageContainer.appendChild(userMessage);
+
+        // loading point
+        const llmResponseContainer = document.createElement('div');
+        llmResponseContainer.classList.add('llm-response-container', 'message-fade-in');
+
+        const llmMessageContainer = document.createElement('div');
+        llmMessageContainer.classList.add('llm-message-container');
+
+        // remove first the previous llm message container's id, then set it to the new one (loading point will be first put in)
+        if (document.getElementById("llmMessageContainer")) {document.getElementById("llmMessageContainer").removeAttribute("id");}
+        llmMessageContainer.id = 'llmMessageContainer';
+
+        const loadingPoint = document.createElement('div');
+        loadingPoint.classList.add('loading-point');
+
+        // Append the message to the container
+        llmMessageContainer.appendChild(loadingPoint);
+
+        // Append avatar and message container to the LLM response container
+        llmResponseContainer.appendChild(llmMessageContainer);
+
+        return [userMessageContainer, llmResponseContainer];
+    }
+
+    function checkInput() {
+        if (userInputField.value.trim() === '') {
+            userInputField.style.color = 'red';
+            userInputField.value = '🥲 La saisie ne peut pas être vide.';
+            userInputContainer.style.border = "3px solid red";
+            isPreviousInputValid = false;
+            return false
+        } else {
+            userInputField.style.color = 'black';
+            userInputContainer.style.border = "3px solid black";
+            isPreviousInputValid = true;
+            return true
+        }
+    }
+
+    function removeEndTurnMessage() {
+        const endTurnInfo = document.getElementById('end-turn-info');
+        if (endTurnInfo) {
+            // endTurnInfo.style.opacity = 0;
+            endTurnInfo.removeAttribute('id');
+        }
+    }
+
+    // user input
+    document.getElementById('user-input-form').addEventListener('submit', function(event) {
+        event.preventDefault();  
+        removeEndTurnMessage();
+
+        const isInputValid = checkInput();
+
+        if (!isInputValid) {
+            return;
+        }
+
+        const formData = new FormData(this);
+        // in case of chat mode "select", only allow the initial user input
+        if (sessionId === 1 && !userInputField.disabled) {
+            userInputField.disabled = true;
+            userInputSubmitButton.disabled = true;
+        }
+
+        formData.set("first-input",firstInput);
+        
+        if (firstInput) {
+            firstInput = false;
+            localStorage.setItem('firstInput',false);
+        }
+
+        handleUserInput(formData);
+    });
+
+
+    document.getElementById('user-input-form').addEventListener('click', function() {
+        if (!isPreviousInputValid) {
+            userInputField.value = '';
+            userInputField.style.color = 'black';
+            userInputContainer.style.border = "3px solid black";
+        }
+        isPreviousInputValid = true;
+    });
+
+    function handleUserInput(formData, updateInput=true) {
+        // once the user submits, clear the input text and temporarily disable the input.
+        updateInputStatus(true);
+
+        // show input message & a loading point animation
+        const [currentUserMessage, llmLoadingPoint] = generateUserInputHtml(formData.get('user-input'));
+
+        if (updateInput) {
+            chatContainer.appendChild(currentUserMessage);
+        }
+        chatContainer.appendChild(llmLoadingPoint);
+
+        scrollToBottom();
+
+        statusText.innerText  = '';
+
+        // statusText.innerText = "Etape 1: Récupération de documents via l'API Gallica...";
+        
+        fetch('/dev/input', {
+          method: 'POST',
+          body: formData,  
+        })
+        .then(response => response.body)  
+        .then(async (body) => {
+            // 2025.3.2: three stages; 1) retrieve documents; 2) analyze documents; 3) generate clarifications. 
+            const reader = body.getReader();
+            let decoder = new TextDecoder();
+            let buffer = ""; // Store incoming text
+            // let chunkIndex = 0; // Track which chunk is arriving (0 = first, 1 = second, 2 = third)
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;  // Stop when the response is fully received
+
+                // Decode only the **newly received** chunk and add it to the buffer
+                buffer += decoder.decode(value, { stream: true });
+                
+                let lines = buffer.split("\n");
+
+                if (!buffer.endsWith("\n")) {
+                    buffer = lines.pop();
+                } else {
+                    buffer = "";
+                }
+
+                // Process each chunk seperated by '\n'
+                for (const line of lines) {
+                    if (line.trim() === "") continue;
+
+                    try {
+                        const data = JSON.parse(line);
+                        processChunk(data); 
+                    } catch (e) {
+                        console.error("Error handling streaming infos in javascript:", line);
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    // handle decoding French accent letters using utf-8. 
+    function decodeBase64Utf8(base64Str) {
+        const bytes = Uint8Array.from(atob(base64Str), c => c.charCodeAt(0));
+        const decoder = new TextDecoder('utf-8');
+        return decoder.decode(bytes);
+    }
+
+    function processChunk(data) {
+        const dataType = data.type;
+        const content = data.content;
+        if (dataType === "NO") {
+            statusText.innerText  = `🫢 Désolé, nous n'avons pas de documents pour votre requête.`;
+            document.getElementById('llmMessageContainer').innerHTML = '';
+        } else if (dataType === "time") {
+            document.getElementById('time-area-container').innerHTML = decodeBase64Utf8(content);
+        } else if (dataType === "error") {
+            document.getElementById('warning-modal-header').textContent = "Error";
+            document.getElementById('warning-modal-body').textContent = content;
+            $(document.getElementById('warningModal')).modal('show');
+        }else if (dataType === "response"){
+            document.getElementById('llmMessageContainer').innerHTML = decodeBase64Utf8(content);
+            scrollToBottom();
+            removeEndTurnMessage();
+
+            updateInputStatus(false);
+        } else if (status === "retrieval"){
+            numRetrievedDocs = parseInt(content);
+            statusText.innerText  = `${numRetrievedDocs} documents dans la bibliothèque.`;
+        } else if (dataType === "info") {
+            document.getElementById('thought-area-container').innerText = content;
+        } else if (dataType === "stop") {
+            document.getElementById('llmMessageContainer').innerHTML = content;
+            scrollToBottom();
+            removeEndTurnMessage();
+            
+            // unlock input-related field and buttons
+            updateInputStatus(false);
+            statusText.innerText  = `Clarification terminée 👌 ${numRetrievedDocs} documents dans la bibliothèque.`;
+            // statusText.innerText  = `${numRetrievedDocs} documents récupérés.`;
+        }
+    }
+</script>
+
+<script>
+    // user annotation related
+    let selectionClickCounts = localStorage.getItem('selectionClickCounts') ? parseInt(localStorage.getItem('selectionClickCounts')) : 0; 
+    let eliminationClickCounts = localStorage.getItem('eliminationClickCounts') ? parseInt(localStorage.getItem('eliminationClickCounts')) : 0; 
+    let selectedResponseIndex = localStorage.getItem('selectedResponseIndex') ? parseInt(localStorage.getItem('selectedResponseIndex')) : -1;
+    const eliminatedResponseIndexes = new Set(localStorage.getItem('eliminatedResponseIndexes') ? JSON.parse(localStorage.getItem('eliminatedResponseIndexes')) : []);
+    const turnAnnotations = localStorage.getItem('turnAnnotations') ? JSON.parse(localStorage.getItem('turnAnnotations')) : {redondant: "no", unnatural: "no", incomplete:"no"};
+    const userAnnotationKeys = ['selectionClickCounts', 'eliminationClickCounts', 'selectedResponseIndex', 'eliminatedResponseIndexes', 'turnAnnotations']
+
+    function resetUserAnnotations() {
+        selectionClickCounts = 0;
+        eliminationClickCounts = 0;
+        selectedResponseIndex = -1;
+        eliminatedResponseIndexes.clear();
+        Object.keys(turnAnnotations).forEach(key => turnAnnotations[key]='no');
+
+        localStorage.setItem('selectionClickCounts',selectionClickCounts);
+        localStorage.setItem('eliminationClickCounts',eliminationClickCounts);
+        localStorage.setItem('selectedResponseIndex',selectedResponseIndex);
+        localStorage.setItem('eliminatedResponseIndexes',JSON.stringify(Array.from(eliminatedResponseIndexes)));
+        localStorage.setItem('turnAnnotations',JSON.stringify(turnAnnotations));
+    }
+    // eliminatedResponseIndexes = eliminatedResponseIndexes.map(Number);
+
+    // const buttons = document.querySelectorAll(`.llm-message[data-index="selection-0"]`);
+    //     buttons.forEach(button => {
+    //         console.log(button.dataset.index); // Logs all buttons with a matching data-index
+    // });
+
+
+    // fetch existing chat in case the user refreshes the page
+    fetch('/dev/previous_chat', {
+        method: 'POST',
+    })
+    .then(response => response.text())
+    .then(html => {
+        chatContainer.innerHTML = html;
+        updateResponseSelections(); // used to remember user annotations before submission;
+        scrollToBottom(); 
+    })
+    .catch(error => {
+        console.error('Error',error);
+    });
+
+    const endConvInfoTime = 2000;
+
+    function endConv(convLabel) {
+        // below treats the following cases:
+        // 1) the user submits then press end conversation buttons => directly end;
+        // 2) the user annotates, without clicking submit, press end conversation buttons => if unsubmitted annotations detected, submit it then end the current conversation.
+        // 2024.12.6: No, even no annotation, records the input and llm responses as well.
+        submitUserAnnotation(true,convLabel);
+    }
+
+    function informServerEndConv(convLabel) { 
+        // fetch(`/dev/end_conversation`, {
+        //     method: 'POST',
+        //     headers: {'Content-Type': 'application/json'},
+        //     body: JSON.stringify({convLabel: convLabel}),
+        // })
+        // .catch(error => {
+        //     console.error('Error',error);
+        // });
+
+        const eotModal = document.getElementById('endOfTurnModal');
+
+        if (convLabel === 'success') {
+            document.getElementById('eot-modal-header').textContent = 'Fin de conversation';
+            document.getElementById('eot-modal-body').innerHTML = "Ravi de savoir cela !<br>Sauvegardez ...L'interface sera réinitialisée après.";
+            $(eotModal).modal('show');
+
+            setTimeout(() => {
+                $(eotModal).modal('hide');
+                eraseCurrentConversation();
+            }, endConvInfoTime);
+        } else if (convLabel === 'failure') {
+            document.getElementById('eot-modal-header').textContent = 'Fin de conversation';
+            document.getElementById('eot-modal-body').innerHTML = "Nous ferons mieux ...<br>Sauvegardz ...L'interface sera réinitialisée après.";
+            $(eotModal).modal('show');
+
+            setTimeout(() => {
+                $(eotModal).modal('hide');
+                eraseCurrentConversation();
+            }, endConvInfoTime);
+        } else if (convLabel === 'reset') {
+            eraseCurrentConversation();
+        } 
+    }
+
+    function updateResponseSelections() {
+        if (document.querySelector(`.llm-message[data-index="selection-0"]`)) {
+            for (let i = 0; i <= 4; i++) {
+                const selectionButton = document.querySelector(`.llm-message[data-index="selection-${i}"]`);
+                const eliminationButton = document.querySelector(`.llm-message-elimination-button[data-index="elimination-${i}"]`);
+
+                if (i === selectedResponseIndex) {
+                    selectionButton.classList.add("selected");
+                    // selectionButton.disabled = true; 
+                    eliminationButton.style.display = 'none';
+                } else if (eliminatedResponseIndexes.has(i)) {
+                    selectionButton.classList.add("eliminated");
+                    selectionButton.disabled = true; 
+                    eliminationButton.classList.add('selected'); 
+                    eliminationButton.textContent = '⤺'; // if eliminated, show green tick
+                } else {
+                    selectionButton.classList.remove("selected", "eliminated");
+                    selectionButton.disabled = false;
+                    eliminationButton.classList.remove('selected');
+                    eliminationButton.textContent = '✘'; // if not eliminated, show red cross
+                    eliminationButton.style.display = 'block';
+                }
+            }
+
+            // updateUserAnnotations();
+        }   
+    }
+
+    function handleSelection(button) {
+        // Function to handle best RQ / CQ selection
+        const currentSelectedIndex = parseInt(button.dataset.index.split('-')[1], 10);
+        
+        selectedResponseIndex = currentSelectedIndex;
+        localStorage.setItem('selectedResponseIndex',currentSelectedIndex);
+
+        selectionClickCounts++;
+        localStorage.setItem('selectionClickCounts',selectionClickCounts);
+
+        updateResponseSelections();
+    }
+
+    function handleElimination(button) {
+        const newlyEliminatedIndex = parseInt(button.dataset.index.split('-')[1], 10);
+
+        if (eliminatedResponseIndexes.has(newlyEliminatedIndex)) {
+            // if the button is eliminated, reactive it
+            eliminatedResponseIndexes.delete(newlyEliminatedIndex);
+        } else {
+            eliminatedResponseIndexes.add(newlyEliminatedIndex);
+        }
+      
+        localStorage.setItem('eliminatedResponseIndexes',JSON.stringify(Array.from(eliminatedResponseIndexes)));
+
+        eliminationClickCounts++;
+        localStorage.setItem('eliminationClickCounts',eliminationClickCounts);
+        
+        updateResponseSelections();
+    }
+
+    function setWarningModal(headerText, bodyText) {
+        document.getElementById('warning-modal-header').textContent = headerText;
+        document.getElementById('warning-modal-body').textContent = bodyText;
+        $(document.getElementById('warningModal')).modal('show');
+    }
+
+    let isModeTutorial = false;
+
+    function submitUserAnnotation(endConv=false, convLabel='', refresh=false) {
+        // what we submit: selected index, eliminated indexes, three metrics
+        
+        if (!endConv && sessionId !== 2 && selectedResponseIndex === -1) {
+            let proposition;
+            if (sessionId === 1) {
+                proposition = 'requête reformulée';
+            } else {
+                proposition = 'question de clarification';
+            }
+            
+            setWarningModal("🚫 Erreur d'annotation",`😯 Vous devez au moins choisir la meilleure ${proposition} pour continuer.`);
+        } else {
+            const annotationData = {selectionClickCounts: selectionClickCounts,
+                eliminationClickCounts: eliminationClickCounts,
+                selectedResponseIndex: selectedResponseIndex,
+                eliminatedResponseIndexes: Array.from(eliminatedResponseIndexes),
+                convLabel: convLabel,
+            };
+
+            fetch(`/dev/user_annotation`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(annotationData),
+            })
+            .then(response => response.json())
+            .then(data => {
+                const { html, selectedLLMResponse } = data;
+
+                if (html) {
+                    llmMessageContainer = document.getElementById('llmMessageContainer');
+                    llmMessageContainer.innerHTML = html;
+                    llmMessageContainer.removeAttribute('id');
+                    scrollToBottom();
+
+                    resetUserAnnotations();
+                }
+
+
+                // in case the user forgets to submit, but clicks to end turn, collect the annotations but do not show end-turn messsages.
+                if (!endConv) {
+                    // const feedbackInfo = document.getElementById('end-turn-info');
+
+                    // if (sessionId === 1) {
+                    //     feedbackInfo.textContent = "⬇ Annotation soumise. En cours de génération en fonction de votre sélection... ⬇";
+                    // } else if (sessionId === 2) {
+                    //     feedbackInfo.textContent = "⬇ Annotation soumise. Répondez pour continuer. ⬇"
+                    // } else {
+                    //     feedbackInfo.textContent = "⬇ Annotation soumise. Répondez à la question sélectionnée pour continuer. ⬇";
+                    // }
+                    
+                    // feedbackInfo.style.opacity = 1; 
+
+                    // in case of chat mode "select", submitting annotation automatically triggers generaion of RQs for the next turn.
+                    if (sessionId === 1) {
+                        formData = new FormData();
+                        formData.append('user-input',selectedLLMResponse);
+                        handleUserInput(formData,false);
+                    } else {
+                        // in case of chat modes "respond" and "select+respond", re-allow user input only after annotation submission. 
+                        userInputField.disabled = false;
+                        userInputSubmitButton.disabled = false;
+                    }
+                } else {
+                    informServerEndConv(convLabel);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+    }
+
+    // update checkboxes of 'redondant', 'unnatural', 'incomplete'.
+    function updateUserAnnotations() {
+        for (const [annotationKey, annotationValue] of Object.entries(turnAnnotations)) {
+            anntationButton = document.getElementById(annotationKey)
+            if (annotationValue === 'yes') {
+                anntationButton.classList.add('selected');
+                anntationButton.textContent = '✔';
+            } else {
+                anntationButton.classList.remove('selected');
+                anntationButton.textContent = '';
+            }
+        }
+    }
+
+    function userAnnotate(button) {
+        // console.log(turnAnnotations);
+        if (button.classList.contains('selected')) {
+            // if the annotation box is checked, uncheck it
+            turnAnnotations[button.id] = 'no';
+        } else {
+            turnAnnotations[button.id] = 'yes';
+        }
+
+        // console.log(turnAnnotations);
+        updateUserAnnotations();
+        localStorage.setItem('turnAnnotations',JSON.stringify(turnAnnotations));
+    }
+</script>
+
+<script src="{{ url_for('static', filename='script/tutorial_const.js') }}"></script>
+<script src="{{ url_for('static', filename='script/tutorial.js') }}"></script>
+
+<script>
+    let currentTutorialStep;
+    let isInterfaceTutorial = localStorage.getItem('isInterfaceTutorial') ? JSON.parse(localStorage.getItem('isInterfaceTutorial')) : false;
+
+    document.getElementById('ag-modal-body').innerHTML = metricDefinitions;
+
+    function startAnimationTutorial(category) {
+        if (category === 'interface') {
+            currentTutorialStep = 0;
+            isInterfaceTutorial = true;
+            localStorage.setItem('isInterfaceTutorial',true);
+
+            // Show overlay
+            document.getElementById('user-area-container').classList.remove('grayed');
+            document.getElementById('session-info-container').classList.add('overlay');
+            document.getElementById('user-area-container').classList.add('overlay');
+            
+            showInterfaceTutorialStep(0);
+        } else {
+            eraseCurrentConversation();
+
+            currentTutorialStep = 0;
+            isModeTutorial = true;
+            lastElementRect = document.getElementById('chat-container').getBoundingClientRect();
+
+            if (isTimerRunning) {
+                stopTimer(false);
+            }
+
+            document.getElementById('tutorial-next-button').setAttribute("data-index",category);
+
+            document.getElementById('user-area-container').classList.remove('grayed');
+            // document.getElementById("upper-bar-container").classList.add('grayed');
+            // document.getElementById("test-area-container").classList.add('highlight');
+            document.getElementById('chat-interface').classList.add('highlight');
+            resetTurnLevelButtons(false);
+            document.getElementById("subject-text").innerHTML = "Sujet en mode tutoriel - kiwi le fruit <br><span style='color: rgb(187, 12, 12);'>Intention : histoire et l'origine du fruit kiwi</span>";
+
+            showModeTutorialStep(category,0);
+        }
+    }
+
+    // Event listeners for navigation
+    document.getElementById('tutorial-next-button').addEventListener('click', (event) => {
+        currentTutorialStep++;
+        tutorialMode = event.target.dataset.index;
+
+        if (isInterfaceTutorial) {
+            if (currentTutorialStep === interfaceTutorialSteps.length) {
+                endInterfaceTutorial();
+                updateContinueTestInfo();
+                $(document.getElementById('continueTestModal')).modal('show');
+            } else {
+                showInterfaceTutorialStep(currentTutorialStep);
+            }
+        } else {
+            if (currentTutorialStep === sessionId2TutorialSteps[tutorialMode].length) {
+                endModeTutorial();
+            } else {
+                showModeTutorialStep(tutorialMode,currentTutorialStep);
+            }
+        }
+        
+    });
+</script>
+
+<script>
+    // add a link to the result SRU query
+    if (document.getElementById('target-sru-url')) {
+        // Get the value of sru_query (rendered server-side)
+        sruElement = document.getElementById('target-sru-url');
+        let sruQuery = sruElement.textContent.trim();
+
+        // Check if sru_query is not empty
+        if (sruQuery) {
+            // Create the URL using the sru_query value
+            let url = "https://gallica.bnf.fr/SRU?version=1.2&operation=searchRetrieve&query=" + encodeURIComponent(sruQuery) + "&maximumRecords=50&startRecord=1";;
+
+            // Create the anchor (link) element
+            let link = document.createElement('a');
+            link.href = url;
+            link.textContent = sruQuery; // Use the sru_query as the link text
+            link.target = "_blank"; // Make the link open in a new tab
+
+            // Replace the <p> with the clickable link
+            sruElement.innerHTML = ''; // Clear the current content
+            sruElement.appendChild(link); // Append the link to the <p> element
+        }
+    }
+</script>
+{% endblock %}

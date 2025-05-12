@@ -1,0 +1,366 @@
+:root {
+    --admin-button-area-bg-color: #50b4ee;
+    --admin-option-area-bg-color: antiquewhite;
+    --admin-root-font-family: 'Impact';
+    --admin-button-option-text-font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+.admin-button-area {
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: var(--admin-root-font-family);
+    font-size: 1rem;
+    background-color: var(--admin-button-area-bg-color);
+    height: 100%;
+    width: 20%;
+    left: 0;
+    margin: 0;
+}
+
+.admin-label {
+    position: absolute;
+    display: inline-block;
+    text-align: center;
+    vertical-align: middle;
+    font-family: var(--admin-root-font-family);
+    font-size: 1.1rem;
+    color: black;
+    margin: 0;
+    padding: 1%;
+    width: 100%;
+    height: 2rem;
+}
+
+.admin-button {
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: var(--admin-button-option-text-font-family);
+    font-size: 1.1rem;
+    color: black;
+    background-color: rgb(242, 211, 161);
+    border: 2px solid black;
+    border-radius: 5px;
+    width: 70%;
+    height: 3rem;
+    margin: 1%;
+    padding: 1%;
+    box-shadow: 1px 2px 3px #333;
+}
+
+.admin-button:hover {
+    filter: brightness(1.2);
+    box-shadow: 2px 5px 6px #333;
+}
+
+.admin-button:focus {
+    outline: none;
+}
+
+.admin-option-area {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-family: var(--admin-root-font-family);
+    font-size: 1rem;
+    background-color: var(--admin-option-area-bg-color);
+    height: 100%;
+    width: 80%;
+    right: 0;
+    margin: 0;
+    /* border: 3px solid blue; */
+}
+
+
+/* Row of buttons */
+.admin-option-row {
+    position: absolute;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 80%;
+    height: 35%;
+    gap: 10%;
+    /* border: 3px solid green; */
+}
+
+/* Style for each button */
+.admin-option {
+    position: relative;
+    width: 30%;
+    aspect-ratio: 1 / 1;
+    background-color: #f6e38d;
+    color: rgb(0, 0, 0);
+    border: none;
+    border-radius: 15px;
+    font-size: 1rem;  /* Adjust font size for large buttons */
+    font-family: var(--admin-root-font-family);
+    cursor: pointer;
+    box-shadow: 1px 1.5px 2.5px #333;
+    transition: filter 0.5s ease-in-out;
+}
+
+.admin-option:hover {
+    filter: brightness(1.1);
+    box-shadow: 1px 3px 5px #333;
+}
+
+.admin-option:focus {
+    outline: none;
+}
+
+.option-header-container {
+    position: absolute; 
+    display: flex; 
+    justify-content: flex-start; 
+    align-items: center; 
+    width: 100%; 
+    height: 5%; 
+    background-color: #f1cfa1;
+}
+
+.option-header-label {
+    font-size: 1rem; 
+    color: black; 
+    font-family: 'Impact';
+    width: 50%;
+    height: 100%; 
+    display: flex; 
+    justify-content: flex-start;
+    align-items: center;
+    margin: 0;
+    padding: 0.5%;
+}
+
+.back-button {
+    font-size: 1rem;
+    height: 100%;
+    margin: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    text-decoration: none;
+}
+
+.user-data-table-container {
+    position: absolute;
+    display: flex;
+    width: 100%;
+    height: 95%;
+    bottom: 0;
+    /* border: 3px solid red; */
+}
+
+.column-container {
+    position: absolute;
+    width: 10%; 
+    padding: 0; 
+    background-color: #fffafa; 
+    border: 1px solid #878c94; 
+    border-radius: 0; 
+    height: 100%; 
+}
+
+.column-title {
+    position: absolute;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    font-family: 'Impact';
+    font-weight: none; 
+    font-size: 0.92rem;
+    /* pointer-events: none; */
+    margin: 0;
+    padding: 1%;
+    padding-left: 0.5vw;
+    width: 100%;
+    height: 7%;
+    border-bottom: 1px solid #ccc;
+    color: black; 
+    background-color: rgb(28, 143, 236);
+}
+
+.column-content-container {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    width: 100%;
+    height: 93%;
+    top: 7%;
+    overflow-y: auto;
+}
+
+/* .user-block {
+    position: relative;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    height: 3rem;
+    width: 100%;
+    margin: 0;
+} */
+
+.user-rectangle {
+    position: relative;
+    display: flex;
+    align-items: center;
+    border: none;
+    border-bottom: 1px solid #ccc;
+    background-color: #f4f4f4;
+    transition: background-color 0.3s ease; /* Smooth transition for hover */
+    font-family: monospace;
+    font-size: 0.86rem;
+    width: 100%;
+    height: 3rem;
+    margin: 0;
+    padding: 1%; 
+}
+
+.user-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    border: none;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 1%;
+    cursor: pointer;
+}
+
+/* Hover effect for user rectangles */
+.user-button:hover {
+    background-color: #c2bfbf; /* Lighter background on hover */
+    cursor: pointer; /* Change cursor to pointer */
+}
+
+.user-rectangle:focus,
+.user-button:focus {
+    outline: none;
+    border: none;
+}
+
+.user-button:active {
+    background-color: #c2bfbf;
+}
+
+.chat-entry-container {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    margin: 0;
+    gap: 3%;
+    padding: 1%;
+    /* border: 3px solid black; */
+    border-radius: 5px;
+    width: 100%;
+    height: 93%;
+    top: 7%;
+    overflow-y: auto;
+    transition: all 0.3s ease-in-out;
+    background-color: rgb(255, 248, 239);
+}
+
+.user-annotation-showbox {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    width: 150%;
+    height: fit-content;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: black;
+    /* border: 2px solid black; */
+    border-radius: 5px;
+    padding: 0;
+    gap: 0;
+}
+
+.user-annotation-showbox p {
+    margin: 0;
+    padding: 0;
+}
+
+.conversation-annotation-showbox {
+    position: relative;
+    width: 100%;
+    height: fit-content;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    border: 2px dashed black;
+    border-radius: 5px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: black;
+    margin: 0;
+    padding: 1%;
+}
+
+.conversation-annotation-showbox p {
+    margin: 0;
+    padding: 0;
+}
+
+.user-manage-button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 30%;
+    border: none;
+    background: transparent;
+    width: 3vh;
+    height: 3vh;
+    cursor: pointer;
+}
+
+.user-manage-button:hover {
+    scale: 1.1;
+    filter: brightness(1.2);
+    border: 1px solid black;
+}
+
+.user-manage-button:focus {
+    outline: none;
+}
+
+.user-manage-checkbox {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 30%;
+    border: 2px solid black;
+    background: white;
+    width: 2vh;
+    aspect-ratio: 1/1;
+    margin-top: 2vh;
+    margin-right: 1vw;
+    padding: 0;
+}
+
+.user-manage-checkbox:focus {
+    outline: none;
+}
+
+#addUserForm input[type="number"] {
+    width: 25%; 
+    display: inline-block;
+    margin: 0 5px;
+}
+
+#addUserForm label {
+    font-size: 1rem;
+}

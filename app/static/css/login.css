@@ -1,0 +1,162 @@
+:root {
+    --login-title-color: #ec522c;
+    --login-font-family: 'Impact';
+    --input-font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+.login-area-container {
+    position: absolute;
+    display: flex; 
+    flex-direction: column;
+    align-items: center; 
+    justify-content: center; 
+    left: 25%;
+    top: 25%;
+    width: 50%; 
+    height: 50%; 
+    font-size: 1.5rem; 
+    /* border: 3px solid black; */
+}
+
+.login-title {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    top: 0%;
+    height: 10%;
+    color: var(--login-title-color); 
+    font-size: 1.5rem; 
+    font-family: var(--login-font-family); 
+    text-align: center;
+    /* border: 2px solid var(--login-title-color); */
+}
+
+label.login-label {
+    position: relative;
+    /* text-align: left; */
+    font-family: var(--login-font-family); 
+    font-size: 1.5rem;
+    font-weight: normal;
+    /* color: black; */
+    /* border: 2px solid blue; */
+    width: 90%;
+    margin: 0;
+    padding: 0;
+}
+
+/*  the whole login input form */
+.login-input-area-container {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    width: 60%; 
+    height: 80%;
+    /* border: 3px solid blue; */
+    padding: 0;
+}
+
+/* input and password input block */
+.login-block {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+    height: 40%;
+    /* border: 3px solid yellowgreen; */
+}
+
+.login-input-container {
+    position: relative; 
+    height: 3rem; 
+    margin: 0; 
+    padding: 0; 
+    /* border: 2px solid green; */
+}
+
+.login-input {
+    /* align-self: flex-start; */
+    position: relative;
+    border: 2px solid #333; 
+    padding: 0.5rem;
+    font-size: 1.2rem;
+    font-family: var(--input-font-family);
+    border-radius: 5px;
+    width: 80%;
+    height: 3rem;
+    margin: 0;
+}
+  
+.login-input.success {
+  border: 2px solid rgb(12, 181, 12) !important;
+}
+
+.login-input.error {
+    border: 2px solid red;
+}
+
+.login-input.error::placeholder {
+    color: red ;
+    font-size: 1.2rem;
+    font-style: italic;
+    font-family: var(--input-font-family);
+}
+
+
+#otherSituationInput {
+    display: none; 
+}
+
+.login-error-message {
+    display: flex;
+    align-items: center;
+    position: relative;
+    left: 0;
+    text-align: left;
+    padding: 1%;
+    margin: 0;
+    height: 1.5rem;
+    font-size: 0.8rem; 
+    font-family: monospace; 
+    color: red;
+    /* border: 3px solid red; */
+}
+
+
+.login-confirm-button {
+    position: absolute;
+    top: 10%;
+    right: 5%;
+    height: 80%;
+    aspect-ratio: 1 / 1; 
+    background-color: antiquewhite; 
+    border: 2px solid black;
+    border-radius: 5px; 
+    box-shadow: 0 1px 2px #333;
+    font-family: Arial, sans-serif;
+    transition: background-color box-shadow 0.5s linear;
+}
+
+.login-confirm-button:hover {
+    background-color: rgb(232, 177, 74);
+    box-shadow: 0 2px 5px #333;
+}
+
+.login-register-switch-link {
+    position: absolute;
+    bottom: 0;
+    right: 20%;
+    height: 10%;
+    color: var(--login-title-color); 
+    font-family: var(--login-font-family);
+    font-size: 1rem;
+    transition: color 0.5s linear;
+}
+
+.login-register-switch-link:hover {
+    filter: brightness(1.1);
+    color: var(--login-title-color);
+}
+

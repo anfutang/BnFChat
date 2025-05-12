@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/user_interface.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tutorial.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="session-info-container fade-in" id="session-info-container" >
+    <div class="session-info-bar-container" id="session-info-bar-container">
+        <div class="session-timer" id="session-timer"></div>
+        <p style="color: rgb(0, 0, 0);" id="session-id-text">Session - {{ 1 }}</p>
+        <p style="color: rgb(0, 0, 0);" id="session-mode-text">Mode - {{ 2 }}</p>
+    </div>
+    <div class="session-progress-container" id="session-progress-container">
+        <p class="test-type-message" id="test-type-message"></p>
+        <div class="progress-flag-container" id="progress-flag-container">
+            <p class="progress-flag" style="left: calc(33.33% - 0.5em);" id="progress-flag">🚩</p> 
+            <p class="progress-flag" style="left: calc(66.67% - 0.5em);">🚩</p>
+            <p class="progress-flag" style="left: calc(98.6% - 0.5em);">🚩</p>
+        </div>
+        <div class="session-progress-bar-container" id="session-progress-bar-container" style="width: 100%;">
+            <div class="session-progress-bar" id="session-progress-bar" style="left: 0%"></div>
+        </div>
+        <div class="progress-chick-container" style="width: 100%;">
+            <img src="{{ url_for('static', filename='img/baby_chick.png') }}" alt="chick" id="progress-chick" class="progress-chick">
+        </div>
+        <div class="progress-beacon-container" id="beacon-container">
+            <p class="progress-beacon" style="left: calc(33.33% - 1em);" id="progress-beacon-1">&#11014;</p> 
+            <p class="progress-beacon" style="left: calc(66.67% - 1em);" id="progress-beacon-2">⬆</p>
+            <p class="progress-beacon" style="left: calc(98.6% - 1em);" id="progress-beacon-3">⬆</p>
+        </div>
+    </div> 
+    <div class="timer-controller-container" id="timer-controller-container" style="border: 0px solid black;">
+        <button id="session-timer-controller" class="timer-controller"></button>
+        <button id="fast-forward-controller" class="timer-controller" style="margin-left: 1vw; background-color: rgb(247, 103, 60); font-family: sans-serif; width: 6vh;">▶▶</button>
+    </div>
+    <div class="session-task-info-container" id="session-task-info-container">
+        <button class="next-subject-button" id="next-subject-button" style="background-color: #eab751;">⯆</button>
+        <p class="session-task-info"><span style="font-size: 1.5rem;">🐣</span><span id="subject-text"></span><p>
+    </div>
+</div>
+
+<div class="user-area-container fade-in" id="user-area-container">
+    <div class="eot-button-container">
+        <p class="eot-buttons-label">⮯ Je veux terminer parce que :</p>
+        <button class="eot-button" id="reset-button" onclick="endConv('reset');">😐 Je veux recommencer</button>
+        <button class="eot-button" id="success-button" onclick="endConv('success');" style="background-color: rgb(203, 233, 68);">😏 L'ambiguïté est résolue !</button>
+        <button class="eot-button" id="failure-button" onclick="endConv('failure');" style="background-color: rgb(241, 74, 62);">🙁 Cela ne m'aide pas, j'abandonne</button>
+    </div>
+    <div class="chat-area-container">
+        <div class="chat-container" id="chat-container"></div>
+        <form action="/input" id="user-input-form" method="POST" style="margin: 0;">
+            <div class="input-box-container" id="input-box-container">
+                <input class="input-box" id="user-input" rows="1" name="user-input" placeholder="Saisissez votre message ici…"> 
+            </div>
+            <button class="input-submit-button" type="submit" id="user-input-submit">&#8629;</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade info-modal" id="timeUpModal">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable fixed-modal-aspect">
+        <div class="modal-content">
+            <div class="modal-header">
+                Temps écoulé
+            </div>
+            <div class="modal-body">
+                🥲 Vous avez dépassé le temps limite.
+                <p id="time-up-info"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade info-modal" id="continueTestModal">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable fixed-modal-aspect">
+        <div class="modal-content">
+            <div class="modal-header">
+                Suivant...
+            </div>
+            <div class="modal-body">
+                <p id="continue-test-info"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-confirm-button shining" id="confirm-continue-test">Continuer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade info-modal" id="confirmSkipSessionModal">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable fixed-modal-aspect">
+        <div class="modal-content">
+            <div class="modal-header">
+                Confirmation
+            </div>
+            <div class="modal-body">
+                <p id="confirm-skip-session-info"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-confirm-button" id="confirm-skip-session">Oui</button>
+                <button type="button" class="modal-confirm-button" onclick="$(document.getElementById('confirmSkipSessionModal')).modal('hide');startTimer();" style="background-color: rgb(243, 66, 66);">Non</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade info-modal" id="testEndModal">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable fixed-modal-aspect">
+        <div class="modal-content">
+            <div class="modal-header">
+                Fin du test
+            </div>
+            <div class="modal-body">
+                🎉 Vous avez fini le test ! <br> 🙂 Merci de votre participation, à bientôt.  
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade info-modal" id="tutorialModal">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable fixed-modal-aspect">
+        <div class="modal-content">
+            <div class="modal-header" id="tutorial-modal-header"></div>
+            <div class="modal-body" id="tutorial-modal-body"></div>
+            <div class="modal-footer">
+                <button id="tutorial-next-page-button" class="modal-confirm-button shining" style="font-size: 1.2rem;" onclick="nextTutorialPage()">➡</button>
+            </div>
+        </div>
+  </div>
+</div>
+
+<div class="modal fade info-modal" id="warningModal">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable fixed-modal-aspect">
+        <div class="modal-content">
+            <div class="modal-header" id="warning-modal-header"></div>
+            <div class="modal-body" id="warning-modal-body"></div>
+            <div class="modal-footer">
+                <button class="modal-confirm-button" style="font-size: 1rem;" onclick="$(document.getElementById('warningModal')).modal('hide');">J'ai compris</button>
+            </div>
+        </div>
+  </div>
+</div>
+
+<div class="modal fade info-modal" id="endOfTurnModal">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable fixed-modal-aspect">
+        <div class="modal-content">
+            <div class="modal-header" id="eot-modal-header"></div>
+            <div class="modal-body" id="eot-modal-body"></div>
+        </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='script/main.js') }}"></script>
+{% endblock %}

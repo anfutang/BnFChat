@@ -1,0 +1,20 @@
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/user_interface.css') }}">
+{% endblock %}
+
+<p>Retrieval & analyse cost time: {{ extraction_time }}<p>
+
+{% if exact_title_matches %}
+    <p>Possible title matches</p>
+    {% for title, score in exact_title_matches %}
+    <div class="retrieved-documents">
+        <p>{{ title }}: {{ score }}...</p>
+    </div>
+    {% endfor %}
+{% endif %}
+
+{% if titles %}
+    {% for title in titles %}
+        <p>{{ title }}</p>
+    {% endfor %}
+{% endif %}

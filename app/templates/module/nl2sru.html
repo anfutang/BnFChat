@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/user_interface.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="user-area-container" id="user-area-container" style="left: 0%; width: 100%;">
+    <div class="chat-container" id="chat-container" style="left: 5%; width: 90%; color: rgb(241, 222, 186); font-family: 'monospace"></div>
+    <form action="module/nl2sru/input" id="user-input-form" method="POST" style="margin: 0;">
+        <div class="input-box-container" id="input-box-container" style="left: 15%; width: 60%;">
+            <input class="input-box" id="user-input" rows="1" name="user-input" placeholder="Testez avec une requête en langue naturel."> 
+        </div>
+        <button class="input-submit-button" type="submit" id="user-input-submit" style="left: 77%;">&#8629;</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    chatContainer = document.getElementById('chat-container');
+
+    const userInputContainer = document.getElementById('input-box-container');
+    const userInputField = document.getElementById('user-input');
+    const userInputSubmitButton = document.getElementById('user-input-submit');
+
+    const splitMarkers = ["#REASON", "#FIELD", "#SRU-LIKE", "#SRU"];
+
+    function checkInput() {
+        if (userInputField.value.trim() === '') {
+            userInputField.style.color = 'red';
+            userInputField.value = 'La saisie ne peut pas être vide.';
+            userInputContainer.style.border = "3px solid red";
+            return false
+        } else {
+            userInputField.style.color = 'black';
+            userInputContainer.style.border = "3px solid black";
+            return true
+        }
+    }
+
+    document.getElementById('user-input-form').addEventListener('submit', function(event) {
+        event.preventDefault();  
+
+        const isInputValid = checkInput();
+
+        if (!isInputValid) {
+            return;
+        }
+        
+        chatContainer.innerText = '';
+
+        const formData = new FormData(this);
+        userInputField.value = '';
+        handleUserInput(formData);
+
+    });
+
+    function handleUserInput(formData) {        
+        fetch('/module/nl2sru/input', {
+          method: 'POST',
+          body: formData,  
+        })
+        .then(response => response.body)  
+        .then(async (body) => {
+            // 2025.3.2: three stages; 1) retrieve documents; 2) analyze documents; 3) generate clarifications. 
+            const reader = body.getReader();
+            let decoder = new TextDecoder();
+            let buffer = ""; // Store incoming text
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;  // Stop when the response is fully received
+
+                // Decode only the **newly received** chunk and add it to the buffer
+                buffer += decoder.decode(value, { stream: true });
+                console.log(buffer);
+                chatContainer.innerText = buffer;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    function processChunk(chunk, chunkIndex) {
+        let parts = chunk.split(">>>");
+        let status = parts[0]; 
+        let content = parts[1];
+
+        if (status === "NO") {
+            statusText.innerText  = `🫢 Désolé, nous n'avons pas de documents pour votre requête.`;
+            document.getElementById('llmMessageContainer').innerHTML = '';
+        } else if (status === "RETRIEVAL") {
+            numRetrievedDocs = parseInt(content);
+            statusText.innerText  = `${numRetrievedDocs} documents dans la bibliothèque.`;
+        } else if (status === "STOP"){
+            document.getElementById('llmMessageContainer').innerHTML = content;
+            scrollToBottom();
+            removeEndTurnMessage();
+
+            // unlock input-related field and buttons
+            updateInputStatus(false);
+            statusText.innerText  = `Clarification terminée 👌 ${numRetrievedDocs} documents dans la bibliothèque.`;
+        } else if (status === "TIME"){
+            document.getElementById('time-area-container').innerHTML = content;
+        } else if (status === "CONTEXT") {
+            document.getElementById('document-area-container').innerHTML = content;
+        } else {
+            document.getElementById('llmMessageContainer').innerHTML = content;
+            scrollToBottom();
+            removeEndTurnMessage();
+            
+            // unlock input-related field and buttons
+            updateInputStatus(false);
+
+            // statusText.innerText  = `${numRetrievedDocs} documents récupérés.`;
+        }
+    }
+</script>
+{% endblock %}

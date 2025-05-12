@@ -1,0 +1,262 @@
+:root{
+    --input-bg-color: #e9decc;
+    --text-font-family: Georgia, serif;
+}
+
+#profile-question-form input,
+#profile-question-form select,
+#profile-question-form textarea,
+#profile-question-form button {
+    display: inline-block; /* Prevent breaking of elements */
+    box-sizing: border-box; /* Include padding/border in width and height */
+    width: 100%; /* Let elements take up the full width available, but with proper spacing */
+    padding: 0.5em; /* Adjust padding to make it more consistent */
+    margin: 0.5em 0; 
+}
+
+.fade-in-extra-qs {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.fade-in-extra-qs.visible {
+    visibility: visible; 
+    animation: fadeIn 0.5s ease-in forwards;
+}
+
+
+.fade-in-page {
+    animation: fadeIn 1s ease-in forwards;
+}
+
+.fade-in-out-registration-success {
+    animation: fadeIn 1.5s ease-out forwards, fadeOut 1s ease-out forwards;
+    animation-delay: 0s, 2s;
+}
+    
+
+.input-a {
+    padding: 0.5vw;
+    height: 5vh;
+    border: 1px solid #000000;
+    border-radius: 3px;
+    background-color: var(--input-bg-color);
+    font-size: 1rem;
+    font-family: var(--text-font-family);
+    font-weight: none;
+}
+
+.input-a.incomplete {
+    border: 2px solid red !important;
+}
+
+.nav-button {
+    background-color: #3380d3;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+}
+
+.nav-button:disabled {
+    background-color: #ccc;
+}
+
+.content-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    width: 60%;
+    height: 90%;
+    /* border: 2px solid blue; */
+}
+
+select {
+    width: 50%;                
+    height: 5vh;
+    padding: 1px;              
+    border: 1px solid #555;     
+    border-radius: 5px;         
+    background-color: var(--input-bg-color);  
+    color: #333;               
+    font-size: 1rem;            
+    font-family: var(--text-font-family);
+    cursor: pointer;           
+    transition: border-color 0.3s;
+}
+
+.select.incomplete {
+    border: 2px solid red !important;
+}
+  
+select:focus {
+  border-color: #cf5b2d;      
+  outline: none;             
+  box-shadow: 0 0 5px rgba(212, 72, 17, 0.5);
+}
+
+.label-q {
+    font-size: 1.2rem;
+    font-family: var(--text-font-family);
+    font-weight: 100;
+}
+
+.label-q.incomplete {
+    color: #c94039;
+}
+
+.registration-page {
+    width: 100%;
+    height: 80%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+}
+
+.page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin: 0;
+    margin-left: 10%;
+    text-align: left;
+    white-space: normal;
+}
+
+.page-number-list {
+    text-align: center;
+    margin-top: 20vh;
+    position: fixed;
+    bottom: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10; /* Ensure it's always above other content */
+}
+
+.page-number {
+    display: inline-block;
+    margin: 5px;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+    /* uncomment the following lines to enable page number selections */
+    pointer-events: none; 
+    color: #ccc; 
+    opacity: 0.8;
+}
+
+.page-number:hover {
+    /* box-shadow: 1px 4px 6px rgba(0, 0, 0, 0.5); */
+    pointer-events: none; 
+    opacity: 0.8;
+}
+
+.page-number.active {
+    background-color: #dd7960;
+    box-shadow: 0px 2px 3px rgba(0, 0, 0, 0.5);
+}
+
+.nav-button-container {
+    position: absolute;
+    display: flex;
+    justify-content: center; 
+    align-items: center; 
+    /* border: 2px solid red;  */
+    height: 90%; 
+    width: 100%; 
+}
+
+#prevButton {
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 2.5rem;
+    height: 2rem;
+    left: 5%;
+    font-size: 1rem;
+    color: rgb(0, 0, 0);
+    background-color: #dd7960;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 1px 4px 6px rgba(0, 0, 0, 0.2);
+    transition: box-shadow 0.3s ease;
+    outline: none;
+    z-index: 1000;
+}
+
+#nextButton {
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 2.5rem;
+    height: 2rem;
+    font-size: 1rem;
+    color: rgb(0, 0, 0);
+    background-color: #dd7960;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 1px 4px 6px rgba(0, 0, 0, 0.2);
+    transition: box-shadow 0.3s ease;
+    outline: none;
+    z-index: 1000;
+}
+
+#prevButton:focus, #nextButton:focus {
+    outline: none; 
+}
+
+#prevButton:hover, #nextButton:hover {
+    box-shadow: 3px 6px 10px rgba(0, 0, 0, 0.5);
+}
+
+.select-button-group {
+    display: flex;
+    gap: 2em;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+}
+
+.select-button {
+    padding: 0;     
+    border: 2px solid #585757;
+    border-radius: 0.33rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-family: var(--text-font-family);
+    background-color: var(--input-bg-color);;
+    color: #333;
+    width: 5vw;
+    aspect-ratio: 5 / 2;
+}
+
+.select-button:hover {
+    background-color: rgb(238, 214, 162); 
+    transform: scale(1.1); /* Slightly scale the selected button */
+    /* box-shadow: 1 4px 6px rgba(0, 0, 0, 0.2); */
+    transition: transform 0.2s ease;
+}
+
+.select-button.selected {
+    background-color: rgb(238, 214, 162); 
+    transform: scale(1.1); 
+    transition: transform 0.2s ease;
+}
+
+.select-button.unselected {
+    background-color: var(--input-bg-color);;
+    transform: scale(0.8); 
+    transition: transform 0.2s ease;
+}

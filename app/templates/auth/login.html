@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="login-area-container fade-in">
+  <h1 class="login-title">Connexion</h1>
+  <form method="post" id="login-form" class="login-input-area-container">
+    <div class="login-block" style="top: 5%;">
+      <label for="username" class="login-label">Identifiant</label>
+      <div class="login-input-container">
+        <input class="login-input" name="username" id="username"> 
+      </div>
+      <p id="username-error-message" class="login-error-message">&nbsp;</p>
+    </div>
+
+    <div class="login-block" style="bottom: 5%;">
+      <label for="password" class="login-label">Mot de passe</label>
+      <div class="login-input-container">
+        <input class="login-input" type="password" name="password" id="password">
+        <input type="submit" value="➡" class="login-confirm-button">
+      </div>
+      <p id="password-error-message" class="login-error-message">&nbsp;</p>
+    </div>
+  </form>
+  <!-- <a href="{{ url_for('auth.register') }}" class="login-register-switch-link">Pas de compte? Inscrivez-vous</a> -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('login-form');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const usernameErrorMessage = document.getElementById('username-error-message');
+    const passwordErrorMessage = document.getElementById('password-error-message');
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      let valid = true;
+
+      if (usernameInput.value.trim() === '') {
+        usernameInput.classList.add('error'); 
+        usernameInput.placeholder = 'Veuillez renseigner votre identifiant.';
+        valid = false;
+      } else {
+        usernameInput.placeholder = ''; 
+        usernameInput.classList.remove('error');
+
+        if (passwordInput.value.trim() === '') {
+          passwordInput.placeholder = 'Veuillez renseigner votre mot de passe.';
+          passwordInput.classList.add('error'); 
+          valid = false;
+        } else {
+          passwordInput.placeholder = ''; 
+          passwordInput.classList.remove('error');
+        }
+      }
+      
+      if (!valid) {
+        return;
+      }
+
+      fetch("{{ url_for('auth.login') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usernameInput.value, password: passwordInput.value })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.user_error) {
+          usernameInput.classList.add('error');
+          usernameErrorMessage.textContent = "Utilisateur non inscrit";
+        } else if (data.password_error) {
+          passwordInput.classList.add('error');
+          passwordErrorMessage.textContent = "Mot de passe incorrect";
+        } else {
+          window.location.href = data.url;
+        }
+      })
+      .catch(error => console.error('Error:', error));
+    });
+
+    usernameInput.addEventListener('click', () => {
+      usernameInput.placeholder = ''; 
+      usernameErrorMessage.textContent = '\u00A0';
+      usernameInput.classList.remove('error'); 
+      passwordErrorMessage.textContent = '\u00A0';
+      passwordInput.classList.remove('error'); 
+    });
+
+    passwordInput.addEventListener('click', () => {
+      passwordInput.placeholder = ''; 
+      passwordErrorMessage.textContent = '\u00A0';
+      passwordInput.classList.remove('error'); 
+    });
+});
+</script>
+{% endblock %}

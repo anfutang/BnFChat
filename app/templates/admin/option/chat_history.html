@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="option-header-container">
+    <a href="{{ url_for('admin.index') }}" class="back-button" style="text-decoration: none;">⤴️</a>
+    <p class="option-header-label">Histoire de conversations</p>
+</div>
+<div class="user-data-table-container">
+    <div class="column-container">
+        <div class="column-title">Username</div>
+        <div class="column-content-container">
+            {% for user in users %}
+            {% set permission_level = user.data.permission_level | default(0) %}
+                <button class="user-rectangle" onclick="getUserChatIds({{ user.id }},this);">
+                    {{ user.username }}{% for _ in range(permission_level) %}🌟{% endfor %}
+                </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="column-container" style="left: 10%;">
+        <div class="column-title">Chat ID</div>
+        <div id="chat-ids" class="column-content-container"></div>
+    </div>
+
+    <div class="column-container" style="left: 20%; width: 80%;">
+        <div class="column-title">Contenu de Conversation</div>
+        <div class="chat-entry-container" id="chat-content"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let previousSelectedUser = null;
+    let previousSelectedChat = null;
+
+    function getUserChatIds(userId,button) {
+        if (previousSelectedUser) {
+            previousSelectedUser.parentElement.style.backgroundColor = '#f4f4f4';
+        }
+
+        button.parentElement.style.backgroundColor = '#c2bfbf';
+        previousSelectedUser = button;
+
+        fetch(`/admin/chat_history/${userId}`)
+            .then(response => response.json())
+            .then(data => {
+                const chatIds = data.chat_ids;  
+                const container = document.getElementById('chat-ids');  
+
+                container.innerHTML = '';
+
+                chatIds.forEach(chatId => {
+                    const chatDiv = document.createElement('button');
+                    chatDiv.classList.add('user-rectangle');
+                    chatDiv.textContent = `💬#${chatId}`;
+                    chatDiv.onclick = function() {
+                        getChat(userId,chatId);
+                    };
+                    container.appendChild(chatDiv);
+                });
+            })
+            .catch(error => console.error('Error fetching user info:', error));
+    };
+
+    function getChat(userId,chatId) {
+        fetch(`/admin/chat_history/${userId}/${chatId}`)
+            .then(response => response.text())
+            .then(html => {
+                const chatContentDiv = document.getElementById('chat-content');
+                chatContentDiv.innerHTML = html;
+            })
+            .catch(error => console.error('Error fetching user info:', error));
+    };
+</script>
+{% endblock %}  

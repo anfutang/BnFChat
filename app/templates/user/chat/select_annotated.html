@@ -1,0 +1,18 @@
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+{% endblock %}
+
+{% set evals = session["evals"] %}
+
+{% if llm_responses %}
+    {% for llm_response in llm_responses %}
+        {% set index = loop.index0 %}
+        <div class="llm-message-annotation-container">
+            {% if index == evals["selectedResponseIndex"] %}
+                <div class="llm-message selected">
+                   {{ llm_response[0] }}
+                </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+{% endif %}

@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Nouvelle conversation{% endblock %}
+
+{% block header %}
+<div style="display: flex; align-items: center; width: 100%;  margin-top: -50px; margin-bottom: 0; margin-left: -3px;">
+    <h1 style="font-size: 21px; color: #167edf; margin: 0;">Discuter avec LLM</h1>
+    <div style="display: flex; align-items: center;">
+        <a href="{{ url_for('admin.clear_chat') }}" style="padding: 5px 10px; background-color: #ac1c1c; color: white; text-decoration: none; border-radius: 5px; margin-left: 10px;">Effacer</a>
+        <button id="terminate-btn" style="padding: 5px 10px; background-color: #3ec515; color: white; border: none; border-radius: 5px; margin-left: 10px;">Terminer</button>
+        <a href="{{ url_for('admin.index') }}" style="padding: 5px 10px; background-color: #558fcc; color: white; text-decoration: none; border-radius: 5px; margin-left: 10px;">⤴️ Page de Profil</a>
+    </div>
+
+    <div style="flex-grow: 10;"></div>
+
+    <!-- Dropdown List on the Right -->
+    <div style="margin-left: auto; display: flex; align-items: center;">
+        <form id="customDropdownForm" action="{{ url_for('admin.change_chat_mode') }}" method="post">
+            <div class="custom-dropdown">
+                <input type="hidden" id="customSelectedOption" name="chat_mode" value="">
+                <button type="button" id="customDropdownButton" style="padding: 5px 10px; background-color: #cf9c0e; color: white; border: none; border-radius: 5px;">
+                    {% set english_to_french = {'select': 'Sélectionner', 'respond': 'Répondre', 'select+respond': 'Sélectionner puis Répondre'} %}
+                    {{ english_to_french.get(chat_mode) }}
+                </button>
+                <div class="custom-dropdown-content" style="display: none; position: absolute; background-color: #f1f1f1; min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1; flex-direction: column;">
+                    <a href="#" onclick="selectOption('select'); return false;" style="display: block; padding: 8px 16px;">Sélectionner</a>
+                    <a href="#" onclick="selectOption('respond'); return false;" style="display: block; padding: 8px 16px;">Répondre</a>
+                    <a href="#" onclick="selectOption('select+respond'); return false;" style="display: block; padding: 8px 16px;">Sélectionner puis Répondre</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">Confirmer la fin de la conversation</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir mettre fin à la conversation en cours ?<br>⚠️Toute annotation non soumise sera abandonnée.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="confirm-yes">Oui</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Non</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comment Modal -->
+<div class="modal fade" id="commentModal" tabindex="-1" role="dialog" aria-labelledby="commentModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="commentModalLabel">Laissez votre commentaire.<br>Cela peut être n'importe quoi : sur l'interface, sur la qualité de la réponse du LLM, etc.</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <textarea id="comment-text" class="form-control" rows="4" placeholder="Enter your comments here..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <!-- Form for submitting the comment -->
+                <form id="commentForm" method="POST" action="{{ url_for('admin.terminate_session') }}">
+                    <input type="hidden" id="commentInput" name="comment" value="">
+                    <button type="button" class="btn btn-primary" id="submit-comment">Soumettre</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuler</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1" role="dialog" aria-labelledby="successModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="successModalLabel">Succès</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="successMessage">✅</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="success-ok">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error/Warning Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" role="dialog" aria-labelledby="errorModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="errorModalLabel">Error</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="errorMessage">An error occurred.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="error-ok">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% endblock %}
+
+<!-- javascripts for the dropdown list -->
+{% block scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Scroll chat container to the bottom
+        var chatContainer = document.getElementById('chat-container');
+        if (chatContainer) {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Handle dropdown menu
+        var dropdownButton = document.getElementById("customDropdownButton");
+        var dropdownContent = document.querySelector(".custom-dropdown-content");
+
+        dropdownButton.addEventListener("click", function() {
+            dropdownContent.style.display = dropdownContent.style.display === "block" ? "none" : "block";
+        });
+
+        window.addEventListener("click", function(event) {
+            if (!event.target.matches("#customDropdownButton")) {
+                dropdownContent.style.display = "none";
+            }
+        });
+
+        // dropdown selection
+        function selectOption(option) {
+            console.log("Option selected: ", option);
+            document.getElementById('customDropdownButton').textContent = option;
+            document.getElementById('customSelectedOption').value = option;
+            document.getElementById('customDropdownForm').submit(); 
+        }
+
+        document.querySelectorAll('.custom-dropdown-content a').forEach(function(link) {
+            link.addEventListener('click', function(event) {
+                event.preventDefault();  
+                const option = this.getAttribute('onclick').match(/'(.*?)'/)[1]; 
+                selectOption(option);  
+                document.querySelector('.custom-dropdown-content').style.display = 'none';  
+            });
+        });
+    });
+</script>
+
+<!-- javascripts for the pop-up modals -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Show confirmation modal
+        document.getElementById('terminate-btn').addEventListener('click', function() {
+            $('#confirmModal').modal('show');
+        });
+
+        // Handle confirmation
+        document.getElementById('confirm-yes').addEventListener('click', function() {
+            $('#confirmModal').modal('hide');
+
+            // Call the try_submission route
+            fetch("{{ url_for('admin.try_submission') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                var status = data.status;
+                var message = data.message;
+
+                if (status === 'success') {
+                    $('#commentModal').modal('show');
+                } else {
+                    document.getElementById('errorMessage').textContent = message;
+                    $('#errorModal').modal('show');
+                    document.getElementById('error-ok').addEventListener('click', function() {
+                        $('#errorModal').modal('hide'); // Close error modal and stay on the current page
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('errorMessage').textContent = "An unexpected error occurred.";
+                $('#errorModal').modal('show');
+                document.getElementById('error-ok').addEventListener('click', function() {
+                    $('#errorModal').modal('hide'); // Close error modal and stay on the current page
+                });
+            });
+        });
+
+        // Handle comment submission
+        document.getElementById('submit-comment').addEventListener('click', function() {
+            var commentText = document.getElementById('comment-text').value;
+            document.getElementById('commentInput').value = commentText;
+
+            var form = document.getElementById('commentForm');
+            var actionUrl = form.action;
+            var queryString = $(form).serialize(); 
+
+            fetch(actionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: queryString
+            })
+            .then(response => response.json())
+            .then(data => {
+                var status = data.status;
+                var message = data.message;
+
+                $('#commentModal').modal('hide');
+
+                if (status === 'success') {
+                    document.getElementById('successMessage').textContent = message;
+                    $('#successModal').modal('show');
+                    document.getElementById('success-ok').addEventListener('click', function() {
+                        window.location.href = "{{ url_for('admin.new_chat') }}"; // Redirect to new_chat route
+                    });
+                } else {
+                    document.getElementById('errorMessage').textContent = message;
+                    $('#errorModal').modal('show');
+                    document.getElementById('error-ok').addEventListener('click', function() {
+                        $('#errorModal').modal('hide'); // Close error modal and stay on the current page
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    });
+</script>
+
+{% endblock %}
