@@ -1,0 +1,122 @@
+import React, { createContext, useState, useEffect, useContext } from 'react';
+import axios from 'axios';
+
+const AuthContext = createContext();
+
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        const response = await axios.get('/api/auth/check-auth');
+        if (response.data.authenticated) {
+          setCurrentUser({
+            username: response.data.username,
+            avatarSeed: response.data.avatarSeed,
+            permissionLevel: response.data.permissionLevel
+          });
+        } else {
+          setCurrentUser(null);
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        setCurrentUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuthStatus();
+  }, []);
+
+  const login = async (username, password) => {
+    try {
+      const response = await axios.post('/api/auth/login', { username, password });
+      
+      if (response.data.needsProfile) {
+        // User needs to complete profile
+        return { success: true, needsProfile: true };
+      }
+      
+      setCurrentUser({
+        username: response.data.username,
+        avatarSeed: response.data.avatarSeed,
+        permissionLevel: response.data.permissionLevel
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Login failed:', error);
+      return { 
+        success: false, 
+        message: error.response?.data?.error || 'Login failed'
+      };
+    }
+  };
+
+  const register = async (username, password) => {
+    try {
+      const response = await axios.post('/api/auth/register', { username, password });
+      return { success: true };
+    } catch (error) {
+      console.error('Registration failed:', error);
+      return { 
+        success: false, 
+        message: error.response?.data?.error || 'Registration failed'
+      };
+    }
+  };
+
+  const submitProfile = async (profileData) => {
+    try {
+      const response = await axios.post('/api/auth/profile-submit', { 
+        userProfileData: profileData 
+      });
+      
+      setCurrentUser({
+        username: response.data.username,
+        permissionLevel: response.data.permissionLevel
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Profile submission failed:', error);
+      return { 
+        success: false, 
+        message: error.response?.data?.error || 'Profile submission failed'
+      };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await axios.post('/api/auth/logout');
+      setCurrentUser(null);
+      return { success: true };
+    } catch (error) {
+      console.error('Logout failed:', error);
+      return { success: false };
+    }
+  };
+
+  const value = {
+    currentUser,
+    loading,
+    login,
+    register,
+    submitProfile,
+    logout
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
+};
+
+export default AuthContext;

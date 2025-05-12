@@ -2,11 +2,15 @@ import os
 from flask import (Flask, g, session, redirect, url_for, render_template, jsonify)
 from .db import db, init_app, ensure_database_exists
 from . import auth, user, admin, dev, module
+from . import chatbot
+from flask_cors import CORS
+
 from .utils.rag_db_utils import close_rag_db
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
-    
+    CORS(app)
+
     # Default configuration
     app.config.from_mapping(
         SECRET_KEY="dev",
@@ -34,11 +38,12 @@ def create_app(test_config=None):
     ensure_database_exists(app)
 
     # Register blueprints
-    app.register_blueprint(auth.bp, url_prefix='/auth')
+    app.register_blueprint(auth.bp, url_prefix='/api/auth')
     app.register_blueprint(admin.bp, url_prefix='/admin')
     app.register_blueprint(user.bp, url_prefix='/user')
-    app.register_blueprint(dev.bp, url_prefix='/dev')
+    app.register_blueprint(dev.bp, url_prefix='/api/dev')
     app.register_blueprint(module.bp, url_prefix='/module')
+    app.register_blueprint(chatbot.bp, url_prefix='/api/chatbot')
 
     # Set a default route if needed
     # app.add_url_rule('/', view_func=auth.login, endpoint='auth.index')
