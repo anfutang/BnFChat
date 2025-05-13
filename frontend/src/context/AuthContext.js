@@ -17,7 +17,8 @@ export const AuthProvider = ({ children }) => {
           setCurrentUser({
             username: response.data.username,
             avatarSeed: response.data.avatarSeed,
-            permissionLevel: response.data.permissionLevel
+            permissionLevel: response.data.permissionLevel,
+            profileCompleted: response.data.profileCompleted || false
           });
         } else {
           setCurrentUser(null);
@@ -37,15 +38,11 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.post('/api/auth/login', { username, password });
       
-      if (response.data.needsProfile) {
-        // User needs to complete profile
-        return { success: true, needsProfile: true };
-      }
-      
       setCurrentUser({
         username: response.data.username,
         avatarSeed: response.data.avatarSeed,
-        permissionLevel: response.data.permissionLevel
+        permissionLevel: response.data.permissionLevel,
+        profileCompleted: response.data.profileCompleted || false
       });
       
       return { success: true };
@@ -61,7 +58,9 @@ export const AuthProvider = ({ children }) => {
   const register = async (username, password) => {
     try {
       const response = await axios.post('/api/auth/register', { username, password });
-      return { success: true };
+      
+      // After registration, automatically log the user in
+      return login(username, password);
     } catch (error) {
       console.error('Registration failed:', error);
       return { 
@@ -77,10 +76,13 @@ export const AuthProvider = ({ children }) => {
         userProfileData: profileData 
       });
       
-      setCurrentUser({
+      // Update the current user with the new profile data
+      setCurrentUser(prev => ({
+        ...prev,
         username: response.data.username,
-        permissionLevel: response.data.permissionLevel
-      });
+        permissionLevel: response.data.permissionLevel,
+        profileCompleted: response.data.profileCompleted
+      }));
       
       return { success: true };
     } catch (error) {

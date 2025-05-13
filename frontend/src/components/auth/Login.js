@@ -14,7 +14,9 @@ const Login = () => {
   useEffect(() => {
     // If user is already logged in, redirect to the appropriate page
     if (currentUser) {
-      if (currentUser.permissionLevel > 0) {
+      if (!currentUser.profileCompleted) {
+        navigate('/profile');
+      } else if (currentUser.permissionLevel > 0) {
         navigate('/admin');
       } else {
         navigate('/chat');
@@ -37,11 +39,7 @@ const Login = () => {
       const result = await login(username, password);
       
       if (result.success) {
-        if (result.needsProfile) {
-          navigate('/profile');
-        } else {
-          // Auth context will handle the redirect based on permission level
-        }
+        // The redirection will now be handled by the useEffect
       } else {
         setError(result.message || 'Login failed');
       }

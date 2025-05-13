@@ -5,7 +5,7 @@ import axios from 'axios';
 // Auth Components
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
-import ProfileForm from './components/auth/ProfileForm';
+import ProfileWizard from './components/auth/ProfileWizard';
 
 // App Components
 import ChatInterface from './components/chat/ChatInterface';
@@ -90,7 +90,7 @@ function App() {
             {/* Auth Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/profile" element={<ProfileForm />} />
+            <Route path="/profile" element={<ProfileWizard />} />
             
             {/* App Routes */}
             <Route path="/chat" element={
