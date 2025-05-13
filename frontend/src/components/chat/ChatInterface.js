@@ -19,8 +19,10 @@ import SessionSelector from './SessionSelector';
 import SessionNavigation from './SessionNavigation';
 import ThoughtProcess from './ThoughtProcess';
 import AnnotationForm from './AnnotationForm';
+import TutorialSteps from './TutorialSteps';
+import GuidedSearch from './GuidedSearch';
 import './ChatInterface.css';
-
+import ReferenceEvaluationModal from './ReferenceEvaluationModal';
 const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
   const [chatHistory, setChatHistory] = useState([]);
@@ -40,6 +42,8 @@ const ChatInterface = () => {
   const [sessionTimer, setSessionTimer] = useState(null);
   const [showSessionMessage, setShowSessionMessage] = useState(true);
   const [sessionEndAlert, setSessionEndAlert] = useState(false);
+  const [tutorialMode, setTutorialMode] = useState(true);
+  const [tutorialStep, setTutorialStep] = useState(1);
 
   const messageListRef = useRef(null);
   const timerIntervalRef = useRef(null);
@@ -47,50 +51,164 @@ const ChatInterface = () => {
 
   // Load initial session data and chat history
   useEffect(() => {
-    const loadSessionData = async () => {
-      try {
-        const sessionResponse = await axios.get('/api/dev/session-data');
-        setSessionData(sessionResponse.data);
-        
-        // Définir la session actuelle basée sur les données du serveur
-        setCurrentSession(sessionResponse.data.sessionId || 1);
-        
-        // Load tutorial texts if it's first time
-        if (sessionResponse.data.sessionId === 1 && isFirstInput) {
-          const tutorialResponse = await axios.get('/api/dev/tutorial-texts');
-          // Setup tutorial steps based on tutorial texts
-          const steps = [
-            {
-              target: '.chat-container',
-              content: tutorialResponse.data.welcome,
-              placement: 'center',
-            },
-            {
-              target: '.message-input',
-              content: tutorialResponse.data.input,
-              placement: 'top',
-            },
-            // Add more steps as needed
-          ];
-          setTutorialSteps(steps);
-          setShowTutorial(true);
-        }
-        
-        // Load chat history
+  const loadSessionData = async () => {
+    try {
+      const sessionResponse = await axios.get('/api/dev/session-data');
+      setSessionData(sessionResponse.data);
+      
+      // Définir la session actuelle basée sur les données du serveur
+      setCurrentSession(sessionResponse.data.sessionId || 1);
+      
+      // Si on est dans la session tutoriel, activer le mode tutoriel
+      if (sessionResponse.data.sessionId === 1) {
+        setTutorialMode(true);
+        setTutorialStep(1);
+        // Ne pas montrer le tutoriel Joyride
+        setShowTutorial(false);
+      } else {
+        setTutorialMode(false);
+      }
+      
+      // Load chat history si on n'est pas en mode tutoriel
+      if (sessionResponse.data.sessionId > 1) {
         const historyResponse = await axios.get('/api/dev/chat-history');
         if (historyResponse.data && historyResponse.data.length > 0) {
           setChatHistory(historyResponse.data);
           setIsFirstInput(false);
           setShowSessionMessage(false);
         }
-      } catch (error) {
-        console.error('Failed to load session data:', error);
       }
-    };
-    
-    loadSessionData();
-  }, [isFirstInput]);
+    } catch (error) {
+      console.error('Failed to load session data:', error);
+    }
+  };
+  
+  loadSessionData();
+}, []);
 
+
+// Nouveaux états pour la gestion des références
+const [probableReference, setProbableReference] = useState(null);
+const [showReferenceModal, setShowReferenceModal] = useState(false);
+
+// Effet pour détecter la référence probable dans les réponses
+useEffect(() => {
+  // Si on est en session test et qu'on a des messages
+  if (currentSession === 3 && chatHistory.length > 0) {
+    // Chercher le dernier message du bot
+    const lastBotMessage = [...chatHistory].reverse().find(msg => msg.sender === 'bot');
+    
+    if (lastBotMessage && lastBotMessage.metadata) {
+      try {
+        // Essayer d'extraire des métadonnées de référence
+        // Ceci dépendra de votre format exact de métadonnées 
+        // Voici une implémentation d'exemple :
+        
+        // Si les métadonnées contiennent une référence structurée
+        if (lastBotMessage.metadata.reference) {
+          setProbableReference(lastBotMessage.metadata.reference);
+        }
+        // Sinon, essayer de construire une référence à partir des métadonnées textuelles
+        else {
+          // Exemple simple - dans un cas réel, vous devriez parser correctement vos métadonnées
+          const metadataText = lastBotMessage.metadata;
+          
+          // Exemple très simplifié - à adapter selon votre format de métadonnées
+          const titleMatch = metadataText.match(/titre: ([^,]+)/i);
+          const authorMatch = metadataText.match(/auteur: ([^,]+)/i);
+          const yearMatch = metadataText.match(/année: ([^,]+)/i);
+          const coteMatch = metadataText.match(/cote: ([^,]+)/i);
+          
+          if (titleMatch || authorMatch) {
+            setProbableReference({
+              id: Date.now().toString(),
+              title: titleMatch ? titleMatch[1].trim() : "Titre inconnu",
+              author: authorMatch ? authorMatch[1].trim() : "Auteur inconnu",
+              year: yearMatch ? yearMatch[1].trim() : null,
+              cote: coteMatch ? coteMatch[1].trim() : null,
+              type: "Ouvrage"
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Erreur lors de l'analyse des métadonnées de référence:", error);
+      }
+    }
+  }
+}, [chatHistory, currentSession]);
+
+// Fonction pour ouvrir le modal d'évaluation de référence
+const handleViewReference = () => {
+  if (probableReference) {
+    setShowReferenceModal(true);
+  }
+};
+
+// Fonction pour fermer le modal
+const handleCloseReferenceModal = () => {
+  setShowReferenceModal(false);
+};
+const handleExitTutorial = () => {
+  setTutorialMode(false);
+};
+// Fonction pour soumettre l'évaluation d'une référence
+const handleSubmitReferenceEvaluation = async (evaluationData) => {
+  try {
+    await axios.post('/api/dev/evaluate-reference', evaluationData);
+    
+    // Afficher un message de confirmation
+    setChatHistory(prev => [
+      ...prev,
+      {
+        sender: 'system',
+        message: `Évaluation enregistrée (${evaluationData.rating}/5 étoiles). Merci pour votre feedback !`,
+        timestamp: new Date().toISOString()
+      }
+    ]);
+    
+  } catch (error) {
+    console.error('Échec de l\'enregistrement de l\'évaluation:', error);
+  }
+};
+
+// Mise à jour de la fonction handleConfirmChat
+
+
+const handleNextTutorialStep = () => {
+  setTutorialStep(prevStep => prevStep + 1);
+};
+
+const handleCompleteTutorial = () => {
+  // Désactiver le mode tutoriel
+  setTutorialMode(false);
+  
+  // Enregistrer que le tutoriel est terminé
+  axios.post('/api/dev/complete-tutorial')
+    .then(() => {
+      // Préparer le passage à la session libre
+      handleNextSession();
+    })
+    .catch(error => {
+      console.error('Failed to complete tutorial:', error);
+    });
+};
+
+// Fonction pour gérer le redémarrage du tutoriel
+const handleRestartTutorial = () => {
+  setTutorialStep(1);
+};
+
+// Fonction pour confirmer le tutoriel
+const handleConfirmTutorial = () => {
+  setChatHistory(prev => [
+    ...prev,
+    {
+      sender: 'system',
+      message: 'Tutoriel confirmé. Vous pouvez maintenant passer à la session libre.',
+      timestamp: new Date().toISOString()
+    }
+  ]);
+};
   // Effet pour démarrer le minuteur pour la session libre
   useEffect(() => {
     if (currentSession === 2) {
@@ -109,44 +227,87 @@ const ChatInterface = () => {
       return () => clearTimeout(alertTimeout);
     }
   }, [sessionEndAlert]);
+// Effet pour démarrer le minuteur pour la session appropriée
+useEffect(() => {
+  if (currentSession === 2) {
+    return startSessionTimer(5 * 60); // 5 minutes pour la session libre
+  } else if (currentSession === 3) {
+    return startSessionTimer(35 * 60); // 35 minutes pour la session test
+  }
+}, [currentSession]);
 
-  // Fonction de formatage du temps
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
 
-  // Démarrer le minuteur pour la session libre
-  const startSessionTimer = () => {
-    // Nettoyer tout minuteur existant
+const [showGuides, setShowGuides] = useState(false);
+
+// Fonction pour gérer la sélection d'un guide
+const handleSelectGuide = (sampleQuery) => {
+  setUserInput(sampleQuery);
+  // Focus sur l'entrée de message
+  setTimeout(() => {
+    const inputElement = document.querySelector('.cs-message-input__content-editor');
+    if (inputElement) {
+      inputElement.focus();
+    }
+  }, 100);
+};
+
+useEffect(() => {
+  if (currentSession === 3 && showSessionMessage) {
+    setShowGuides(true);
+  } else {
+    setShowGuides(false);
+  }
+}, [currentSession, showSessionMessage]);
+
+
+// Fonction de formatage du temps mise à jour
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+};
+
+// Démarrer le minuteur (version généralisée)
+const startSessionTimer = (totalSeconds) => {
+  // Nettoyer tout minuteur existant
+  if (timerIntervalRef.current) {
+    clearInterval(timerIntervalRef.current);
+  }
+  
+  let timeLeft = totalSeconds;
+  
+  setSessionTimer(formatTime(timeLeft));
+  
+  timerIntervalRef.current = setInterval(() => {
+    timeLeft -= 1;
+    setSessionTimer(formatTime(timeLeft));
+    
+    if (timeLeft <= 0) {
+      clearInterval(timerIntervalRef.current);
+      
+      // Alerte de fin selon la session
+      if (currentSession === 2) {
+        setSessionEndAlert(true);
+      } else if (currentSession === 3) {
+        // Peut-être une alerte différente pour la fin de session test
+        setChatHistory(prev => [
+          ...prev,
+          {
+            sender: 'system',
+            message: 'Votre temps de session test est écoulé. Veuillez confirmer et terminer la session.',
+            timestamp: new Date().toISOString()
+          }
+        ]);
+      }
+    }
+  }, 1000);
+  
+  return () => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
     }
-    
-    if (currentSession === 2) { // Seulement pour la session libre
-      const fiveMinutes = 5 * 60;
-      let timeLeft = fiveMinutes;
-      
-      setSessionTimer(formatTime(timeLeft));
-      
-      timerIntervalRef.current = setInterval(() => {
-        timeLeft -= 1;
-        setSessionTimer(formatTime(timeLeft));
-        
-        if (timeLeft <= 0) {
-          clearInterval(timerIntervalRef.current);
-          setSessionEndAlert(true);
-        }
-      }, 1000);
-      
-      return () => {
-        if (timerIntervalRef.current) {
-          clearInterval(timerIntervalRef.current);
-        }
-      };
-    }
   };
+};
 
   const handleTutorialCallback = (data) => {
     const { status } = data;
@@ -158,6 +319,10 @@ const ChatInterface = () => {
   const handleSubmit = async (message) => {
     if (!message.trim() || isLoading) return;
     
+    // Masquer les guides et le message d'introduction
+    if (showGuides) setShowGuides(false);
+    if (showSessionMessage) setShowSessionMessage(false);
+  
     // Masquer le message d'introduction après la première entrée utilisateur
     if (showSessionMessage) {
       setShowSessionMessage(false);
@@ -252,6 +417,18 @@ const ChatInterface = () => {
     } finally {
       setIsLoading(false);
     }
+
+    setProbableReference({
+      id: "ref-001-test",
+      title: "Les Misérables",
+      author: "Victor Hugo",
+      year: "1862",
+      publisher: "A. Lacroix, Verboeckhoven & Cie",
+      cote: "FOL-Y2-222",
+      type: "Roman",
+      description: "L'œuvre majeure de Victor Hugo racontant l'histoire de Jean Valjean, un ancien forçat qui tente de se racheter."
+    }); 
+  
   };
 
   const handleAnnotationSubmit = async (annotationData) => {
@@ -275,8 +452,13 @@ const ChatInterface = () => {
   const handleNextSession = async () => {
     if (currentSession < 3) {
       try {
-        // Nettoyage du minuteur si on est en session libre
-        if (currentSession === 2 && timerIntervalRef.current) {
+        // Désactiver le mode tutoriel si on quitte la session 1
+        if (currentSession === 1) {
+          setTutorialMode(false);
+        }
+        
+        // Nettoyage du minuteur pour les sessions avec chronomètre
+        if ((currentSession === 2 || currentSession === 3) && timerIntervalRef.current) {
           clearInterval(timerIntervalRef.current);
           setSessionTimer(null);
         }
@@ -287,7 +469,7 @@ const ChatInterface = () => {
           isFreeTest: currentSession === 1 // Session libre = session 2
         });
         
-        // Réinitialisation de l'état du chat
+        // Réinitialisation complète de l'état pour la nouvelle session
         setChatHistory([]);
         setIsFirstInput(true);
         setThoughtProcess([]);
@@ -297,11 +479,7 @@ const ChatInterface = () => {
         // Mise à jour de la session
         setCurrentSession(prevSession => prevSession + 1);
         setShowSessionMessage(true);
-        
-        // Démarrer le minuteur si on passe à la session libre
-        if (currentSession === 1) {
-          // On laisse l'effet useEffect s'en occuper
-        }
+        setShowGuides(currentSession + 1 === 3); // Afficher les guides si on passe à la session test
         
       } catch (error) {
         console.error('Échec du changement de session:', error);
@@ -311,50 +489,99 @@ const ChatInterface = () => {
       navigate('/feedback');
     }
   };
+// Fonction pour recommencer la conversation actuelle
+const handleRestartChat = async () => {
+  try {
+    await axios.post('/api/dev/restart-chat');
+    
+    // Réinitialisation de l'état de la conversation uniquement
+    setChatHistory([]);
+    setIsFirstInput(true);
+    setThoughtProcess([]);
+    setTimingData({});
+    setNeedsAnnotation(false);
+    
+    // Afficher le message de démarrage de conversation
+    setShowSessionMessage(false); // On ne montre pas le message de session puisqu'on reste dans la même session
+    
+    // Ajouter un message système indiquant le redémarrage
+    setChatHistory([{
+      sender: 'system',
+      message: 'Nouvelle conversation démarrée.',
+      timestamp: new Date().toISOString()
+    }]);
+  } catch (error) {
+    console.error('Échec du redémarrage de la conversation:', error);
+  }
+};
 
-  const handleRestartSession = async () => {
-    try {
-      await axios.post('/api/dev/erase-chat');
-      
-      // Réinitialisation de l'état du chat
-      setChatHistory([]);
-      setIsFirstInput(true);
-      setThoughtProcess([]);
-      setTimingData({});
-      setNeedsAnnotation(false);
-      
-      // Redémarrer le minuteur si en session libre
-      if (currentSession === 2) {
-        startSessionTimer();
+// Fonction pour abandonner la conversation actuelle
+const handleAbandonChat = async () => {
+  if (chatHistory.length <= 1) {
+    // S'il n'y a pas encore de vraie conversation, simplement réinitialiser
+    handleRestartChat();
+    return;
+  }
+  
+  try {
+    await axios.post('/api/dev/abandon-chat');
+    
+    // Ajouter un message système
+    setChatHistory(prev => [
+      ...prev,
+      {
+        sender: 'system',
+        message: 'Conversation abandonnée. Vous pouvez démarrer une nouvelle conversation.',
+        timestamp: new Date().toISOString()
       }
-      
-      // Afficher le message d'introduction
-      setShowSessionMessage(true);
-    } catch (error) {
-      console.error('Échec de la réinitialisation du chat:', error);
-    }
-  };
+    ]);
+    
+    // Désactiver l'entrée pour forcer l'utilisateur à redémarrer
+    setIsLoading(true); // Empêche l'envoi de nouveaux messages
+    
+    // Délai avant de proposer de redémarrer
+    setTimeout(() => {
+      setIsLoading(false);
+      setIsFirstInput(true); // Prêt pour une nouvelle conversation
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Échec de l\'abandon de la conversation:', error);
+  }
+};
 
-  const handleEndSession = async () => {
-    try {
-      // Nettoyage du minuteur si on est en session libre
-      if (currentSession === 2 && timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        setSessionTimer(null);
+// Fonction pour confirmer la conversation actuelle comme satisfaisante
+const handleConfirmChat = async () => {
+  if (chatHistory.length <= 1) {
+    // Aucune conversation à confirmer
+    alert('Aucune conversation à confirmer. Posez d\'abord une question.');
+    return;
+  }
+  
+  // Si on est en session test et qu'une référence probable a été identifiée
+  if (currentSession === 3 && probableReference) {
+    // Ouvrir directement le modal d'évaluation
+    setShowReferenceModal(true);
+    return;
+  }
+  
+  try {
+    await axios.post('/api/dev/confirm-chat');
+    
+    // Ajouter un message de confirmation
+    setChatHistory(prev => [
+      ...prev,
+      {
+        sender: 'system',
+        message: 'Conversation confirmée. Cette conversation sera enregistrée comme référence positive.',
+        timestamp: new Date().toISOString()
       }
-      
-      // Enregistrer l'abandon
-      await axios.post('/api/dev/end-session', { 
-        sessionId: currentSession,
-        status: 'abandoned'
-      });
-      
-      // Rediriger vers la page de feedback
-      navigate('/feedback');
-    } catch (error) {
-      console.error('Échec de l\'abandon de session:', error);
-    }
-  };
+    ]);
+    
+  } catch (error) {
+    console.error('Échec de la confirmation de la conversation:', error);
+  }
+};
 
   const handleLogout = async () => {
     try {
@@ -373,21 +600,21 @@ const ChatInterface = () => {
   return (
     <div className="chat-page">
       {/* Tutorial */}
-      {showTutorial && (
-        <Joyride
-          steps={tutorialSteps}
-          run={showTutorial}
-          continuous
-          showProgress
-          showSkipButton
-          callback={handleTutorialCallback}
-          styles={{
-            options: {
-              zIndex: 10000,
-            },
-          }}
-        />
-      )}
+      {showTutorial && !tutorialMode && (
+  <Joyride
+    steps={tutorialSteps}
+    run={showTutorial}
+    continuous
+    showProgress
+    showSkipButton
+    callback={handleTutorialCallback}
+    styles={{
+      options: {
+        zIndex: 10000,
+      },
+    }}
+  />
+)}
 
       {/* Main Chat Interface */}
       <div className="chat-layout">
@@ -409,12 +636,19 @@ const ChatInterface = () => {
           />
           
           <div className="sidebar-footer">
-            <SessionNavigation 
-              currentSession={currentSession}
-              onNextSession={handleNextSession}
-              onRestartSession={handleRestartSession}
-              onEndSession={handleEndSession}
-            />
+          <SessionNavigation 
+  currentSession={currentSession}
+  onNextSession={handleNextSession}
+  onRestartChat={handleRestartChat}
+  onAbandonChat={handleAbandonChat}
+  onConfirmChat={handleConfirmChat}
+  tutorialMode={tutorialMode && currentSession === 1}
+  onRestartTutorial={handleRestartTutorial}
+  onConfirmTutorial={handleConfirmTutorial}
+  onExitTutorial={handleExitTutorial}
+  probableReference={probableReference}
+  onViewReference={handleViewReference}
+/>
             <button onClick={handleLogout} className="logout-btn">Se déconnecter</button>
           </div>
         </div>
@@ -439,48 +673,62 @@ const ChatInterface = () => {
               </ConversationHeader>
               
               <MessageList ref={messageListRef}>
-                {/* Messages d'intro de session */}
-                {showSessionMessage && (
-                  <div className="session-intro-message">
-                    {currentSession === 1 && (
-                      <Message
-                        model={{
-                          message: "Bienvenue dans le tutoriel de BNF Chat. Nous allons vous apprendre à utiliser cet outil de recherche bibliographique. Suivez les instructions et quand vous êtes prêt, cliquez sur 'Commencer session libre'.",
-                          sentTime: new Date().toISOString(),
-                          sender: 'system',
-                          direction: 'incoming',
-                          position: 'single'
-                        }}
-                      />
-                    )}
-                    
-                    {currentSession === 2 && (
-                      <Message
-                        model={{
-                          message: "Vous êtes maintenant dans la session libre. Vous disposez de 5 minutes pour tester librement le chat. Après ce délai, vous serez automatiquement redirigé vers la session test.",
-                          sentTime: new Date().toISOString(),
-                          sender: 'system',
-                          direction: 'incoming',
-                          position: 'single'
-                        }}
-                      />
-                    )}
-                    
-                    {currentSession === 3 && (
-                      <Message
-                        model={{
-                          message: "Vous êtes maintenant dans la session test. Veuillez suivre les instructions pour effectuer les recherches demandées. Quand vous aurez terminé, cliquez sur 'Terminer et évaluer'.",
-                          sentTime: new Date().toISOString(),
-                          sender: 'system',
-                          direction: 'incoming',
-                          position: 'single'
-                        }}
-                      />
-                    )}
-                    
-                    <MessageSeparator>Début de conversation</MessageSeparator>
-                  </div>
-                )}
+  {/* Tutorial mode */}
+  {tutorialMode ? (
+    <TutorialSteps 
+      currentStep={tutorialStep}
+      onNextStep={handleNextTutorialStep}
+      onComplete={handleCompleteTutorial}
+    />
+  ) : (
+    <>
+      {/* Messages d'intro de session */}
+      {showSessionMessage && (
+        <div className="session-intro-message">
+          {currentSession === 1 && (
+            <Message
+              model={{
+                message: "Bienvenue dans le tutoriel de BNF Chat. Nous allons vous apprendre à utiliser cet outil de recherche bibliographique.<br/><br/><strong>Exemple de démarrage :</strong><br/>Essayez de poser une question comme :<br/><em>\"Pouvez-vous me recommander des ouvrages sur l'histoire de Paris au 19ème siècle ?\"</em><br/><br/>Vous pouvez également demander des informations sur des auteurs spécifiques ou des périodes historiques. Quand vous êtes prêt à passer à l'étape suivante, cliquez sur le bouton 'Passer à la session libre' en bas à gauche.",
+                sentTime: new Date().toISOString(),
+                sender: 'system',
+                direction: 'incoming',
+                position: 'single'
+              }}
+            />
+          )}
+          
+          {currentSession === 2 && (
+            <Message
+              model={{
+                message: "Vous êtes maintenant dans la session libre. Vous disposez de 5 minutes pour tester librement le chat. Posez n'importe quelle question sur les ressources bibliographiques de la BNF. Après ce délai, vous serez automatiquement redirigé vers la session test.",
+                sentTime: new Date().toISOString(),
+                sender: 'system',
+                direction: 'incoming',
+                position: 'single'
+              }}
+            />
+          )}
+          
+          {currentSession === 3 && (
+            <Message
+              model={{
+                message: "Vous êtes maintenant dans la session test. Vous disposez de 35 minutes pour effectuer les recherches guidées ci-dessous. Lorsque vous avez terminé, cliquez sur 'Confirmer' pour valider votre session, puis 'Terminer et évaluer' pour passer au questionnaire final.",
+                sentTime: new Date().toISOString(),
+                sender: 'system',
+                direction: 'incoming',
+                position: 'single'
+              }}
+            />
+          )}
+          
+          <MessageSeparator>Début de conversation</MessageSeparator>
+        </div>
+      )}
+
+      {/* Guides de recherche pour la session test */}
+      {showGuides && currentSession === 3 && (
+        <GuidedSearch onSelectGuide={handleSelectGuide} />
+      )}
 
                 {/* Alerte de fin de session libre */}
                 {sessionEndAlert && (
@@ -540,8 +788,18 @@ const ChatInterface = () => {
                 {isLoading && (
                   <TypingIndicator content="BNF traite votre demande..." />
                 )}
-              </MessageList>
-              
+    </>
+  )}
+</MessageList>
+// À ajouter à la fin du rendu, juste avant la fermeture de la div className="chat-page"
+{showReferenceModal && probableReference && (
+  <ReferenceEvaluationModal
+    isOpen={showReferenceModal}
+    onClose={handleCloseReferenceModal}
+    reference={probableReference}
+    onSubmit={handleSubmitReferenceEvaluation}
+  />
+)}
               {!needsAnnotation ? (
                 <MessageInput
                   placeholder="Tapez votre message ici..."
@@ -568,6 +826,7 @@ const ChatInterface = () => {
           />
         </div>
       </div>
+      
     </div>
   );
 };

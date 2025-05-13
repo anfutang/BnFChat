@@ -33,7 +33,8 @@ const SessionSelector = ({ currentSession, totalTime }) => {
         ))}
       </div>
       
-      {currentSession === 2 && totalTime && (
+      {/* Afficher le chronomètre pour les sessions 2 et 3 */}
+      {(currentSession === 2 || currentSession === 3) && totalTime && (
         <div className="session-timer">
           <div className="timer-label">Temps restant:</div>
           <div className="timer-value">{totalTime}</div>

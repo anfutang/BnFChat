@@ -1,56 +1,62 @@
 import React from 'react';
 import './ChatInterface.css';
+import ProbableReference from './ProbableReference';
 
-const SessionNavigation = ({ currentSession, onNextSession, onRestartSession, onEndSession }) => {
-  const renderButtons = () => {
-    switch (currentSession) {
-      case 1: // Tutoriel
-        return (
-          <>
-            <button onClick={onRestartSession} className="restart-btn">
-              Recommencer
-            </button>
-            <button onClick={onNextSession} className="next-btn">
-              Commencer session libre
-            </button>
-          </>
-        );
-      case 2: // Session libre
-        return (
-          <>
-            <button onClick={onRestartSession} className="restart-btn">
-              Recommencer
-            </button>
-            <button onClick={onEndSession} className="abandon-btn">
-              Abandonner
-            </button>
-            <button onClick={onNextSession} className="next-btn">
-              Passer à la session test
-            </button>
-          </>
-        );
-      case 3: // Session test
-        return (
-          <>
-            <button onClick={onRestartSession} className="restart-btn">
-              Recommencer
-            </button>
-            <button onClick={onEndSession} className="abandon-btn">
-              Abandonner
-            </button>
-            <button onClick={onNextSession} className="confirm-btn">
-              Terminer et évaluer
-            </button>
-          </>
-        );
-      default:
-        return null;
-    }
-  };
-
+const SessionNavigation = ({ 
+  currentSession, 
+  onNextSession, 
+  onRestartChat, 
+  onAbandonChat, 
+  onConfirmChat,
+  tutorialMode = false, 
+  onRestartTutorial,
+  onConfirmTutorial,
+  probableReference,
+  onViewReference
+}) => {
   return (
     <div className="session-navigation">
-      {renderButtons()}
+      {/* Actions sur la conversation courante */}
+      <div className="session-actions">
+
+            <button onClick={onRestartChat} className="restart-btn">
+              Recommencer
+            </button>
+            
+              <button onClick={onAbandonChat} className="abandon-btn">
+                Abandonner
+              </button>
+              <button onClick={onConfirmChat} className="confirm-btn">
+                Confirmer
+              </button>
+              {probableReference && currentSession === 3 && (
+                  <ProbableReference 
+                    reference={probableReference} 
+                    onView={onViewReference}
+                  />
+                )}
+      </div>
+      
+      {/* Navigation entre sessions */}
+      <div className="next-session-container">
+        {currentSession === 1 && (
+          <button onClick={onNextSession} className="next-session-btn">
+            Passer à la session libre
+          </button>
+        )}
+        
+        {currentSession === 2 && (
+          <button onClick={onNextSession} className="next-session-btn">
+            Passer à la session test
+          </button>
+        )}
+        
+        {currentSession === 3 && (
+          <button onClick={onNextSession} className="next-session-btn">
+            Terminer et évaluer
+          </button>
+        )}
+      </div>
     </div>
   );
 };
