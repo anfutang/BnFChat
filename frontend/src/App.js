@@ -9,6 +9,7 @@ import ProfileWizard from './components/auth/ProfileWizard';
 
 // App Components
 import ChatInterface from './components/chat/ChatInterface';
+import FeedbackForm from './components/feedback/FeedbackForm';
 import AdminDashboard from './components/admin/AdminDashboard';
 
 // Context
@@ -39,7 +40,7 @@ const ProtectedRoute = ({ children }) => {
   }, []);
 
   if (isLoading) {
-    return <div className="loading">Loading...</div>;
+    return <div className="loading">Chargement...</div>;
   }
 
   return isAuthenticated ? children : <Navigate to="/login" />;
@@ -75,7 +76,7 @@ const AdminRoute = ({ children }) => {
   }, []);
 
   if (isLoading) {
-    return <div className="loading">Loading...</div>;
+    return <div className="loading">Chargement...</div>;
   }
 
   return userData && userData.isAdmin ? children : <Navigate to="/chat" />;
@@ -96,6 +97,13 @@ function App() {
             <Route path="/chat" element={
               <ProtectedRoute>
                 <ChatInterface />
+              </ProtectedRoute>
+            } />
+            
+            {/* Feedback Route */}
+            <Route path="/feedback" element={
+              <ProtectedRoute>
+                <FeedbackForm />
               </ProtectedRoute>
             } />
             

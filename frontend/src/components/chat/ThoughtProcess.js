@@ -4,7 +4,7 @@ import './ChatInterface.css';
 const ThoughtProcess = ({ process, timing }) => {
   return (
     <div className="thought-process-container">
-      <h3>Processing Steps</h3>
+      <h3>Étapes de traitement</h3>
       
       {process && process.length > 0 ? (
         <div className="thought-steps">
@@ -14,18 +14,18 @@ const ThoughtProcess = ({ process, timing }) => {
         </div>
       ) : (
         <div className="empty-thought">
-          <p>The processing steps will appear here when you send a message.</p>
+          <p>Les étapes de traitement apparaîtront ici lorsque vous enverrez un message.</p>
         </div>
       )}
       
       {Object.keys(timing).length > 0 && (
         <div className="timing-data">
-          <h4>Processing Times</h4>
+          <h4>Temps de traitement</h4>
           <table>
             <tbody>
               {Object.entries(timing).map(([key, value]) => (
                 <tr key={key}>
-                  <td>{key.replace(/_/g, ' ').replace(/time/i, 'Time')}</td>
+                  <td>{key.replace(/_/g, ' ').replace(/time/i, 'Temps')}</td>
                   <td>{value}</td>
                 </tr>
               ))}

@@ -16,6 +16,7 @@ import {
 
 import { useAuth } from '../../context/AuthContext';
 import SessionSelector from './SessionSelector';
+import SessionNavigation from './SessionNavigation';
 import ThoughtProcess from './ThoughtProcess';
 import AnnotationForm from './AnnotationForm';
 import './ChatInterface.css';
@@ -33,8 +34,15 @@ const ChatInterface = () => {
   const [currentResponse, setCurrentResponse] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialSteps, setTutorialSteps] = useState([]);
+  
+  // Nouveaux états pour la gestion des sessions
+  const [currentSession, setCurrentSession] = useState(1); // Commence par le tutoriel
+  const [sessionTimer, setSessionTimer] = useState(null);
+  const [showSessionMessage, setShowSessionMessage] = useState(true);
+  const [sessionEndAlert, setSessionEndAlert] = useState(false);
 
   const messageListRef = useRef(null);
+  const timerIntervalRef = useRef(null);
   const navigate = useNavigate();
 
   // Load initial session data and chat history
@@ -43,6 +51,9 @@ const ChatInterface = () => {
       try {
         const sessionResponse = await axios.get('/api/dev/session-data');
         setSessionData(sessionResponse.data);
+        
+        // Définir la session actuelle basée sur les données du serveur
+        setCurrentSession(sessionResponse.data.sessionId || 1);
         
         // Load tutorial texts if it's first time
         if (sessionResponse.data.sessionId === 1 && isFirstInput) {
@@ -70,6 +81,7 @@ const ChatInterface = () => {
         if (historyResponse.data && historyResponse.data.length > 0) {
           setChatHistory(historyResponse.data);
           setIsFirstInput(false);
+          setShowSessionMessage(false);
         }
       } catch (error) {
         console.error('Failed to load session data:', error);
@@ -78,6 +90,63 @@ const ChatInterface = () => {
     
     loadSessionData();
   }, [isFirstInput]);
+
+  // Effet pour démarrer le minuteur pour la session libre
+  useEffect(() => {
+    if (currentSession === 2) {
+      return startSessionTimer();
+    }
+  }, [currentSession]);
+
+  // Gérer la fin de la session libre
+  useEffect(() => {
+    if (sessionEndAlert) {
+      const alertTimeout = setTimeout(() => {
+        handleNextSession();
+        setSessionEndAlert(false);
+      }, 3000); // Après l'affichage de l'alerte
+      
+      return () => clearTimeout(alertTimeout);
+    }
+  }, [sessionEndAlert]);
+
+  // Fonction de formatage du temps
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  // Démarrer le minuteur pour la session libre
+  const startSessionTimer = () => {
+    // Nettoyer tout minuteur existant
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+    }
+    
+    if (currentSession === 2) { // Seulement pour la session libre
+      const fiveMinutes = 5 * 60;
+      let timeLeft = fiveMinutes;
+      
+      setSessionTimer(formatTime(timeLeft));
+      
+      timerIntervalRef.current = setInterval(() => {
+        timeLeft -= 1;
+        setSessionTimer(formatTime(timeLeft));
+        
+        if (timeLeft <= 0) {
+          clearInterval(timerIntervalRef.current);
+          setSessionEndAlert(true);
+        }
+      }, 1000);
+      
+      return () => {
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+        }
+      };
+    }
+  };
 
   const handleTutorialCallback = (data) => {
     const { status } = data;
@@ -88,6 +157,11 @@ const ChatInterface = () => {
 
   const handleSubmit = async (message) => {
     if (!message.trim() || isLoading) return;
+    
+    // Masquer le message d'introduction après la première entrée utilisateur
+    if (showSessionMessage) {
+      setShowSessionMessage(false);
+    }
     
     setUserInput('');
     setIsLoading(true);
@@ -108,7 +182,8 @@ const ChatInterface = () => {
       // Create EventSource for streaming response
       const response = await axios.post('/api/dev/input', {
         userInput: message,
-        firstInput: isFirstInput
+        firstInput: isFirstInput,
+        sessionType: currentSession // Envoyer le type de session actuel
       }, {
         responseType: 'text'
       });
@@ -135,7 +210,7 @@ const ChatInterface = () => {
                 ...prev, 
                 {
                   sender: 'system',
-                  message: `Error: ${data.content}`,
+                  message: `Erreur: ${data.content}`,
                   timestamp: new Date().toISOString()
                 }
               ]);
@@ -170,7 +245,7 @@ const ChatInterface = () => {
         ...prev, 
         {
           sender: 'system',
-          message: 'Failed to send message. Please try again.',
+          message: 'Échec de l\'envoi du message. Veuillez réessayer.',
           timestamp: new Date().toISOString()
         }
       ]);
@@ -189,6 +264,7 @@ const ChatInterface = () => {
       if (annotationData.convLabel) {
         setChatHistory([]);
         setIsFirstInput(true);
+        setShowSessionMessage(true);
       }
       
     } catch (error) {
@@ -196,48 +272,101 @@ const ChatInterface = () => {
     }
   };
 
-  const handleSessionChange = async (sessionId, isFreeTest) => {
+  const handleNextSession = async () => {
+    if (currentSession < 3) {
+      try {
+        // Nettoyage du minuteur si on est en session libre
+        if (currentSession === 2 && timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          setSessionTimer(null);
+        }
+        
+        // Appel API pour changer de session
+        await axios.post('/api/dev/change-session', { 
+          sessionId: currentSession + 1, 
+          isFreeTest: currentSession === 1 // Session libre = session 2
+        });
+        
+        // Réinitialisation de l'état du chat
+        setChatHistory([]);
+        setIsFirstInput(true);
+        setThoughtProcess([]);
+        setTimingData({});
+        setNeedsAnnotation(false);
+        
+        // Mise à jour de la session
+        setCurrentSession(prevSession => prevSession + 1);
+        setShowSessionMessage(true);
+        
+        // Démarrer le minuteur si on passe à la session libre
+        if (currentSession === 1) {
+          // On laisse l'effet useEffect s'en occuper
+        }
+        
+      } catch (error) {
+        console.error('Échec du changement de session:', error);
+      }
+    } else {
+      // Rediriger vers la page de feedback
+      navigate('/feedback');
+    }
+  };
+
+  const handleRestartSession = async () => {
     try {
-      await axios.post('/api/dev/change-session', { 
-        sessionId, 
-        isFreeTest 
-      });
+      await axios.post('/api/dev/erase-chat');
       
-      // Reset chat state
+      // Réinitialisation de l'état du chat
       setChatHistory([]);
       setIsFirstInput(true);
       setThoughtProcess([]);
       setTimingData({});
       setNeedsAnnotation(false);
       
-      // Update session data
-      const sessionResponse = await axios.get('/api/dev/session-data');
-      setSessionData(sessionResponse.data);
+      // Redémarrer le minuteur si en session libre
+      if (currentSession === 2) {
+        startSessionTimer();
+      }
       
+      // Afficher le message d'introduction
+      setShowSessionMessage(true);
     } catch (error) {
-      console.error('Failed to change session:', error);
+      console.error('Échec de la réinitialisation du chat:', error);
+    }
+  };
+
+  const handleEndSession = async () => {
+    try {
+      // Nettoyage du minuteur si on est en session libre
+      if (currentSession === 2 && timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        setSessionTimer(null);
+      }
+      
+      // Enregistrer l'abandon
+      await axios.post('/api/dev/end-session', { 
+        sessionId: currentSession,
+        status: 'abandoned'
+      });
+      
+      // Rediriger vers la page de feedback
+      navigate('/feedback');
+    } catch (error) {
+      console.error('Échec de l\'abandon de session:', error);
     }
   };
 
   const handleLogout = async () => {
     try {
+      // Nettoyage du minuteur
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+      
       await logout();
       navigate('/login');
     } catch (error) {
-      console.error('Logout failed:', error);
-    }
-  };
-
-  const handleEraseChat = async () => {
-    try {
-      await axios.post('/api/dev/erase-chat');
-      setChatHistory([]);
-      setIsFirstInput(true);
-      setThoughtProcess([]);
-      setTimingData({});
-      setNeedsAnnotation(false);
-    } catch (error) {
-      console.error('Failed to erase chat:', error);
+      console.error('Échec de la déconnexion:', error);
     }
   };
 
@@ -275,14 +404,18 @@ const ChatInterface = () => {
           </div>
           
           <SessionSelector 
-            currentSessionId={sessionData?.sessionId}
-            isFreeTest={sessionData?.freeTest}
-            onSessionChange={handleSessionChange}
+            currentSession={currentSession}
+            totalTime={sessionTimer}
           />
           
           <div className="sidebar-footer">
-            <button onClick={handleEraseChat}>New Chat</button>
-            <button onClick={handleLogout}>Logout</button>
+            <SessionNavigation 
+              currentSession={currentSession}
+              onNextSession={handleNextSession}
+              onRestartSession={handleRestartSession}
+              onEndSession={handleEndSession}
+            />
+            <button onClick={handleLogout} className="logout-btn">Se déconnecter</button>
           </div>
         </div>
         
@@ -291,24 +424,90 @@ const ChatInterface = () => {
             <ChatContainer>
               <ConversationHeader>
                 <ConversationHeader.Content>
-                  BNF Chat {sessionData?.chatMode && `- ${sessionData.chatMode} mode`}
+                  {currentSession === 3 ? (
+                    <div className="test-session-title">Recherche documentaire BNF</div>
+                  ) : (
+                    <div>BNF Chat {currentSession === 1 ? '- Tutoriel' : currentSession === 2 ? '- Session libre' : ''}</div>
+                  )}
                 </ConversationHeader.Content>
                 <ConversationHeader.Actions>
                   {sessionData?.devMode && <span className="dev-badge">DEV MODE</span>}
+                  {currentSession === 2 && sessionTimer && (
+                    <span className="session-timer-badge">{sessionTimer}</span>
+                  )}
                 </ConversationHeader.Actions>
               </ConversationHeader>
               
               <MessageList ref={messageListRef}>
-                {chatHistory.length === 0 && (
+                {/* Messages d'intro de session */}
+                {showSessionMessage && (
+                  <div className="session-intro-message">
+                    {currentSession === 1 && (
+                      <Message
+                        model={{
+                          message: "Bienvenue dans le tutoriel de BNF Chat. Nous allons vous apprendre à utiliser cet outil de recherche bibliographique. Suivez les instructions et quand vous êtes prêt, cliquez sur 'Commencer session libre'.",
+                          sentTime: new Date().toISOString(),
+                          sender: 'system',
+                          direction: 'incoming',
+                          position: 'single'
+                        }}
+                      />
+                    )}
+                    
+                    {currentSession === 2 && (
+                      <Message
+                        model={{
+                          message: "Vous êtes maintenant dans la session libre. Vous disposez de 5 minutes pour tester librement le chat. Après ce délai, vous serez automatiquement redirigé vers la session test.",
+                          sentTime: new Date().toISOString(),
+                          sender: 'system',
+                          direction: 'incoming',
+                          position: 'single'
+                        }}
+                      />
+                    )}
+                    
+                    {currentSession === 3 && (
+                      <Message
+                        model={{
+                          message: "Vous êtes maintenant dans la session test. Veuillez suivre les instructions pour effectuer les recherches demandées. Quand vous aurez terminé, cliquez sur 'Terminer et évaluer'.",
+                          sentTime: new Date().toISOString(),
+                          sender: 'system',
+                          direction: 'incoming',
+                          position: 'single'
+                        }}
+                      />
+                    )}
+                    
+                    <MessageSeparator>Début de conversation</MessageSeparator>
+                  </div>
+                )}
+
+                {/* Alerte de fin de session libre */}
+                {sessionEndAlert && (
+                  <div className="session-alert">
+                    <Message
+                      model={{
+                        message: "Votre temps de session libre est écoulé. Vous allez être redirigé vers la session test...",
+                        sentTime: new Date().toISOString(),
+                        sender: 'system',
+                        direction: 'incoming',
+                        position: 'single'
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Contenu du chat */}
+                {chatHistory.length === 0 && !showSessionMessage && !sessionEndAlert && (
                   <div className="empty-chat">
-                    <p>Start a new conversation by typing a message below.</p>
+                    <p>Commencez une nouvelle conversation en tapant un message ci-dessous.</p>
                   </div>
                 )}
                 
                 {chatHistory.map((msg, index) => (
                   <React.Fragment key={index}>
                     {index > 0 && msg.sender === 'user' && chatHistory[index-1].sender === 'bot' && (
-                      <MessageSeparator>New Question</MessageSeparator>
+                      <MessageSeparator>Nouvelle Question</MessageSeparator>
                     )}
                     <Message
                       model={{
@@ -322,14 +521,14 @@ const ChatInterface = () => {
                       {msg.sender !== 'user' && (
                         <Avatar 
                           src={msg.sender === 'bot' ? '/logo.png' : null} 
-                          name={msg.sender === 'bot' ? 'BNF' : 'System'} 
+                          name={msg.sender === 'bot' ? 'BNF' : 'Système'} 
                         />
                       )}
                       <Message.CustomContent>
                         <div dangerouslySetInnerHTML={{ __html: msg.message }} />
                         {msg.metadata && (
                           <div className="message-metadata">
-                            <h4>Extracted Metadata:</h4>
+                            <h4>Métadonnées extraites:</h4>
                             <div dangerouslySetInnerHTML={{ __html: msg.metadata }} />
                           </div>
                         )}
@@ -339,17 +538,17 @@ const ChatInterface = () => {
                 ))}
                 
                 {isLoading && (
-                  <TypingIndicator content="BNF is processing your request..." />
+                  <TypingIndicator content="BNF traite votre demande..." />
                 )}
               </MessageList>
               
               {!needsAnnotation ? (
                 <MessageInput
-                  placeholder="Type your message here..."
+                  placeholder="Tapez votre message ici..."
                   value={userInput}
                   onChange={val => setUserInput(val)}
                   onSend={handleSubmit}
-                  disabled={isLoading || needsAnnotation}
+                  disabled={isLoading || needsAnnotation || sessionEndAlert}
                   attachButton={false}
                 />
               ) : (

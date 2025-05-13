@@ -19,7 +19,7 @@ const AnnotationForm = ({ onSubmit, response }) => {
       relevance,
       clarity,
       comments,
-      selectedResponseIndex: 0, // Since we're in respond mode
+      selectedResponseIndex: 0, // Puisque nous sommes en mode réponse
       convLabel: endConversation ? convLabel : ''
     };
     
@@ -28,14 +28,14 @@ const AnnotationForm = ({ onSubmit, response }) => {
 
   return (
     <div className="annotation-form">
-      <h3>Please Evaluate the Response</h3>
+      <h3>Veuillez évaluer la réponse</h3>
       
       <form onSubmit={handleSubmit}>
         <div className="rating-section">
           <div className="rating-item">
             <label>Satisfaction</label>
             <div className="rating-scale">
-              <span>Not satisfied</span>
+              <span>Pas satisfait</span>
               {[1, 2, 3, 4, 5].map((value) => (
                 <label key={value} className="rating-option">
                   <input
@@ -48,14 +48,14 @@ const AnnotationForm = ({ onSubmit, response }) => {
                   <span>{value}</span>
                 </label>
               ))}
-              <span>Very satisfied</span>
+              <span>Très satisfait</span>
             </div>
           </div>
           
           <div className="rating-item">
-            <label>Helpfulness</label>
+            <label>Utilité</label>
             <div className="rating-scale">
-              <span>Not helpful</span>
+              <span>Pas utile</span>
               {[1, 2, 3, 4, 5].map((value) => (
                 <label key={value} className="rating-option">
                   <input
@@ -68,14 +68,14 @@ const AnnotationForm = ({ onSubmit, response }) => {
                   <span>{value}</span>
                 </label>
               ))}
-              <span>Very helpful</span>
+              <span>Très utile</span>
             </div>
           </div>
           
           <div className="rating-item">
-            <label>Relevance</label>
+            <label>Pertinence</label>
             <div className="rating-scale">
-              <span>Not relevant</span>
+              <span>Pas pertinent</span>
               {[1, 2, 3, 4, 5].map((value) => (
                 <label key={value} className="rating-option">
                   <input
@@ -88,14 +88,14 @@ const AnnotationForm = ({ onSubmit, response }) => {
                   <span>{value}</span>
                 </label>
               ))}
-              <span>Very relevant</span>
+              <span>Très pertinent</span>
             </div>
           </div>
           
           <div className="rating-item">
-            <label>Clarity</label>
+            <label>Clarté</label>
             <div className="rating-scale">
-              <span>Not clear</span>
+              <span>Pas clair</span>
               {[1, 2, 3, 4, 5].map((value) => (
                 <label key={value} className="rating-option">
                   <input
@@ -108,18 +108,18 @@ const AnnotationForm = ({ onSubmit, response }) => {
                   <span>{value}</span>
                 </label>
               ))}
-              <span>Very clear</span>
+              <span>Très clair</span>
             </div>
           </div>
         </div>
         
         <div className="comments-section">
-          <label htmlFor="comments">Additional Comments (Optional)</label>
+          <label htmlFor="comments">Commentaires supplémentaires (Optionnel)</label>
           <textarea
             id="comments"
             value={comments}
             onChange={(e) => setComments(e.target.value)}
-            placeholder="Any other feedback about the response?"
+            placeholder="Avez-vous d'autres commentaires sur la réponse ?"
             rows={3}
           />
         </div>
@@ -131,23 +131,23 @@ const AnnotationForm = ({ onSubmit, response }) => {
               checked={endConversation}
               onChange={(e) => setEndConversation(e.target.checked)}
             />
-            End Conversation
+            Terminer la conversation
           </label>
           
           {endConversation && (
             <div className="conv-label-section">
-              <label htmlFor="conv-label">Conversation Label</label>
+              <label htmlFor="conv-label">Étiquette de conversation</label>
               <select
                 id="conv-label"
                 value={convLabel}
                 onChange={(e) => setConvLabel(e.target.value)}
                 required={endConversation}
               >
-                <option value="">Select a label</option>
-                <option value="success">Success - Found what I needed</option>
-                <option value="partial">Partial Success - Found some information</option>
-                <option value="failure">Failure - Couldn't find what I needed</option>
-                <option value="interrupted">Interrupted - Had to end early</option>
+                <option value="">Sélectionnez une étiquette</option>
+                <option value="success">Succès - J'ai trouvé ce que je cherchais</option>
+                <option value="partial">Succès partiel - J'ai trouvé certaines informations</option>
+                <option value="failure">Échec - Je n'ai pas trouvé ce que je cherchais</option>
+                <option value="interrupted">Interrompu - J'ai dû terminer rapidement</option>
               </select>
             </div>
           )}
@@ -155,7 +155,7 @@ const AnnotationForm = ({ onSubmit, response }) => {
         
         <div className="form-actions">
           <button type="submit" className="submit-btn">
-            Submit Evaluation
+            Soumettre l'évaluation
           </button>
         </div>
       </form>
