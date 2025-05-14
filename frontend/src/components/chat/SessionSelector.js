@@ -1,46 +1,45 @@
 import React from 'react';
 import './ChatInterface.css';
 
-const SessionSelector = ({ currentSessionId, isFreeTest, onSessionChange }) => {
-  // Define the available session types
-  const sessionTypes = [
-    { id: 1, name: 'Respond Mode', description: 'AI responds to your questions' },
-    { id: 2, name: 'Select Mode', description: 'Choose from multiple AI responses' },
-    { id: 3, name: 'Mixed Mode', description: 'Combination of respond and select modes' }
+const SessionSelector = ({ currentSession, totalTime }) => {
+  // Les sessions en séquence
+  const sessions = [
+    { id: 1, name: 'Tutoriel', description: 'Comment utiliser l\'outil' },
+    { id: 2, name: 'Session libre', description: '5 minutes d\'essai libre' },
+    { id: 3, name: 'Session test', description: 'Session guidée (35 minutes)' }
   ];
 
-  const handleSessionClick = (sessionId) => {
-    onSessionChange(sessionId, true);
-  };
-
+  const currentSessionInfo = sessions.find(s => s.id === currentSession) || sessions[0];
+  
   return (
     <div className="session-selector">
-      <h3>Session Type</h3>
+      <h3>Progression</h3>
       
-      <div className="session-options">
-        {sessionTypes.map(session => (
+      <div className="session-progress">
+        {sessions.map(session => (
           <div 
             key={session.id}
-            className={`session-option ${currentSessionId === session.id ? 'active' : ''}`}
-            onClick={() => handleSessionClick(session.id)}
+            className={`session-step ${currentSession === session.id ? 'active' : ''} 
+                         ${currentSession > session.id ? 'completed' : ''}`}
           >
-            <div className="session-name">{session.name}</div>
-            <div className="session-description">{session.description}</div>
+            <div className="step-number">{session.id}</div>
+            <div className="step-info">
+              <div className="session-name">{session.name}</div>
+              {currentSession === session.id && (
+                <div className="session-description">{session.description}</div>
+              )}
+            </div>
           </div>
         ))}
       </div>
       
-      <div className="free-test-toggle">
-        <label className="toggle">
-          <input 
-            type="checkbox" 
-            checked={isFreeTest} 
-            onChange={(e) => onSessionChange(currentSessionId, e.target.checked)}
-          />
-          <span className="toggle-slider"></span>
-        </label>
-        <span>Free Test Mode</span>
-      </div>
+      {/* Afficher le chronomètre pour les sessions 2 et 3 */}
+      {(currentSession === 2 || currentSession === 3) && totalTime && (
+        <div className="session-timer">
+          <div className="timer-label">Temps restant:</div>
+          <div className="timer-value">{totalTime}</div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,0 +1,51 @@
+/* TutorialSteps.css */
+
+.tutorial-container {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+  }
+  
+  .tutorial-action {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background-color: #f0f7ff;
+    border-left: 3px solid #3b82f6;
+    font-size: 14px;
+    font-style: italic;
+    color: #4b5563;
+  }
+  
+  .tutorial-controls {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
+  
+  .tutorial-next-btn, .tutorial-complete-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .tutorial-next-btn {
+    background-color: #3b82f6;
+    border: 1px solid #3b82f6;
+    color: white;
+  }
+  
+  .tutorial-next-btn:hover {
+    background-color: #2563eb;
+  }
+  
+  .tutorial-complete-btn {
+    background-color: #10b981;
+    border: 1px solid #10b981;
+    color: white;
+  }
+  
+  .tutorial-complete-btn:hover {
+    background-color: #059669;
+  }
