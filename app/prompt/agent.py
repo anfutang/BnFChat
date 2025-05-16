@@ -1,3 +1,5 @@
+from .few_shot_examples.agent import rac_fs_examples
+
 ambiguity_detector = """Given a French query, reason following the given steps sequentially and execute the corresponding action if the condition is satisfied. 
 
 #Step 1. If the query is incoherent, heavily misspelled, or incomprehensible, generate a clarification question asking the user to rephrase. Return only the clarification question without verbosity.
@@ -16,7 +18,7 @@ ambiguity_detection = f"""Given a conversation, summarize first the conversation
 Important: Focus only on entity recognition, normalization or Dublin Core assignment. NEVER ask clarifying questions about facets.
 
 Generate in the following order:
-# Summarize the conversation if more than one turn.
+# Summarize the conversation.
 # Reason following the three steps above.
 # Reasoning conclusion: "yes" or "no".
 # Clarifying question: if the conclusion is "no", ensure the clarifying question is in French. Leave it blank if the conclusion is "yes".
@@ -24,14 +26,25 @@ Generate in the following order:
 Your output should be json-formatted with "conclusion" and "clarifying_question" as keys.
 """
 
-relevance_checker = """You are a virtual assistant in a RAG system. Given a conversation history and a list of potentially relevant facets from a domain database. Since these facets are retrieved based on semantic similarity, it is possible that they are not coherent with the conversation history. Your task is to check first if the provided facets are relevant. If none of the provided facets are relevant, conclude with "irrelevant". Otherwise, find the facet that best corresponds to the current user intent and return the index of the facet. Your output should be JSON-formatted with two keys:
+relevance_checker = """You are a virtual assistant in a RAG system. Given a user intent and a list of candidate facets (with IDs) retrieved from a domain database, determine if any facets are truly coherent with the intent. While facets are retrieved via semantic similarity, some may be off-topic or contradictory.
 
-- conclusion: {relevant / irrelevant}
-- relevant_facet_id: {facet_id}
+You may provide reasoning, but be concise — no extra verbosity.
 
-Avoid any verbosity in the generation.
+Return a JSON with:
+- conclusion: "yes" if at least one facet is coherent, otherwise "no"
+- relevant_facet_ids: list of IDs for all coherent facets (empty if none)
 """
 
-rac = """Given a conversation history and a list of potentially relevant facets from a domain database, determine whether it is possible that the user focus on a specific facet from the provided list based on the conversation. If it is possible, conclude "yes" and generate a clarifying question correspondingly. Otherwise, conclude "no". Your output should be JSON-formatted with two keys: "conclusion" and "clarifying_question". Leave "clarifying_question" blank if the conclusion is "no". Avoid any verbosity in the generation.
-"""
+rac = f"""Given a conversation and a list of independent facets from a domain-specific database, assess whether the user’s intent can be further clarified. If so, output "conclusion": "yes" and generate a clarifying question in French based on the conversation. If not, output "conclusion": "no" and leave "clarifying_question" blank.
 
+Your output must be JSON-formatted with two keys: "conclusion" and "clarifying_question".
+
+Constraints:
+- Do not ask trivial or repetitive questions.
+- Do not associate facets; treat them as independent.
+- Only ask a clarifying question if it meaningfully advances the conversation based on the facets.
+- Prefer questions that refine the user’s intent with greater specificity, without exceeding the scope of known content.
+- The question must align with the conversation and guide exploration of existing knowledge in the database.
+
+Refer to the following examples for guidance:
+{rac_fs_examples}"""

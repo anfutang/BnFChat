@@ -1,3 +1,5 @@
+import os
+
 LLM_API_URL = 'http://192.168.0.152:8002/predict' 
 PROMPT_TYPE = "AT-CoT" # standard, CoT, AT-CoT
 DEV_MODE = True
@@ -9,13 +11,18 @@ THRES_STOPPING = 20
 THRES_TITLE_SAMPLING = 50
 MAX_NUM_PAGES_TO_RETRIEVAL = 2
 RAG_EMBED_DIM = 512
-METADATA_DIR = "/data/"
-
-EMBEDDING_DIM = 512
+METADATA_DIR = "./instance/"
 
 chatmode2ky = {"select":"reformulated_queries",
                "respond":"clarification_question",
                "select+respond":"clarification_questions"}
+
+refusal_response = "Désolé, nul document pertinent trouvé dans notre base de données actuelle."
+terminate_response = "Impossible de clarifier davantage. Recherche lancée selon la dernière intention détectée. Veuillez patienter."
+reinitialization_notification = " Votre conversation sera réinitialisée."
+search_notification = " Recherche lancée selon la dernière intention détectée. Veuillez patienter."
+
+base_gallica_url = "https://gallica.bnf.fr/SRU?version=1.2&operation=searchRetrieve&query={sruQuery}&maximumRecords={maximumRecords}&startRecord={startRecord}"
 
 admin_users = {"atang":2}
 

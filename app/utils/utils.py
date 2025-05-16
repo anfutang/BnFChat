@@ -1,4 +1,5 @@
 import os
+import re
 import base64
 import string
 import random
@@ -109,3 +110,10 @@ def normalize(x):
 
 def get_cosine_sim(distance):
     return 1 - distance / 2
+
+def extract_sru_query(text):
+    try:
+        match = re.search(r"#SRU:\s*(.+)", text)
+        return match.group(1).strip()
+    except Exception as e:
+        return e

@@ -5,14 +5,14 @@ import openai
 import faiss
 import numpy as np
 
-from utils.utils import normalize, get_cosine_sim
-from utils.constant import METADATA_DIR, RAG_EMBED_DIM
-from utils.rag_db_utils import get_rag_db
+from ..utils.utils import normalize, get_cosine_sim
+from ..utils.constant import METADATA_DIR, RAG_EMBED_DIM
+from ..utils.rag_db_utils import get_rag_db
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-faiss_index = faiss.read_index(os.path.join(METADATA_DIR,"demo_hnsw_index.faiss"))
+faiss_index = faiss.read_index(os.path.join(METADATA_DIR,"hnsw_index.faiss"))
 faiss_index.hnsw.efSearch = 64
 
 def knn(query,k):
@@ -21,12 +21,18 @@ def knn(query,k):
         input=[query],
         dimensions=RAG_EMBED_DIM 
     ).data[0].embedding]))
+
     D, I = faiss_index.search(xq, k=k)
-    cosine_sim = get_cosine_sim(D)
-    if cosine_sim < 0.5:
-        return False
+    cosine_sim = get_cosine_sim(D)[0]
+    if cosine_sim[0] < 0.5:
+        return {}
     else:
-        return find_facets(I[0].tolist())
+        ix = 0
+        while ix < len(cosine_sim):
+            if cosine_sim[ix] < 0.5:
+                break
+            ix += 1
+        return find_facets(I[0].tolist()[:ix])
 
 def find_facets(target_ids):
     db = get_rag_db()

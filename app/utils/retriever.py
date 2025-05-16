@@ -20,7 +20,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 
 #=== 2025.3.2 Gallica ===
-base_gallica_url = "https://gallica.bnf.fr/SRU?version=1.2&operation=searchRetrieve&query={sruQuery}&maximumRecords=50&startRecord={startRecord}"
+base_gallica_url = "https://gallica.bnf.fr/SRU?version=1.2&operation=searchRetrieve&query={sruQuery}&maximumRecords={maximumRecords}&startRecord={startRecord}"
 test_gallica_url = "https://gallica.bnf.fr/SRU?version=1.2&operation=searchRetrieve&query={sruQuery}&maximumRecords=1&startRecord=1"
 target_dc_tags = ["creator","description","subject","title","type","contributor","date"]
 xml_namespaces = {
@@ -64,6 +64,17 @@ def fetch_titles_and_subjects_only(records):
          subjects.add(record["subject"])
     return "Titles: " + "\n".join(titles) + "\nSubjects: " + "\n".join(subjects)
 
+def retrieve_result_page(sru_query_with_clarif,query_without_clarif):
+    url_wc = base_gallica_url.format(sruQuery=sru_query_with_clarif,startRecord=1,maximumRecords=5)
+    url_woc = base_gallica_url.format(sruQuery=f"gallica all {query_without_clarif}",startRecord=1,maximumRecords=5)
+    success_wc, records_wc = build_search_result_single_page(url_wc)
+    success_woc, records_woc = build_search_result_single_page(url_woc)
+    if not success_wc:
+        return Exception("Error in communication uing Gallica API: w/ clarification.")
+    if not success_woc:
+        return Exception("Error in communication uing Gallica API: w/o clarification.")
+    return records_wc, records_woc
+
 # tentatively retrieving the first page and get the number of relevant documents
 # if N > threshold, open-domain CG + filter;
 # if N < threshold, RAG.
@@ -79,7 +90,7 @@ def retrieve_with_gallica(sru_query,tentative=False):
         complete_records = []
         # fetch up to 500 results
         for startIndex in range(min(MAX_NUM_PAGES_TO_RETRIEVAL,(number_of_records - 1) // 50+1)):
-            target_url = base_gallica_url.format(sruQuery=sru_query,startRecord=1+startIndex*50)
+            target_url = base_gallica_url.format(sruQuery=sru_query,startRecord=1+startIndex*50,maximumRecords=50)
             success, tmp_records = build_search_result_single_page(target_url)
             if success:
                 complete_records += tmp_records

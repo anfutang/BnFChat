@@ -50,7 +50,7 @@ def create_app(test_config=None):
     @app.route('/')
     def home():
         session.clear()
-        return redirect(url_for('auth.index'))
+        return redirect(url_for('auth.login'))
     
     @app.route('/show_session',methods=['GET'])
     def show_session():

@@ -1,5 +1,6 @@
 import pydantic
 from pydantic import BaseModel
+from typing import List
 
 class entityDisambiguation(BaseModel):
     conclusion: str
@@ -11,3 +12,11 @@ class NL2SRU(BaseModel):
 
 class convSummarization(BaseModel):
     reformulated_query: str
+
+class relevanceChecker(BaseModel):
+    conclusion: str
+    relevant_facet_ids: List[int]
+
+class RAC(BaseModel):
+    conclusion: str
+    clarifying_question: str

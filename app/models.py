@@ -183,3 +183,9 @@ def get_all_users_with_chats():
                 users_with_chats.append(user)
     
     return users_with_chats
+
+def save_conv(user_id,chat_history,first_input):
+    if first_input:
+        insert_chat_entry(user_id,{"status":"ongoing","chat_mode":"respond","chat_history":chat_history})
+    else:
+        update_chat_entry(user_id,{"status":"ongoing","chat_mode":"respond","chat_history":chat_history})
