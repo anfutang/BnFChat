@@ -72,6 +72,7 @@ def get_chat_history():
 @bp.route('/input', methods=['POST'])
 @login_required
 def user_input():
+    print("user_input")
     """Process user input and generate response"""
     session["chat_mode"] = "respond"
     user_input = request.json.get("userInput")
@@ -142,37 +143,52 @@ def user_input():
                 "content": session["process"]
             }) + stream_split_marker
 
-            # Rest of the processing logic - summarization, NL2SRU, etc.
-            # Module 3: NL2SRU
-            start_time = time.time()
-            result = call_nl2sru(prev_chat_history+[user_input])
+        # Module 3: NL2SRU
+        start_time = time.time()
+        try:
+            # Pass the correct parameters
+            result = call_nl2sru(prev_chat_history+[user_input], "")  # Add empty string as sru_hint
+            
+            # Debug the result
+            print("NL2SRU result:", result)
+            
+            if not result or len(result) < 2:
+                raise Exception("Invalid response format from NL2SRU")
+                
             end_time = time.time()
             time_count["nl2sru_time"] = f"{end_time-start_time:.3f} s"
+            
             yield json.dumps({
                 "type": "time", 
                 "content": time_count
             }) + stream_split_marker
-
+            
             session["process"].append("- NL2SRU: ✔️")
             session["process"].append(f"- SRU query: {result[1]}")
+            
             yield json.dumps({
                 "type": "info", 
                 "content": session["process"]
             }) + stream_split_marker
+        except Exception as e:
+            print(f"Error in NL2SRU processing: {e}")
+            yield json.dumps({
+                "type": "error", 
+                "content": fetch_error(e)
+            }) + stream_split_marker
+            return
 
-            # Module 4: RAG with Gallica
-            start_time = time.time()
-            try: 
-                num_total_records, records = retrieve_with_gallica(result[1])
-            except Exception as e:
-                yield json.dumps({
-                    "type": "error", 
-                    "content": fetch_error(e)
-                }) + stream_split_marker
-                return
+        # Module 4: RAG with Gallica
+        start_time = time.time()
+        try: 
+            if not result[1] or not isinstance(result[1], str):
+                raise ValueError(f"Invalid SRU query format: {result[1]}")
                 
+            num_total_records, records = retrieve_with_gallica(result[1])
+            
             end_time = time.time()
             time_count["gallica_retrieval_time"] = f"{end_time-start_time:.3f} s"
+            
             yield json.dumps({
                 "type": "time", 
                 "content": time_count
@@ -180,11 +196,20 @@ def user_input():
             
             session["process"].append("- Retrieve using Gallica: ✔️")
             session["process"].append(f"- {num_total_records} available records; {len(records)} fetched.")
+            
             yield json.dumps({
                 "type": "info", 
                 "content": session["process"]
             }) + stream_split_marker
-
+        except Exception as e:
+            print(f"Error in Gallica retrieval: {e}")
+            print(f"Query that caused error: {result[1] if 'result' in locals() else 'No query generated'}")
+            
+            yield json.dumps({
+                "type": "error", 
+                "content": fetch_error(e)
+            }) + stream_split_marker
+            return
             # Module 5: Process metadata
             start_time = time.time()
             metadata_summary = call_metadata_processor(

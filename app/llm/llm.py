@@ -127,25 +127,55 @@ def call_embedding(query: str):
     ).data[0].embedding]))
 
 @safe_func
-def call_nl2sru(query,sru_hint,stream_response=False):
-    messages = prompt_formatting(nl2sru,['\n'.join([f"Query: {query}",f"Hint: {sru_hint}"])])
-    # messages = prompt_formatting(nl2sru,[query])
-    # print(messages)
-
-    if stream_response:
-        stream = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=messages,
-            temperature=0.0,
-            stream=True,
-        )
-        return stream
+def call_nl2sru(conversation_history, sru_hint=""):
+    """
+    Convert natural language query to SRU query
+    
+    Args:
+        conversation_history: List of messages in the conversation
+        sru_hint: Optional hint for SRU query formatting (default empty string)
+    
+    Returns:
+        Tuple of (decision, sru_query) where decision is "yes" or "no"
+    """
+    # Format the conversation history into a single string
+    if isinstance(conversation_history, list):
+        query = conversation_history[-1]  # Take the last message as the query
     else:
+        query = conversation_history  # If not a list, use as is
+    
+    # Format the prompt with the query and hint
+    messages = prompt_formatting(nl2sru, [f"Query: {query}\nHint: {sru_hint}"])
+    
+    try:
         completion = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=messages,
             temperature=0.0,
         )
-        # parsed_result = completion.choices[0].message.parsed
-        # return (getattr(parsed_result,"reasoning"), getattr(parsed_result,"sru_query"))
-        return completion.choices[0].message.content
+        
+        content = completion.choices[0].message.content
+        
+        # Parse the response to extract decision and SRU query
+        # Assuming the response format is like "yes\ndc.title all \"search terms\""
+        lines = content.strip().split('\n', 1)
+        decision = lines[0].lower().strip()
+        
+        # If only one line or decision is not yes/no, handle default cases
+        if len(lines) == 1 or decision not in ["yes", "no"]:
+            if "yes" in decision:
+                decision = "yes"
+                sru_query = "" if len(lines) == 1 else lines[1].strip()
+            else:
+                decision = "no"
+                sru_query = "Empty query, please reformulate."
+        else:
+            sru_query = lines[1].strip() if len(lines) > 1 else ""
+        
+        # Return in the format expected by the backend
+        return [decision, sru_query]
+    
+    except Exception as e:
+        print(f"Error in call_nl2sru: {e}")
+        # Return a default value that won't crash the flow
+        return ["no", "Error generating SRU query. Please try a different query."]

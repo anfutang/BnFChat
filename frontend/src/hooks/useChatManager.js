@@ -47,32 +47,54 @@ const useChatManager = (setShowSessionMessage) => {
     };
     
     setChatHistory(prev => [...prev, newUserMessage]);
-
     try {
-      // Envoyer la requête au serveur
-      const response = await axios.post('/api/dev/input', {
-        userInput: message,
-        firstInput: isFirstInput,
-        sessionType: currentSession
-      }, {
-        responseType: 'text'
+      setIsLoading(true);
+      
+      // Utiliser fetch au lieu d'axios pour le streaming
+      const response = await fetch('/api/dev/input', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userInput: message,
+          firstInput: isFirstInput
+        })
       });
       
-      const lines = response.data.split('\n').filter(line => line.trim());
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
       
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line);
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Traiter les lignes complètes
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Garder la dernière ligne potentiellement incomplète
+        
+        for (const line of lines) {
+          if (!line.trim()) continue;
           
-          switch (data.type) {
-            case 'info':
-              setThoughtProcess(data.content);
-              break;
-              
-            case 'time':
-              setTimingData(data.content);
-              break;
-              
+          try {
+            const data = JSON.parse(line);
+            console.log("Received data:", data); // Debug
+            
+            switch (data.type) {
+              // Les mêmes cases que vous aviez avant
+              case 'info':
+                setThoughtProcess(data.content);
+                break;
+                
+              case 'time':
+                setTimingData(data.content);
+                break;
+                
+
             case 'error':
               console.error('Error from server:', data.content);
               // Ajouter un message d'erreur au chat
@@ -84,41 +106,41 @@ const useChatManager = (setShowSessionMessage) => {
                   timestamp: new Date().toISOString()
                 }
               ]);
-              break;
               
-            case 'response':
-              const botResponse = {
-                sender: 'bot',
-                message: data.content.message,
-                metadata: data.content.metadata,
-                timestamp: new Date().toISOString()
-              };
-              
-              setChatHistory(prev => [...prev, botResponse]);
-              setCurrentResponse(botResponse);
-              
-              if (data.content.needsAnnotation) {
-                setNeedsAnnotation(true);
+              // Ajouter une réponse de fallback après l'erreur
+              if (data.content.includes("ParseError") || data.content.includes("syntax error")) {
+                setChatHistory(prev => [
+                  ...prev, 
+                  {
+                    sender: 'bot',
+                    message: "Je suis désolé, mais je n'ai pas pu traiter votre requête correctement. Il semble y avoir un problème avec la formulation de la recherche. Pourriez-vous essayer de reformuler votre question de manière plus simple ou avec des termes différents ?",
+                    timestamp: new Date().toISOString()
+                  }
+                ]);
               }
               break;
+                
+              case 'response':
+                const botResponse = {
+                  sender: 'bot',
+                  message: data.content.message,
+                  metadata: data.content.metadata,
+                  timestamp: new Date().toISOString()
+                };
+                
+                setChatHistory(prev => [...prev, botResponse]);
+                setCurrentResponse(botResponse);
+                
+                if (data.content.needsAnnotation) {
+                  setNeedsAnnotation(true);
+                }
+                break;
+            }
+          } catch (err) {
+            console.error('Failed to parse server response:', err, line);
           }
-        } catch (err) {
-          console.error('Failed to parse server response:', err, line);
         }
       }
-      
-      setIsFirstInput(false);
-      
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      setChatHistory(prev => [
-        ...prev, 
-        {
-          sender: 'system',
-          message: 'Échec de l\'envoi du message. Veuillez réessayer.',
-          timestamp: new Date().toISOString()
-        }
-      ]);
     } finally {
       setIsLoading(false);
     }
