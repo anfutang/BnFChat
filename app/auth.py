@@ -1,230 +1,303 @@
-import functools
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for, jsonify
+    Blueprint, g, render_template, request, session, jsonify, Response, stream_with_context
 )
-from werkzeug.security import generate_password_hash, check_password_hash
+
+import os
+import time
+import json
+from datetime import datetime
+import functools
+
 from .db import db
-from .models import User, create_user, update_user
-from .utils.constant import *
+from .models import *
 from .utils.utils import *
+from .utils.constant import *
+from .utils.tutorial_llm_responses import fetch_demo_llm_responses
+from .utils.retriever import *
+from .utils.constant import THRES_OPEN_GENERATION, THRES_STOPPING
+from .llm.llm import *
 
-bp = Blueprint('auth', __name__, url_prefix="/api/auth")
+bp = Blueprint('dev', __name__, url_prefix="/api/dev")
 
-@bp.route('/check-auth', methods=['GET'])
-def check_auth():
-<<<<<<< Updated upstream
-    """Check if user is authenticated and return user details including profile completion status"""
-=======
-    """Check if user is authenticated"""
->>>>>>> Stashed changes
-    user_id = session.get("user_id")
-    if user_id is None:
-        return jsonify({"authenticated": False})
-    
-    user = User.query.get(user_id)
-    if user is None:
-        return jsonify({"authenticated": False})
-        
-    return jsonify({
-        "authenticated": True,
-        "username": user.username,
-        "avatarSeed": user.data.get("avatar-seed"),
-<<<<<<< Updated upstream
-        "permissionLevel": user.data.get("permission_level", 0),
-        "profileCompleted": user.data.get("profile_created", False)
-    })
-
-
-=======
-        "permissionLevel": user.data.get("permission_level", 0)
-    })
-
->>>>>>> Stashed changes
-@bp.route('/register', methods=['POST'])
-def register():
-    """Register new user - step 1"""
-    data = request.json
-    username = data.get("username")
-    password = data.get("password")
-    
-    # Store in session temporarily
-    session["username"] = username
-    session["password"] = password
-    
-    return jsonify({"success": True})
-
-@bp.route('/check-username', methods=['POST'])
-def check_username_availability():
-    """Check if username is available"""
-    username = request.json.get('username')
-    user = User.query.filter_by(username=username).first()
-    
-    return jsonify({'available': user is None})
-<<<<<<< Updated upstream
-
-
-@bp.route('/profile-submit', methods=['POST'])
-# @login_required  # Ensure user is authenticated
-def profile_submit():
-    """Update user profile data for authenticated user"""
-    profile_data = request.json.get('userProfileData', {})
-    
-    # User must be authenticated to reach this point due to @login_required
-    user = g.user
-    
-    # Extract relevant profile data
-    user_profile_data = {key: profile_data.get(key) for key in user_profile_keys}
-    
-    # Keep existing permission level
-    user_profile_data["permission_level"] = user.data.get("permission_level", 0)
-    user_profile_data["profile_created"] = True
-    
-    # Add avatar seed if not present
-    if "avatar-seed" not in user_profile_data and "avatar-seed" not in user.data:
-        user_profile_data["avatar-seed"] = profile_data.get("avatar_id") or hash(user.username) % 1000
-    
-    # Update user data
-    update_user(user, user_profile_data)
-    
-    # Update session data
-    session["avatar-seed"] = user.data.get("avatar-seed")
-    
-    return jsonify({
-        "success": True,
-        "username": user.username,
-        "permissionLevel": user.data.get("permission_level", 0),
-        "profileCompleted": True
-=======
-    
-@bp.route('/profile-submit', methods=['POST'])
-def profile_submit():
-    """Complete user registration with profile data"""
-    if not session.get("username") or not session.get("password"):
-        return jsonify({"error": "Registration session expired"}), 400
-        
-    profile_data = request.json.get('userProfileData')
-    username = session["username"]
-    password = session["password"]
-
-    # Extract relevant profile data
-    user_profile_data = {key: profile_data.get(key) for key in user_profile_keys}
-    permission_level = admin_users.get(username, 0)
-    user_profile_data["permission_level"] = permission_level
-    user_profile_data["profile_created"] = True
-
-    # Set session data
-    session["permission_level"] = permission_level
-    session["avatar-seed"] = user_profile_data["avatar-seed"]
-    session["dev_mode"] = IS_DEV_MODE
-    session["session_id"] = 1
-    session["free_test"] = True
-    session["chat_mode"] = "respond"
-    session["first_input"] = True
-    session["annotation_submitted"] = True
-    session["history"] = []
-    clear_current_turn()
-
-    # Create or update user
-    user = User.query.filter_by(username=username).first()
-    if user is None:
-        create_user(username, password, user_profile_data)
-        user = User.query.filter_by(username=username).first()
-    else:
-        update_user(user, user_profile_data)
-
-    session["user_id"] = user.id
-
-    return jsonify({
-        "success": True,
-        "username": username,
-        "permissionLevel": permission_level
->>>>>>> Stashed changes
-    })
-
-@bp.route('/login', methods=['POST'])
-def login():
-    """User login endpoint"""
-    session.clear()
-    data = request.json
-    username = data.get("username")
-    password = data.get("password")
-    
-    user = User.query.filter_by(username=username).first()
-
-    if user is None:
-        return jsonify({'error': 'User not found'}), 401
-    elif not user.check_password(password):
-        return jsonify({'error': 'Incorrect password'}), 401
-
-<<<<<<< Updated upstream
-    # Login success
-    session["user_id"] = user.id
-    session["username"] = username
-    session["avatar-seed"] = user.data.get("avatar-seed")
-    session["permission_level"] = user.data.get("permission_level", 0)
-=======
-    # Check if profile is complete
-    user_profile_created = user.data.get('profile_created', True)
-    if not user_profile_created:
-        session["username"] = username
-        session["password"] = password
-        return jsonify({'needsProfile': True})
-    
-    # Login success
-    session["user_id"] = user.id
-    session["username"] = username
-    session["avatar-seed"] = user.data["avatar-seed"]
-    session["permission_level"] = user.data["permission_level"]
->>>>>>> Stashed changes
-    session["session_id"] = 1
-    session["free_test"] = True
-    session["first_input"] = True
-    session["annotation_submitted"] = True
-    session["chat_mode"] = "respond"
-    session["process"] = []
-    session["dev_mode"] = IS_DEV_MODE
-    clear_current_turn()
-
-<<<<<<< Updated upstream
-    # Check if profile is complete
-    profile_completed = user.data.get('profile_created', False)
-
-    return jsonify({
-        'success': True,
-        'username': username,
-        'permissionLevel': user.data.get("permission_level", 0),
-        'avatarSeed': user.data.get("avatar-seed"),
-        'profileCompleted': profile_completed
-=======
-    return jsonify({
-        'success': True,
-        'username': username,
-        'permissionLevel': user.data["permission_level"],
-        'avatarSeed': user.data["avatar-seed"]
->>>>>>> Stashed changes
-    })
-
-@bp.route('/logout', methods=['POST'])
-def logout():
-    """Logout user"""
-    session.clear()
-    return jsonify({"success": True})
-
-@bp.before_app_request
-def load_logged_in_user():
-    """Load user data before each request"""
-    user_id = session.get("user_id")
-
-    if user_id is None:
-        g.user = None
-    else:
-        g.user = User.query.get(user_id)
+stream_split_marker = '\n'
+thres_stopping_num_records = 20
 
 def login_required(f):
-    """Decorator to require login for routes"""
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         if g.user is None:
             return jsonify({"error": "Authentication required"}), 401
         return f(*args, **kwargs)
     return decorated_function
+
+@bp.route('/tutorial-texts', methods=['GET'])
+@login_required
+def get_tutorial_texts():
+    """Get tutorial texts data"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    tutorial_text__path = os.path.join(current_dir, 'tutorial_text.json')
+    with open(tutorial_text__path, 'r', encoding='utf-8') as f:
+        tutorial_texts = json.load(f)
+    tutorial_texts = {k: turn_tutorial_text_to_html(v) for k, v in tutorial_texts.items()}
+    return jsonify(tutorial_texts)
+
+@bp.route('/session-data', methods=['GET'])
+@login_required
+def get_session_data():
+    """Get current session data for client"""
+    session_data = {
+        "username": session.get("username"),
+        "userId": session.get("user_id"),
+        "avatarSeed": session.get("avatar-seed"),
+        "permissionLevel": session.get("permission_level"),
+        "sessionId": session.get("session_id", 1),
+        "freeTest": session.get("free_test", True),
+        "chatMode": session.get("chat_mode", "respond"),
+        "devMode": session.get("dev_mode", False)
+    }
+    return jsonify(session_data)
+
+@bp.route('/chat-history', methods=['GET'])
+@login_required
+def get_chat_history():
+    """Get current chat history"""
+    user_id = session["user_id"]
+    if session.get("first_input", True):
+        return jsonify([])
+    
+    _, _, prev_chat_data = fetch_last_chat_entry(user_id)
+    prev_chat_history = prev_chat_data.get("chat_history", [])
+    return jsonify(prev_chat_history)
+
+@bp.route('/input', methods=['POST'])
+@login_required
+def user_input():
+    """Process user input and generate response"""
+    session["chat_mode"] = "respond"
+    user_input = request.json.get("userInput")
+    session["user_input"] = user_input
+    first_input = request.json.get("firstInput", True)
+    user_id = session["user_id"]
+
+    def multi_stage_process_user_input():
+        time_count = {}
+        title_match_hint = ''
+
+        if first_input:
+            session["process"] = []
+            prev_chat_history = []
+            # Module 1: title match
+            title_match_hint, title_matching_time = find_exact_title_matches(user_input)
+            time_count["title_matching_time"] = f"{title_matching_time:.3f} s"
+        else:
+            _, _, prev_chat_data = fetch_last_chat_entry(session["user_id"])
+            prev_chat_history = prev_chat_data["chat_history"]
+
+        if title_match_hint:
+            session["process"].append("- Title matching: ✅")
+            yield json.dumps({
+                "type": "time", 
+                "content": time_count
+            }) + stream_split_marker
+
+        # Module 2: entity disambiguation
+        start_time = time.time()
+        result = call_entity_disambiguation(prev_chat_history+[user_input])
+        end_time = time.time()
+        time_count["entity_disambiguation_time"] = f"{end_time-start_time:.3f} s"
+        yield json.dumps({
+            "type": "time", 
+            "content": time_count
+        }) + stream_split_marker
+
+        if isinstance(result, Exception):
+            yield json.dumps({
+                "type": "error", 
+                "content": fetch_error(result)
+            }) + stream_split_marker
+            return
+        
+        if result[0].lower() in ["no", "false"]:
+            cq = result[1]
+            session["llm_response"] = cq
+            session["process"].append("- Query with a clear focus? ✖️")
+            save_conv(user_id, prev_chat_history+[user_input, cq], first_input)
+
+            yield json.dumps({
+                "type": "info", 
+                "content": session["process"]
+            }) + stream_split_marker
+            
+            yield json.dumps({
+                "type": "response", 
+                "content": {
+                    "message": cq,
+                    "needsAnnotation": True
+                }
+            }) + stream_split_marker
+        else:
+            session["process"].append("- Query with a clear focus? ✔️")
+            yield json.dumps({
+                "type": "info", 
+                "content": session["process"]
+            }) + stream_split_marker
+
+            # Rest of the processing logic - summarization, NL2SRU, etc.
+            # Module 3: NL2SRU
+            start_time = time.time()
+            result = call_nl2sru(prev_chat_history+[user_input])
+            end_time = time.time()
+            time_count["nl2sru_time"] = f"{end_time-start_time:.3f} s"
+            yield json.dumps({
+                "type": "time", 
+                "content": time_count
+            }) + stream_split_marker
+
+            session["process"].append("- NL2SRU: ✔️")
+            session["process"].append(f"- SRU query: {result[1]}")
+            yield json.dumps({
+                "type": "info", 
+                "content": session["process"]
+            }) + stream_split_marker
+
+            # Module 4: RAG with Gallica
+            start_time = time.time()
+            try: 
+                num_total_records, records = retrieve_with_gallica(result[1])
+            except Exception as e:
+                yield json.dumps({
+                    "type": "error", 
+                    "content": fetch_error(e)
+                }) + stream_split_marker
+                return
+                
+            end_time = time.time()
+            time_count["gallica_retrieval_time"] = f"{end_time-start_time:.3f} s"
+            yield json.dumps({
+                "type": "time", 
+                "content": time_count
+            }) + stream_split_marker
+            
+            session["process"].append("- Retrieve using Gallica: ✔️")
+            session["process"].append(f"- {num_total_records} available records; {len(records)} fetched.")
+            yield json.dumps({
+                "type": "info", 
+                "content": session["process"]
+            }) + stream_split_marker
+
+            # Module 5: Process metadata
+            start_time = time.time()
+            metadata_summary = call_metadata_processor(
+                prev_chat_history+[user_input],
+                fetch_titles_and_subjects_only(records)
+            )
+            end_time = time.time()
+            time_count["metadata_processing_time"] = f"{end_time-start_time:.3f} s"
+            yield json.dumps({
+                "type": "time", 
+                "content": time_count
+            }) + stream_split_marker
+            
+            session["process"].append("- Extract facets from the metadata: ✔️")
+            yield json.dumps({
+                "type": "info", 
+                "content": session["process"]
+            }) + stream_split_marker
+            
+            # Module 6: RAG (would continue with the rest of the processing)
+            # For now, we'll send a sample response
+            yield json.dumps({
+                "type": "response", 
+                "content": {
+                    "message": "Here is what I found based on your query...",
+                    "metadata": metadata_summary
+                }
+            }) + stream_split_marker
+
+    return Response(stream_with_context(multi_stage_process_user_input()), content_type='application/json')
+
+@bp.route('/user-annotation', methods=['POST'])
+@login_required
+def user_annotation():
+    """Process user annotation/feedback"""
+    user_id = session["user_id"]
+    chat_mode = "select"
+
+    _, _, prev_chat_data = fetch_last_chat_entry(user_id)
+    current_chat_history = prev_chat_data["chat_history"]
+    session["llm_responses"] = current_chat_history[-1][1]
+
+    annotation_data = request.json
+    conv_label = annotation_data.get("convLabel")
+    
+    collect_evaluations(annotation_data)
+
+    selected_response_tuple = session["llm_responses"][session["evals"]["selectedResponseIndex"]]
+    selected_llm_response = '#'.join(list(selected_response_tuple))
+
+    # Update chat history with evaluation
+    current_chat_history[-1][2] = session["evals"]
+    update_chat_entry(user_id, {
+        "status": "ongoing",
+        "chat_mode": chat_mode,
+        "chat_history": current_chat_history
+    })
+
+    # End conversation if needed
+    if conv_label:
+        end_conversation(user_id, chat_mode, conv_label)
+
+    session["first_input"] = False
+    session["annotation_submitted"] = True
+        
+    return jsonify({
+        "success": True,
+        "selectedResponse": selected_llm_response
+    })
+
+@bp.route('/erase-chat', methods=['POST'])
+@login_required
+def erase_chat():
+    """Reset the chat session"""
+    clear_session(user_global_keys)
+    session["first_input"] = True
+    session["annotation_submitted"] = True
+    session["chat_mode"] = "respond"
+    session["process"] = []
+    return jsonify({"success": True})
+
+@bp.route('/change-session', methods=['POST'])
+@login_required
+def change_session():
+    """Change the current session settings"""
+    clear_session(user_global_keys)
+
+    data = request.json
+    new_session_id = data.get('sessionId')
+    session["session_id"] = new_session_id
+    session["free_test"] = data.get('isFreeTest')
+    session["chat_mode"] = USER_MODES[new_session_id-1]
+    session["first_input"] = True
+    session.modified = True
+    
+    return jsonify({"success": True})
+
+def save_conv(user_id, chat_history, first_input):
+    """Save conversation to database"""
+    if first_input:
+        insert_chat_entry(user_id, {
+            "status": "ongoing",
+            "chat_mode": "respond",
+            "chat_history": chat_history
+        })
+    else:
+        update_chat_entry(user_id, {
+            "status": "ongoing",
+            "chat_mode": "respond",
+            "chat_history": chat_history
+        })
+
+def end_conversation(user_id, chat_mode, conv_label):
+    """End the current conversation"""
+    _, last_chat_id, _ = fetch_last_chat_entry(user_id)
+    delete_chat_entry(user_id, last_chat_id)
