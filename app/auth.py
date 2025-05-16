@@ -12,11 +12,7 @@ bp = Blueprint('auth', __name__, url_prefix="/api/auth")
 
 @bp.route('/check-auth', methods=['GET'])
 def check_auth():
-<<<<<<< Updated upstream
     """Check if user is authenticated and return user details including profile completion status"""
-=======
-    """Check if user is authenticated"""
->>>>>>> Stashed changes
     user_id = session.get("user_id")
     if user_id is None:
         return jsonify({"authenticated": False})
@@ -29,17 +25,11 @@ def check_auth():
         "authenticated": True,
         "username": user.username,
         "avatarSeed": user.data.get("avatar-seed"),
-<<<<<<< Updated upstream
         "permissionLevel": user.data.get("permission_level", 0),
         "profileCompleted": user.data.get("profile_created", False)
     })
 
 
-=======
-        "permissionLevel": user.data.get("permission_level", 0)
-    })
-
->>>>>>> Stashed changes
 @bp.route('/register', methods=['POST'])
 def register():
     """Register new user - step 1"""
@@ -60,7 +50,6 @@ def check_username_availability():
     user = User.query.filter_by(username=username).first()
     
     return jsonify({'available': user is None})
-<<<<<<< Updated upstream
 
 
 @bp.route('/profile-submit', methods=['POST'])
@@ -94,51 +83,6 @@ def profile_submit():
         "username": user.username,
         "permissionLevel": user.data.get("permission_level", 0),
         "profileCompleted": True
-=======
-    
-@bp.route('/profile-submit', methods=['POST'])
-def profile_submit():
-    """Complete user registration with profile data"""
-    if not session.get("username") or not session.get("password"):
-        return jsonify({"error": "Registration session expired"}), 400
-        
-    profile_data = request.json.get('userProfileData')
-    username = session["username"]
-    password = session["password"]
-
-    # Extract relevant profile data
-    user_profile_data = {key: profile_data.get(key) for key in user_profile_keys}
-    permission_level = admin_users.get(username, 0)
-    user_profile_data["permission_level"] = permission_level
-    user_profile_data["profile_created"] = True
-
-    # Set session data
-    session["permission_level"] = permission_level
-    session["avatar-seed"] = user_profile_data["avatar-seed"]
-    session["dev_mode"] = IS_DEV_MODE
-    session["session_id"] = 1
-    session["free_test"] = True
-    session["chat_mode"] = "respond"
-    session["first_input"] = True
-    session["annotation_submitted"] = True
-    session["history"] = []
-    clear_current_turn()
-
-    # Create or update user
-    user = User.query.filter_by(username=username).first()
-    if user is None:
-        create_user(username, password, user_profile_data)
-        user = User.query.filter_by(username=username).first()
-    else:
-        update_user(user, user_profile_data)
-
-    session["user_id"] = user.id
-
-    return jsonify({
-        "success": True,
-        "username": username,
-        "permissionLevel": permission_level
->>>>>>> Stashed changes
     })
 
 @bp.route('/login', methods=['POST'])
@@ -156,26 +100,11 @@ def login():
     elif not user.check_password(password):
         return jsonify({'error': 'Incorrect password'}), 401
 
-<<<<<<< Updated upstream
     # Login success
     session["user_id"] = user.id
     session["username"] = username
     session["avatar-seed"] = user.data.get("avatar-seed")
     session["permission_level"] = user.data.get("permission_level", 0)
-=======
-    # Check if profile is complete
-    user_profile_created = user.data.get('profile_created', True)
-    if not user_profile_created:
-        session["username"] = username
-        session["password"] = password
-        return jsonify({'needsProfile': True})
-    
-    # Login success
-    session["user_id"] = user.id
-    session["username"] = username
-    session["avatar-seed"] = user.data["avatar-seed"]
-    session["permission_level"] = user.data["permission_level"]
->>>>>>> Stashed changes
     session["session_id"] = 1
     session["free_test"] = True
     session["first_input"] = True
@@ -185,7 +114,6 @@ def login():
     session["dev_mode"] = IS_DEV_MODE
     clear_current_turn()
 
-<<<<<<< Updated upstream
     # Check if profile is complete
     profile_completed = user.data.get('profile_created', False)
 
@@ -195,13 +123,6 @@ def login():
         'permissionLevel': user.data.get("permission_level", 0),
         'avatarSeed': user.data.get("avatar-seed"),
         'profileCompleted': profile_completed
-=======
-    return jsonify({
-        'success': True,
-        'username': username,
-        'permissionLevel': user.data["permission_level"],
-        'avatarSeed': user.data["avatar-seed"]
->>>>>>> Stashed changes
     })
 
 @bp.route('/logout', methods=['POST'])
