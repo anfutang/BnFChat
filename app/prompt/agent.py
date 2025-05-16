@@ -1,4 +1,8 @@
-from .few_shot_examples.agent import rac_fs_examples
+# from .few_shot_examples.agent import rac_fs_examples
+
+rac_fs_examples = """
+
+"""
 
 ambiguity_detector = """Given a French query, reason following the given steps sequentially and execute the corresponding action if the condition is satisfied. 
 
