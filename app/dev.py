@@ -14,12 +14,8 @@ from .utils.utils import *
 from .utils.constant import *
 from .utils.tutorial_llm_responses import fetch_demo_llm_responses
 from .utils.retriever import *
-<<<<<<< Updated upstream
-from .utils.constant import THRES_OPEN_GENERATION, THRES_STOPPING
-=======
 from .utils.constant import THRES_OPEN_GENERATION, THRES_STOPPING, refusal_response, terminate_response, reinitialization_notification, search_notification
 
->>>>>>> Stashed changes
 from .llm.llm import *
 from .llm.rag import knn
 
@@ -36,48 +32,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-<<<<<<< Updated upstream
-@bp.route('/tutorial-texts', methods=['GET'])
-@login_required
-def get_tutorial_texts():
-    """Get tutorial texts data"""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    tutorial_text__path = os.path.join(current_dir, 'tutorial_text.json')
-    with open(tutorial_text__path, 'r', encoding='utf-8') as f:
-        tutorial_texts = json.load(f)
-    tutorial_texts = {k: turn_tutorial_text_to_html(v) for k, v in tutorial_texts.items()}
-    return jsonify(tutorial_texts)
-
-@bp.route('/session-data', methods=['GET'])
-@login_required
-def get_session_data():
-    """Get current session data for client"""
-    session_data = {
-        "username": session.get("username"),
-        "userId": session.get("user_id"),
-        "avatarSeed": session.get("avatar-seed"),
-        "permissionLevel": session.get("permission_level"),
-        "sessionId": session.get("session_id", 1),
-        "freeTest": session.get("free_test", True),
-        "chatMode": session.get("chat_mode", "respond"),
-        "devMode": session.get("dev_mode", False)
-    }
-    return jsonify(session_data)
-
-@bp.route('/chat-history', methods=['GET'])
-@login_required
-def get_chat_history():
-    """Get current chat history"""
-    user_id = session["user_id"]
-    if session.get("first_input", True):
-        return jsonify([])
-    
-    _, _, prev_chat_data = fetch_last_chat_entry(user_id)
-    prev_chat_history = prev_chat_data.get("chat_history", [])
-    return jsonify(prev_chat_history)
-
-@bp.route('/input', methods=['POST'])
-=======
 @bp.route('/', methods=['GET'])
 @login_required
 def index():
@@ -86,7 +40,6 @@ def index():
 
 # the user inputs the initial query or responds to a CQ 
 @bp.route("/input",methods=['POST'])
->>>>>>> Stashed changes
 @login_required
 def user_input():
     """Process user input and generate response"""
@@ -103,13 +56,9 @@ def user_input():
         if first_input:
             session["process"] = []
             prev_chat_history = []
-<<<<<<< Updated upstream
-            # Module 1: title match
-=======
             last_user_intent = ""
             save_conv(user_id,first_input,[])
             # module-1: title match
->>>>>>> Stashed changes
             title_match_hint, title_matching_time = find_exact_title_matches(user_input)
             time_count["title_matching"] = f"{title_matching_time:.3f} s"
             first_user_query = user_input
@@ -124,29 +73,6 @@ def user_input():
 
         if title_match_hint:
             session["process"].append("- Title matching: ✅")
-<<<<<<< Updated upstream
-            yield json.dumps({
-                "type": "time", 
-                "content": time_count
-            }) + stream_split_marker
-
-        # Module 2: entity disambiguation
-        start_time = time.time()
-        result = call_entity_disambiguation(prev_chat_history+[user_input])
-        end_time = time.time()
-        time_count["entity_disambiguation_time"] = f"{end_time-start_time:.3f} s"
-        yield json.dumps({
-            "type": "time", 
-            "content": time_count
-        }) + stream_split_marker
-
-        if isinstance(result, Exception):
-            yield json.dumps({
-                "type": "error", 
-                "content": fetch_error(result)
-            }) + stream_split_marker
-            return
-=======
             yield json.dumps({"type": "time", 
                               "content": encode_html(render_template("dev/thought/time.html",time_count=time_count))
                             }) + stream_split_marker
@@ -159,111 +85,11 @@ def user_input():
             return 
         time_count["entity_disambiguation"] = result[0]
         yield json.dumps({"type": "time", "content": encode_html(render_template("dev/thought/time.html",time_count=time_count))}) + stream_split_marker
->>>>>>> Stashed changes
         
         if result[1][0].lower() in ["no", "false"]:
             # ambiguous query
             cq = result[1][1]
             session["llm_response"] = cq
-<<<<<<< Updated upstream
-            session["process"].append("- Query with a clear focus? ✖️")
-            save_conv(user_id, prev_chat_history+[user_input, cq], first_input)
-
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-            
-            yield json.dumps({
-                "type": "response", 
-                "content": {
-                    "message": cq,
-                    "needsAnnotation": True
-                }
-            }) + stream_split_marker
-        else:
-            session["process"].append("- Query with a clear focus? ✔️")
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-
-            # Rest of the processing logic - summarization, NL2SRU, etc.
-            # Module 3: NL2SRU
-            start_time = time.time()
-            result = call_nl2sru(prev_chat_history+[user_input])
-            end_time = time.time()
-            time_count["nl2sru_time"] = f"{end_time-start_time:.3f} s"
-            yield json.dumps({
-                "type": "time", 
-                "content": time_count
-            }) + stream_split_marker
-
-            session["process"].append("- NL2SRU: ✔️")
-            session["process"].append(f"- SRU query: {result[1]}")
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-
-            # Module 4: RAG with Gallica
-            start_time = time.time()
-            try: 
-                num_total_records, records = retrieve_with_gallica(result[1])
-            except Exception as e:
-                yield json.dumps({
-                    "type": "error", 
-                    "content": fetch_error(e)
-                }) + stream_split_marker
-                return
-                
-            end_time = time.time()
-            time_count["gallica_retrieval_time"] = f"{end_time-start_time:.3f} s"
-            yield json.dumps({
-                "type": "time", 
-                "content": time_count
-            }) + stream_split_marker
-            
-            session["process"].append("- Retrieve using Gallica: ✔️")
-            session["process"].append(f"- {num_total_records} available records; {len(records)} fetched.")
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-
-            # Module 5: Process metadata
-            start_time = time.time()
-            metadata_summary = call_metadata_processor(
-                prev_chat_history+[user_input],
-                fetch_titles_and_subjects_only(records)
-            )
-            end_time = time.time()
-            time_count["metadata_processing_time"] = f"{end_time-start_time:.3f} s"
-            yield json.dumps({
-                "type": "time", 
-                "content": time_count
-            }) + stream_split_marker
-            
-            session["process"].append("- Extract facets from the metadata: ✔️")
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-            
-            # Module 6: RAG (would continue with the rest of the processing)
-            # For now, we'll send a sample response
-            yield json.dumps({
-                "type": "response", 
-                "content": {
-                    "message": "Here is what I found based on your query...",
-                    "metadata": metadata_summary
-                }
-            }) + stream_split_marker
-
-    return Response(stream_with_context(multi_stage_process_user_input()), content_type='application/json')
-
-@bp.route('/user-annotation', methods=['POST'])
-=======
             # session["process"].append("- [Ambiguity analysis] Ambiguous or facetted? Ambiguous")
 
             # yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
@@ -432,7 +258,6 @@ def user_input():
 
 # the user submits the evaluation form of the current turn, and the current turn finishes.
 @bp.route('/user_annotation', methods=['POST'])
->>>>>>> Stashed changes
 @login_required
 def user_annotation():
     """Process user annotation/feedback"""
@@ -480,11 +305,7 @@ def erase_chat():
     session["annotation_submitted"] = True
     session["chat_mode"] = "respond"
     session["process"] = []
-<<<<<<< Updated upstream
-    return jsonify({"success": True})
-=======
     return render_template(get_chat_template('dev','to_annotate'),**session)
->>>>>>> Stashed changes
 
 @bp.route('/change-session', methods=['POST'])
 @login_required
@@ -501,38 +322,6 @@ def change_session():
     session.modified = True
     
     return jsonify({"success": True})
-
-<<<<<<< Updated upstream
-def save_conv(user_id, chat_history, first_input):
-    """Save conversation to database"""
-    if first_input:
-        insert_chat_entry(user_id, {
-            "status": "ongoing",
-            "chat_mode": "respond",
-            "chat_history": chat_history
-        })
-    else:
-        update_chat_entry(user_id, {
-            "status": "ongoing",
-            "chat_mode": "respond",
-            "chat_history": chat_history
-        })
-=======
-# def save_conv(user_id, chat_history, first_input):
-#     """Save conversation to database"""
-#     if first_input:
-#         insert_chat_entry(user_id, {
-#             "status": "ongoing",
-#             "chat_mode": "respond",
-#             "chat_history": chat_history
-#         })
-#     else:
-#         update_chat_entry(user_id, {
-#             "status": "ongoing",
-#             "chat_mode": "respond",
-#             "chat_history": chat_history
-#         })
->>>>>>> Stashed changes
 
 def end_conversation(user_id, chat_mode, conv_label):
     """End the current conversation"""
