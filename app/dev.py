@@ -380,7 +380,7 @@ def user_input():
                 response_data = {
                     'type': 'response',
                     'content': {
-                        'message': cq,
+                        'message': response,
                         'metadata': {'session': session_id, 'query': user_input},
                         'needsAnnotation': False
                     }
@@ -395,7 +395,7 @@ def user_input():
                 response_data = {
                     'type': 'response',
                     'content': {
-                        'message': terminate_response,
+                        'message': response,
                         'metadata': {'session': session_id, 'query': user_input},
                         'needsAnnotation': False
                     }
@@ -438,7 +438,7 @@ def user_input():
             response_data = {
                 'type': 'response',
                 'content': {
-                    'message': terminate_response,
+                    'message': cq,
                     'metadata': {'session': session_id, 'query': user_input},
                     'needsAnnotation': False
                 }
