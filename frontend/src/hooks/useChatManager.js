@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 
 const useChatManager = (setShowSessionMessage) => {
@@ -11,8 +11,9 @@ const useChatManager = (setShowSessionMessage) => {
   const [needsAnnotation, setNeedsAnnotation] = useState(false);
   const [currentResponse, setCurrentResponse] = useState(null);
   const messageListRef = useRef(null);
+  const eventSourceRef = useRef(null);
 
-  // Charger l'historique des messages si existant
+  // Load chat history if it exists
   const loadChatHistory = async () => {
     try {
       const historyResponse = await axios.get('/api/dev/chat-history');
@@ -26,11 +27,22 @@ const useChatManager = (setShowSessionMessage) => {
     }
   };
 
-  // Gérer la soumission des messages
+  // Clean up the EventSource on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        console.log("Closing SSE connection on unmount");
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Handle message submission
   const handleSubmit = async (message, currentSession) => {
     if (!message.trim() || isLoading) return;
     
-    // Masquer le message d'introduction après la première entrée utilisateur
+    // Hide the intro message after first user input
     setShowSessionMessage(false);
     
     setUserInput('');
@@ -39,7 +51,7 @@ const useChatManager = (setShowSessionMessage) => {
     setTimingData({});
     setNeedsAnnotation(false);
     
-    // Ajouter le message de l'utilisateur au chat
+    // Add user message to chat
     const newUserMessage = {
       sender: 'user',
       message,
@@ -47,118 +59,123 @@ const useChatManager = (setShowSessionMessage) => {
     };
     
     setChatHistory(prev => [...prev, newUserMessage]);
-
-    // console.log('isFirstInput :', isFirstInput);
     
     try {
-      // Utiliser fetch au lieu d'axios pour le streaming
-      const response = await fetch('/api/dev/input', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userInput: message,
-          firstInput: isFirstInput,
-          sessionId: currentSession
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Close any existing EventSource connection
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
       
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      // Create new EventSource connection
+      console.log(`Creating EventSource connection to /api/dev/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}`);
+      const eventSource = new EventSource(`/api/dev/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}`);
+      eventSourceRef.current = eventSource;
       
-      while (true) {
-        const { done, value } = await reader.read();
+      // Handle different event types
+      eventSource.onmessage = (event) => {
+        console.log("Received SSE message:", event.data);
         
-        if (done) break;
-        
-        buffer += decoder.decode(value, { stream: true });
-        
-        // Traiter les lignes complètes
-        const lines = buffer.split('\n');
-        buffer = lines.pop(); // Garder la dernière ligne potentiellement incomplète
-        
-        for (const line of lines) {
-          if (!line.trim()) continue;
+        try {
+          const data = JSON.parse(event.data);
           
-          try {
-            const data = JSON.parse(line);
-            
-            switch (data.type) {
-              case 'info':
-                setThoughtProcess(data.content);
-                break;
-                
-              case 'time':
-                setTimingData(data.content);
-                break;
-                
-              case 'error':
-                console.error('Error from server:', data.content);
-                // Ajouter un message d'erreur au chat
+          switch (data.type) {
+            case 'connection':
+              console.log('Connection established');
+              break;
+              
+            case 'info':
+              setThoughtProcess(data.content);
+              break;
+              
+            case 'time':
+              setTimingData(data.content);
+              break;
+              
+            case 'typing':
+              // Could show typing indicator or update processing message
+              break;
+              
+            case 'response':
+              const botResponse = {
+                sender: 'bot',
+                message: data.content.message || data.content,
+                metadata: data.content.metadata,
+                timestamp: new Date().toISOString()
+              };
+              
+              setChatHistory(prev => [...prev, botResponse]);
+              setCurrentResponse(botResponse);
+              
+              if (data.content.needsAnnotation) {
+                setNeedsAnnotation(true);
+              }
+              
+              // Close the connection after receiving response
+              stopStreaming();
+              break;
+              
+            case 'error':
+              console.error('Error from server:', data.content);
+              
+              setChatHistory(prev => [
+                ...prev, 
+                {
+                  sender: 'system',
+                  message: `Erreur: ${data.content}`,
+                  timestamp: new Date().toISOString()
+                }
+              ]);
+              
+              // Add fallback response for certain errors
+              if (data.content.includes("ParseError") || data.content.includes("syntax error")) {
                 setChatHistory(prev => [
                   ...prev, 
                   {
-                    sender: 'system',
-                    message: `Erreur: ${data.content}`,
+                    sender: 'bot',
+                    message: "Je suis désolé, mais je n'ai pas pu traiter votre requête correctement. Il semble y avoir un problème avec la formulation de la recherche. Pourriez-vous essayer de reformuler votre question de manière plus simple ou avec des termes différents ?",
                     timestamp: new Date().toISOString()
                   }
                 ]);
-                
-                // Ajouter une réponse de fallback après l'erreur
-                if (data.content.includes("ParseError") || data.content.includes("syntax error")) {
-                  setChatHistory(prev => [
-                    ...prev, 
-                    {
-                      sender: 'bot',
-                      message: "Je suis désolé, mais je n'ai pas pu traiter votre requête correctement. Il semble y avoir un problème avec la formulation de la recherche. Pourriez-vous essayer de reformuler votre question de manière plus simple ou avec des termes différents ?",
-                      timestamp: new Date().toISOString()
-                    }
-                  ]);
-                }
-                break;
-                
-              case 'response':
-                const botResponse = {
-                  sender: 'bot',
-                  message: data.content.message,
-                  metadata: data.content.metadata,
-                  timestamp: new Date().toISOString()
-                };
-
-                console.log(botResponse);
-                
-                setChatHistory(prev => [...prev, botResponse]);
-                setCurrentResponse(botResponse);
-                
-                if (data.content.needsAnnotation) {
-                  setNeedsAnnotation(false);
-                }
-                break;
+              }
               
-              case 'reinitialize':
-                break;
+              stopStreaming();
+              break;
               
-              case 'result':
-                break;
-            }
-          } catch (err) {
-            console.error('Failed to parse server response:', err, line);
+            default:
+              console.warn('Unknown message type:', data.type);
           }
+        } catch (e) {
+          console.error('Error processing message:', e, 'Data:', event.data);
         }
-      }
+      };
       
-      // Marquer comme non-premier input après le succès
-      setIsFirstInput(false);
+      // Handle connection established
+      eventSource.onopen = () => {
+        console.log("SSE connection opened successfully");
+      };
+      
+      // Handle errors
+      eventSource.onerror = (error) => {
+        console.error("SSE connection error:", error);
+        setChatHistory(prev => [
+          ...prev,
+          {
+            sender: 'system',
+            message: "Erreur de connexion au serveur. Veuillez réessayer.",
+            timestamp: new Date().toISOString()
+          }
+        ]);
+        stopStreaming();
+      };
+      
+      // Mark as not being first input anymore
+      if (isFirstInput) {
+        setIsFirstInput(false);
+      }
       
     } catch (error) {
       console.error('Error sending message:', error);
-      // Ajouter un message d'erreur au chat
       setChatHistory(prev => [
         ...prev, 
         {
@@ -167,19 +184,28 @@ const useChatManager = (setShowSessionMessage) => {
           timestamp: new Date().toISOString()
         }
       ]);
-    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Stop the SSE stream
+  const stopStreaming = () => {
+    if (eventSourceRef.current) {
+      console.log("Closing SSE connection");
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
       setIsLoading(false);
     }
   };
 
-  // Gérer la soumission des annotations
+  // Handle annotation submission  
   const handleAnnotationSubmit = async (annotationData) => {
     try {
       await axios.post('/api/dev/user-annotation', annotationData);
       
       setNeedsAnnotation(false);
       
-      // Si la conversation est terminée, vider le chat
+      // If conversation is finished, clear the chat
       if (annotationData.convLabel) {
         setChatHistory([]);
         setIsFirstInput(true);
@@ -191,19 +217,19 @@ const useChatManager = (setShowSessionMessage) => {
     }
   };
 
-  // Redémarrer la conversation
+  // Restart the chat
   const handleRestartChat = async () => {
     try {
       await axios.post('/api/dev/restart-chat');
       
-      // Réinitialisation de l'état de la conversation uniquement
+      // Reset the conversation state
       setChatHistory([]);
       setIsFirstInput(true);
       setThoughtProcess([]);
       setTimingData({});
       setNeedsAnnotation(false);
       
-      // Ajouter un message système indiquant le redémarrage
+      // Add system message indicating restart
       setChatHistory([{
         sender: 'system',
         message: 'Nouvelle conversation démarrée.',
@@ -212,22 +238,20 @@ const useChatManager = (setShowSessionMessage) => {
       
       return true;
     } catch (error) {
-      console.error('Échec du redémarrage de la conversation:', error);
+      console.error('Failed to restart conversation:', error);
       return false;
     }
   };
 
-  // Abandonner la conversation
+  // Abandon the chat
   const handleAbandonChat = async () => {
     if (chatHistory.length <= 1) {
-      // S'il n'y a pas encore de vraie conversation, simplement réinitialiser
       return handleRestartChat();
     }
     
     try {
       await axios.post('/api/dev/abandon-chat');
       
-      // Ajouter un message système
       setChatHistory(prev => [
         ...prev,
         {
@@ -237,26 +261,24 @@ const useChatManager = (setShowSessionMessage) => {
         }
       ]);
       
-      // Désactiver l'entrée pour forcer l'utilisateur à redémarrer
-      setIsLoading(true); // Empêche l'envoi de nouveaux messages
+      // Disable input to force user to restart
+      setIsLoading(true);
       
-      // Délai avant de proposer de redémarrer
       setTimeout(() => {
         setIsLoading(false);
-        setIsFirstInput(true); // Prêt pour une nouvelle conversation
+        setIsFirstInput(true);
       }, 2000);
       
       return true;
     } catch (error) {
-      console.error('Échec de l\'abandon de la conversation:', error);
+      console.error('Failed to abandon conversation:', error);
       return false;
     }
   };
 
-  // Confirmer une conversation comme satisfaisante
+  // Confirm chat as satisfactory
   const handleConfirmChat = async () => {
     if (chatHistory.length <= 1) {
-      // Aucune conversation à confirmer
       alert('Aucune conversation à confirmer. Posez d\'abord une question.');
       return false;
     }
@@ -264,7 +286,6 @@ const useChatManager = (setShowSessionMessage) => {
     try {
       await axios.post('/api/dev/confirm-chat');
       
-      // Ajouter un message de confirmation
       setChatHistory(prev => [
         ...prev,
         {
@@ -276,12 +297,12 @@ const useChatManager = (setShowSessionMessage) => {
       
       return true;
     } catch (error) {
-      console.error('Échec de la confirmation de la conversation:', error);
+      console.error('Failed to confirm conversation:', error);
       return false;
     }
   };
   
-  // Ajouter un message système
+  // Add a system message
   const addSystemMessage = (message) => {
     setChatHistory(prev => [
       ...prev,
@@ -293,7 +314,7 @@ const useChatManager = (setShowSessionMessage) => {
     ]);
   };
 
-  // Réinitialiser le chat (pour changer de session)
+  // Reset chat (for session change)
   const resetChat = () => {
     setChatHistory([]);
     setIsFirstInput(true);
@@ -321,7 +342,8 @@ const useChatManager = (setShowSessionMessage) => {
     handleAbandonChat,
     handleConfirmChat,
     addSystemMessage,
-    resetChat
+    resetChat,
+    stopStreaming
   };
 };
 

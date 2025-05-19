@@ -14,8 +14,7 @@ import { useAuth } from '../../context/AuthContext';
 import SessionSelector from './SessionSelector';
 import SessionNavigation from './SessionNavigation';
 import ThoughtProcess from './ThoughtProcess';
-import ChatArea from './ChatArea'; // Nouveau composant qui regroupe l'interface de chat
-import ReferenceEvaluationModal from './ReferenceEvaluationModal';
+import ChatArea from './ChatArea';
 
 // Hooks personnalisés
 import useSessionManager from '../../hooks/useSessionManager';
@@ -23,7 +22,7 @@ import useChatManager from '../../hooks/useChatManager';
 import useReferenceDetection from '../../hooks/useReferenceDetection';
 
 // Styles
-import './ChatInterface.css';
+// import './ChatInterface.css';
 
 const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
@@ -106,7 +105,29 @@ const ChatInterface = () => {
       cleanupSessionTimer();
     };
   }, []);
+  useEffect(() => {
+    console.log("ChatInterface rendered with state:", {
+      currentSession,
+      sessionTimer,
+      showSessionMessage,
+      sessionEndAlert,
+      tutorialMode,
+      tutorialStep,
+      showGuides,
+      chatHistoryLength: chatHistory ? chatHistory.length : 0,
+      userInput,
+      isLoading,
+      needsAnnotation,
+    });
+  }, [currentSession, sessionTimer, showSessionMessage, sessionEndAlert, tutorialMode, tutorialStep, showGuides, chatHistory, userInput, isLoading, needsAnnotation]);
   
+  // Add this right before the return statement
+  console.log("About to render ChatInterface components with:", {
+    chatHistory,
+    showSessionMessage,
+    sessionData,
+    currentSession
+  });
   // Callback pour le tutorial Joyride
   const handleTutorialCallback = (data) => {
     const { status } = data;
@@ -219,7 +240,6 @@ const ChatInterface = () => {
         
         <div className="chat-container">
           <MainContainer>
-            {/* Utilisation du nouveau composant ChatArea au lieu des composants séparés */}
             <ChatArea 
               // Props pour le header
               currentSession={currentSession}
@@ -258,15 +278,6 @@ const ChatInterface = () => {
         </div>
       </div>
       
-      {/* Modal d'évaluation de référence */}
-      {showReferenceModal && probableReference && (
-        <ReferenceEvaluationModal
-          isOpen={showReferenceModal}
-          onClose={handleCloseReferenceModal}
-          reference={probableReference}
-          onSubmit={handleEvaluateReference}
-        />
-      )}
     </div>
   );
 };

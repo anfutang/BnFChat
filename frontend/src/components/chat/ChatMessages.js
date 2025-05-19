@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { MessageList, Message, MessageSeparator, TypingIndicator, Avatar } from '@chatscope/chat-ui-kit-react';
-import GuidedSearch from './GuidedSearch';
 
 const ChatMessages = ({ 
   messageListRef, 
@@ -18,16 +17,33 @@ const ChatMessages = ({
 }) => {
   // Debugging - log chat history for troubleshooting
   useEffect(() => {
-    console.log("Current chat history:", chatHistory);
-  }, [chatHistory]);
+    console.log("ChatMessages mounted/updated with:", {
+      chatHistoryLength: chatHistory?.length || 0,
+      messages: chatHistory,
+      isLoading,
+      showSessionMessage
+    });
+  }, [chatHistory, isLoading, showSessionMessage]);
 
-  // Importer le composant TutorialSteps en fonction de l'état tutorialMode
-  const TutorialSteps = tutorialMode ? require('../tutorial/TutorialSteps').default : null;
+  // The key issue - make sure TutorialSteps is loaded properly
+  let TutorialSteps = null;
+  try {
+    // Only try to load if tutorialMode is true
+    if (tutorialMode) {
+      TutorialSteps = require('../tutorial/TutorialSteps').default;
+      console.log("TutorialSteps loaded successfully:", !!TutorialSteps);
+    }
+  } catch (error) {
+    console.error("Error loading TutorialSteps:", error);
+    // Continue without the tutorial component
+  }
   
   return (
-    <MessageList ref={messageListRef}>
-      {/* Mode tutoriel */}
-      {tutorialMode ? (
+    <MessageList ref={messageListRef} className="message-list-container">
+      {console.log("Rendering MessageList with", chatHistory?.length || 0, "messages")}
+      
+      {/* Mode tutoriel - make sure we handle missing TutorialSteps */}
+      {tutorialMode && TutorialSteps ? (
         <TutorialSteps 
           currentStep={tutorialStep}
           onNextStep={onNextTutorialStep}
@@ -93,10 +109,6 @@ const ChatMessages = ({
             </div>
           )}
 
-          {/* Guides de recherche pour la session test */}
-          {showGuides && currentSession === 3 && (
-            <GuidedSearch onSelectGuide={onSelectGuide} />
-          )}
 
           {/* Alerte de fin de session libre */}
           {sessionEndAlert && (
@@ -118,46 +130,54 @@ const ChatMessages = ({
             </div>
           )}
 
-          {/* Contenu du chat vide */}
-          {chatHistory.length === 0 && !showSessionMessage && !sessionEndAlert && (
+          {/* Empty chat message */}
+          {(!chatHistory || chatHistory.length === 0) && !showSessionMessage && !sessionEndAlert && (
             <div className="empty-chat">
               <p>Commencez une nouvelle conversation en tapant un message ci-dessous.</p>
             </div>
           )}
           
-          {/* Messages du chat */}
-          {chatHistory && chatHistory.length > 0 && chatHistory.map((msg, index) => (
-            <React.Fragment key={index}>
-              {index > 0 && msg.sender === 'user' && chatHistory[index-1].sender === 'bot' && (
-                <MessageSeparator>Nouvelle Question</MessageSeparator>
-              )}
-              <Message
-                model={{
-                  message: msg.message,
-                  sentTime: msg.timestamp,
-                  sender: msg.sender,
-                  direction: msg.sender === 'user' ? 'outgoing' : 'incoming',
-                  position: 'normal'
-                }}
-              >
-                {msg.sender !== 'user' && (
-                  <Avatar 
-                    src={msg.sender === 'bot' ? '/logo.png' : null} 
-                    name={msg.sender === 'bot' ? 'BNF' : 'Système'} 
-                  />
-                )}
-                <Message.CustomContent>
-                  <div dangerouslySetInnerHTML={{ __html: msg.message }} />
-                  {msg.metadata && (
-                    <div className="message-metadata">
-                      <h4>Métadonnées extraites:</h4>
-                      <div dangerouslySetInnerHTML={{ __html: msg.metadata }} />
-                    </div>
-                  )}
-                </Message.CustomContent>
-              </Message>
-            </React.Fragment>
-          ))}
+          {/* Chat messages - add guards to prevent null reference errors */}
+          {chatHistory && chatHistory.length > 0 && (
+            <>
+              {console.log("Rendering", chatHistory.length, "messages")}
+              {chatHistory.map((msg, index) => {
+                console.log(`Rendering message ${index}:`, msg);
+                return (
+                  <React.Fragment key={index}>
+                    {index > 0 && msg.sender === 'user' && chatHistory[index-1]?.sender === 'bot' && (
+                      <MessageSeparator>Nouvelle Question</MessageSeparator>
+                    )}
+                    <Message
+                      model={{
+                        message: msg.message || "",
+                        sentTime: msg.timestamp || new Date().toISOString(),
+                        sender: msg.sender || "system",
+                        direction: msg.sender === 'user' ? 'outgoing' : 'incoming',
+                        position: 'normal'
+                      }}
+                    >
+                      {msg.sender !== 'user' && (
+                        <Avatar 
+                          src={msg.sender === 'bot' ? '/logo.png' : null} 
+                          name={msg.sender === 'bot' ? 'BNF' : 'Système'} 
+                        />
+                      )}
+                      <Message.CustomContent>
+                        <div dangerouslySetInnerHTML={{ __html: msg.message || "" }} />
+                        {msg.metadata && (
+                          <div className="message-metadata">
+                            <h4>Métadonnées extraites:</h4>
+                            <div dangerouslySetInnerHTML={{ __html: msg.metadata }} />
+                          </div>
+                        )}
+                      </Message.CustomContent>
+                    </Message>
+                  </React.Fragment>
+                );
+              })}
+            </>
+          )}
           
           {/* Indicateur de chargement */}
           {isLoading && (

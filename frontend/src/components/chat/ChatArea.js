@@ -1,19 +1,22 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { 
   ChatContainer, 
+  ConversationHeader,
+  MessageList,
+  Message,
   MessageInput as ChatScopeMessageInput 
 } from '@chatscope/chat-ui-kit-react';
 import SessionHeader from './SessionHeader';
-import ChatMessages from './ChatMessages';
 import AnnotationForm from './AnnotationForm';
+// import './ChatArea.css'; 
 
 const ChatArea = ({
-  // Props pour le header
+  // Props for header
   currentSession,
   sessionTimer,
   sessionData,
   
-  // Props pour les messages
+  // Props for messages
   messageListRef,
   chatHistory,
   isLoading,
@@ -26,7 +29,7 @@ const ChatArea = ({
   onNextTutorialStep,
   onCompleteTutorial,
   
-  // Props pour l'entrée
+  // Props for input
   needsAnnotation,
   userInput,
   setUserInput,
@@ -34,46 +37,109 @@ const ChatArea = ({
   onAnnotationSubmit,
   currentResponse
 }) => {
+  // Debug logging
+  useEffect(() => {
+    console.log("ChatArea mounting/updating with:", {
+      chatHistoryLength: chatHistory?.length || 0,
+      isLoading,
+      needsAnnotation,
+      showSessionMessage
+    });
+  }, [chatHistory, isLoading, needsAnnotation, showSessionMessage]);
+
+  // Handle send button click or Enter key
+  const handleSend = () => {
+    console.log("Sending message:", userInput);
+    if (userInput && userInput.trim() && !isLoading) {
+      onSend(userInput);
+    }
+  };
+  
+  // Process the chat history to match @chatscope format
+  const processedMessages = chatHistory?.map(msg => ({
+    message: msg.message || "",
+    sentTime: msg.timestamp || new Date().toISOString(),
+    sender: msg.sender || "system",
+    direction: msg.sender === 'user' ? 'outgoing' : 'incoming',
+    position: 'normal',
+    metadata: msg.metadata
+  })) || [];
+  
   return (
     <ChatContainer className="chat-container-component">
-      <SessionHeader 
-        currentSession={currentSession}
-        sessionTimer={sessionTimer}
-        sessionData={sessionData}
-      />
+      <ConversationHeader>
+        <ConversationHeader.Content>
+          <SessionHeader 
+            currentSession={currentSession}
+            sessionTimer={sessionTimer}
+            sessionData={sessionData}
+          />
+        </ConversationHeader.Content>
+      </ConversationHeader>
       
-      <ChatMessages 
-        messageListRef={messageListRef}
-        chatHistory={chatHistory}
-        isLoading={isLoading}
-        showSessionMessage={showSessionMessage}
-        currentSession={currentSession}
-        sessionEndAlert={sessionEndAlert}
-        showGuides={showGuides}
-        tutorialMode={tutorialMode}
-        tutorialStep={tutorialStep}
-        onSelectGuide={onSelectGuide}
-        onNextTutorialStep={onNextTutorialStep}
-        onCompleteTutorial={onCompleteTutorial}
-      />
+      <MessageList 
+        ref={messageListRef}
+        className="message-list"
+      >
+        {/* Show session intro message if necessary */}
+        {showSessionMessage && (
+          <div className="session-intro-message">
+            {/* Session intro message content goes here */}
+            {/* You'll need to use Message components from chatscope here */}
+          </div>
+        )}
+        
+        {/* Show guides if necessary */}
+        {showGuides && currentSession === '3' && (
+          <div className="guided-search-container">
+            {/* Your guided search content */}
+          </div>
+        )}
+        
+        {/* Empty chat message */}
+        {(!chatHistory || chatHistory.length === 0) && !showSessionMessage && !sessionEndAlert && (
+          <div className="empty-chat">
+            <p>Commencez une nouvelle conversation en tapant un message ci-dessous.</p>
+          </div>
+        )}
+        
+        {/* Render actual chat messages */}
+        {processedMessages.map((msgModel, index) => (
+        <Message key={index} model={msgModel}>
+          <Message.Header sender={msgModel.sender} sentTime={msgModel.sentTime} />
+          <Message.Content>{msgModel.message}</Message.Content>
+        </Message>
+      ))}
+        
+        {/* Loading indicator */}
+        {isLoading && (
+          <div className="typing-indicator">
+            BNF traite votre demande...
+          </div>
+        )}
+      </MessageList>
       
-      {/* Garantir que l'entrée est toujours visible, même en mode tutoriel */}
       {!needsAnnotation ? (
         <ChatScopeMessageInput
           placeholder="Tapez votre message ici..."
-          value={userInput}
-          onChange={setUserInput}
-          onSend={() => onSend(userInput)}
+          value={userInput || ''}
+          onChange={val => {
+            console.log("Input changed:", val);
+            setUserInput(val);
+          }}
+          onSend={handleSend}
           disabled={isLoading || tutorialMode}
           attachButton={false}
           sendButton={true}
           className="message-input-fixed"
         />
       ) : (
-        <AnnotationForm
-          onSubmit={onAnnotationSubmit}
-          response={currentResponse}
-        />
+        <div className="annotation-form-container">
+          <AnnotationForm
+            onSubmit={onAnnotationSubmit}
+            response={currentResponse}
+          />
+        </div>
       )}
     </ChatContainer>
   );

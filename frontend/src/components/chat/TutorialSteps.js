@@ -1,6 +1,6 @@
 import React from 'react';
 import { Message, MessageSeparator } from '@chatscope/chat-ui-kit-react';
-import './TutorialSteps.css';
+// import './TutorialSteps.css';
 
 const TutorialSteps = ({ currentStep, onNextStep, onComplete }) => {
   // Définition des étapes du tutoriel

@@ -4,6 +4,7 @@ import json
 import random
 import functools
 from datetime import datetime
+import logging
 
 from .db import db
 from .models import *
@@ -12,11 +13,14 @@ from .utils.constant import *
 from .utils.tutorial_llm_responses import fetch_demo_llm_responses
 from .utils.retriever import *
 from .utils.constant import *
+import traceback
 
 from .llm.llm import *
 from .llm.rag import knn
 
 bp = Blueprint('dev', __name__, url_prefix="/api/dev")
+
+logger = logging.getLogger(__name__)
 
 stream_split_marker = '\n'
 
@@ -71,342 +75,416 @@ def get_chat_history():
     return jsonify(session["chat_history"])
 
 
-@bp.route("/input",methods=['POST'])
-@login_required
+@bp.route("/input", methods=['GET'])
 def user_input():
     """Process user input and generate response"""
+    # Get parameters from query string instead of JSON body
+    user_input = request.args.get('query', '')
+    first_input = request.args.get('first', 'false').lower() == 'true'
+    session_id = request.args.get('session', '')
+    
     session["chat_mode"] = "respond"
-    user_input = request.json.get("userInput", "")
-    first_input = request.json.get("firstInput", True)
     user_id = session.get("user_id")
-    print(user_input,first_input)
-    print(user_id)
+    
+    logger.info(f"Received input request: query='{user_input}', first={first_input}, session={session_id}")
 
     def multi_stage_process_user_input():
         time_count = {}
         title_match_hint = ''
+        
+        # Initial connection message
+        yield f"data: {json.dumps({'type': 'connection', 'content': 'Connected'})}\n\n"
+        
+        # Initial typing indicator
+        yield f"data: {json.dumps({'type': 'typing', 'content': 'Traitement en cours...'})}\n\n"
 
         if first_input:
             session["process"] = []
             prev_chat_history = []
             last_user_intent = ""
-            save_conv(user_id,first_input,[])
+            save_conv(user_id, first_input, [])
             # module-1: title match
+            start_time = time.time()
             title_match_hint, title_matching_time = find_exact_title_matches(user_input)
-            time_count["title_matching"] = f"{title_matching_time:.3f} s"
+            time_count["title_matching"] = f"{title_matching_time:.3f}s"
             first_user_query = user_input
         else:
             _, _, prev_chat_data = fetch_last_chat_entry(user_id)
             prev_chat_history = prev_chat_data["chat_history"]
-            print(prev_chat_history)
-            last_user_intent = prev_chat_data.get("user_intent","")
+            last_user_intent = prev_chat_data.get("user_intent", "")
             first_user_query = prev_chat_history[0]
 
-        result = call_conv_intent_detection(prev_chat_history+[user_input])
-        if isinstance(result,str):
-            yield result + stream_split_marker
-            return 
+        # Update with timing info
+        yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
+        
+        # Intent detection
+        result = call_conv_intent_detection(prev_chat_history + [user_input])
+        if isinstance(result, str):
+            yield f"data: {json.dumps({'type': 'error', 'content': result})}\n\n"
+            return
+            
         time_count["conv_intent_detection"] = result[0]
-        yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
+        yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
 
         conv_intent = result[1]
         print(conv_intent)
+        
+        # Process user intent
+        thought_process = ["Analyse de votre requête..."]
+        yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+        
         if conv_intent == "abandon":
             session["llm_response"] = abandon_response
-            yield json.dumps({
-                    "type": "response",
-                    "content": {
-                        "message": abandon_response,
-                        "metadata": None,
-                        "needsAnnotation": False
-                    }
-                }) + "\n"
-            save_conv(user_id,first_input,prev_chat_history+[user_input,refusal_response],"abandoned")
-            yield json.dumps({"type": "reinitialize", "content": ""}) + stream_split_marker
+            yield f"data: {json.dumps({
+                'type': 'response',
+                'content': {
+                    'message': abandon_response,
+                    'metadata': {'session': session_id, 'query': user_input},
+                    'needsAnnotation': False
+                }
+            })}\n\n"
+            save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "abandoned")
+            yield f"data: {json.dumps({'type': 'reinitialize', 'content': ''})}\n\n"
             return
         elif conv_intent == "search":
             if last_user_intent:
-                rag_result = knn(last_user_intent,1)
+                # Process search with last intent
+                thought_process.append("Préparation de la recherche...")
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
+                rag_result = knn(last_user_intent, 1)
                 sru_hint = rag_result["sru_statements"][0]
-                result = call_nl2sru(last_user_intent,sru_hint)
-                if isinstance(result,str):
-                    yield result + stream_split_marker
+                result = call_nl2sru(last_user_intent, sru_hint)
+                
+                if isinstance(result, str):
+                    yield f"data: {json.dumps({'type': 'error', 'content': result})}\n\n"
                     return
+                    
                 time_count["nl2sru"] = result[0]
-                yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
-                session["process"].append("- [Conversion to SRU query] ✔️")
+                yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
+                
+                thought_process.append("Conversion en requête SRU...")
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
                 nl2sru_result = extract_sru_query(result[1])
-                if isinstance(nl2sru_result,Exception):
-                    yield json.dumps({"type": "error", "content": f"parse NL2SRU result\n"+fetch_error(nl2sru_result)}) + stream_split_marker
+                if isinstance(nl2sru_result, Exception):
+                    yield f"data: {json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})}\n\n"
                     return
+                
                 original_sru_query = f"gallica all {first_user_query}"
-                result = retrieve_result_page(nl2sru_result,original_sru_query)
-                if isinstance(result,Exception):
-                    yield json.dumps({"type": "error", "content": str(result)}) + stream_split_marker
-                    return
-                retrieval_result_wc, retrieval_result_woc = result
-                yield json.dumps({"type": "result", "content": encode_html(render_template("dev/retrieve/retrieval_result.html",retrieval_result_wc=retrieval_result_wc,retrieval_result_woc=retrieval_result_woc,sru_query=nl2sru_result,original_sru_query=original_sru_query))}) + stream_split_marker
+                yield f"data: {json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})}\n\n"
             else:
                 session["llm_response"] = no_intent_response
-                yield json.dumps({
-                    "type": "response",
-                    "content": {
-                        "message": no_intent_response,
-                        "metadata": None,
-                        "needsAnnotation": False
+                yield f"data: {json.dumps({
+                    'type': 'response',
+                    'content': {
+                        'message': no_intent_response,
+                        'metadata': {'session': session_id, 'query': user_input},
+                        'needsAnnotation': False
                     }
-                }) + "\n"
-                save_conv(user_id,first_input,prev_chat_history+[user_input,refusal_response],"refused")
-                yield json.dumps({"type": "reinitialize", "content": ""}) + stream_split_marker
+                })}\n\n"
+                save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
+                yield f"data: {json.dumps({'type': 'reinitialize', 'content': ''})}\n\n"
             return
 
         if title_match_hint:
-            session["process"].append("- Title matching: ✅")
-            yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
+            thought_process.append("Correspondance de titre trouvée")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
         
+        # Continue with the rest of your processing (entity disambiguation, etc.)
         if conv_intent == "continue":
+            thought_process.append("Analyse des entités...")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+            
             # module-2: entity disambiguation
-            result = call_entity_disambiguation(prev_chat_history+[user_input])
-            if isinstance(result,str):
-                yield result + stream_split_marker
-                return 
+            result = call_entity_disambiguation(prev_chat_history + [user_input])
+            if isinstance(result, str):
+                yield f"data: {json.dumps({'type': 'error', 'content': result})}\n\n"
+                return
+                
             time_count["entity_disambiguation"] = result[0]
-            yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
+            yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
             
             if result[1][0].lower() in ["no", "false"]:
                 # ambiguous query
                 cq = result[1][1]
                 session["llm_response"] = cq
-                # session["process"].append("- [Ambiguity analysis] Ambiguous or facetted? Ambiguous")
-
-                # yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
-                yield json.dumps({
-                    "type": "response",
-                    "content": {
-                        "message": cq,
-                        "metadata": None,
-                        "needsAnnotation": False
+                
+                thought_process.append("Requête ambiguë détectée")
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
+                yield f"data: {json.dumps({
+                    'type': 'response',
+                    'content': {
+                        'message': cq,
+                        'metadata': {'session': session_id, 'query': user_input},
+                        'needsAnnotation': False
                     }
-                }) + "\n"
-                save_conv(user_id,first_input,prev_chat_history+[user_input,cq])
+                })}\n\n"
+                save_conv(user_id, first_input, prev_chat_history + [user_input, cq])
                 return
         
-        # faceted query
-        # session["process"].append("- [Ambiguity analysis] Ambiguous or facetted? Facetted")
-        # yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
-
-        # module-3: conversation summarization
+                # Conversation summarization
         if not first_input:
-            result = call_conv_summarization(prev_chat_history+[user_input])
-            if isinstance(result,str):
-                yield result + stream_split_marker
+            thought_process.append("Résumé de la conversation...")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+            
+            result = call_conv_summarization(prev_chat_history + [user_input])
+            if isinstance(result, str):
+                yield f"data: {json.dumps({'type': 'error', 'content': result})}\n\n"
                 return
+                
             time_count["conv_summarization"] = result[0]
-            yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
-            # session["process"].append("- [Conversation summarization] ✔️")
-            # yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
+            yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
             current_user_intent = result[1]
         else:
             current_user_intent = user_input
 
-        yield json.dumps({"type": "intent", "content": current_user_intent}) + stream_split_marker
+        yield f"data: {json.dumps({'type': 'intent', 'content': current_user_intent})}\n\n"
 
+        # Handle respond_and_search intent
         if conv_intent == "respond_and_search":
-            rag_result = knn(current_user_intent,1)
+            thought_process.append("Préparation de la recherche...")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+            
+            rag_result = knn(current_user_intent, 1)
             sru_hint = rag_result["sru_statements"][0]
-            result = call_nl2sru(current_user_intent,sru_hint)
-            if isinstance(result,str):
-                yield result + stream_split_marker
+            
+            thought_process.append("Conversion de la requête naturelle en SRU...")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+            
+            result = call_nl2sru(current_user_intent, sru_hint)
+            if isinstance(result, str):
+                yield f"data: {json.dumps({'type': 'error', 'content': result})}\n\n"
                 return
+                
             time_count["nl2sru"] = result[0]
-            yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
-            session["process"].append("- [Conversion to SRU query] ✔️")
+            yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
+            
             nl2sru_result = extract_sru_query(result[1])
-            if isinstance(nl2sru_result,Exception):
-                yield json.dumps({"type": "error", "content": f"parse NL2SRU result\n"+fetch_error(nl2sru_result)}) + stream_split_marker
+            if isinstance(nl2sru_result, Exception):
+                yield f"data: {json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})}\n\n"
                 return
+                
             original_sru_query = f"gallica all {first_user_query}"
-            # result = retrieve_result_page(nl2sru_result,original_sru_query)
-            # if isinstance(result,Exception):
-            #     yield json.dumps({"type": "error", "content": str(result)}) + stream_split_marker
-            #     return
-            # retrieval_result_wc, retrieval_result_woc = result
-            # yield json.dumps({"type": "result", "content": encode_html(render_template("dev/retrieve/retrieval_result.html",retrieval_result_wc=retrieval_result_wc,retrieval_result_woc=retrieval_result_woc,sru_query=nl2sru_result,original_sru_query=original_sru_query))}) + stream_split_marker
-            yield json.dumps({"type": "result", "content": f"{nl2sru_result}###{original_sru_query}"})
+            yield f"data: {json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})}\n\n"
             return
 
-        # module-3: KNN retrieval 
+        # KNN retrieval
+        thought_process.append("Recherche dans la base de connaissances...")
+        yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+        
         start_time = time.time()
-        result = knn(current_user_intent,20)
-        time_count["retrieval"] = f"{time.time()-start_time:.3f}"
-        yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
-        # session["process"].append("- [Retrieval using the vector database] ✔️")
-        # yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
+        result = knn(current_user_intent, 20)
+        time_count["retrieval"] = f"{time.time()-start_time:.3f}s"
+        
+        yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
+        
         if not result or not result["topic"]:
-            # no relevant topics based on vector cosine similarity
+            # No relevant topics based on vector cosine similarity
+            thought_process.append("Aucun sujet pertinent trouvé")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+            
             response = refusal_response
             if last_user_intent:
                 response += search_notification
                 session["llm_response"] = response
-                yield json.dumps({
-                    "type": "response",
-                    "content": {
-                        "message": response,
-                        "metadata": None,
-                        "needsAnnotation": False
+                
+                yield f"data: {json.dumps({
+                    'type': 'response',
+                    'content': {
+                        'message': response,
+                        'metadata': {'session': session_id, 'query': user_input},
+                        'needsAnnotation': False
                     }
-                }) + "\n"
-                save_conv(user_id,first_input,prev_chat_history+[user_input,refusal_response],"refused_and_search")
+                })}\n\n"
+                
+                save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused_and_search")
 
-                # nl2sru
-                rag_result = knn(last_user_intent,1)
+                # nl2sru processing
+                thought_process.append("Tentative de recherche alternative...")
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
+                rag_result = knn(last_user_intent, 1)
                 sru_hint = rag_result["sru_statements"][0]
-                result = call_nl2sru(last_user_intent,sru_hint)
-                if isinstance(result,str):
-                    yield result + stream_split_marker
+                result = call_nl2sru(last_user_intent, sru_hint)
+                
+                if isinstance(result, str):
+                    yield f"data: {json.dumps({'type': 'error', 'content': result})}\n\n"
                     return
+                    
                 time_count["nl2sru"] = result[0]
-                yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
-                session["process"].append("- [Conversion to SRU query] ✔️")
+                yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
+                
                 nl2sru_result = extract_sru_query(result[1])
-                if isinstance(nl2sru_result,Exception):
-                    yield json.dumps({"type": "error", "content": f"parse NL2SRU result\n"+fetch_error(nl2sru_result)}) + stream_split_marker
+                if isinstance(nl2sru_result, Exception):
+                    yield f"data: {json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})}\n\n"
                     return
+                    
                 original_sru_query = f"gallica all {first_user_query}"
-                # result = retrieve_result_page(nl2sru_result,original_sru_query)
-                # if isinstance(result,Exception):
-                #     yield json.dumps({"type": "error", "content": str(result)}) + stream_split_marker
-                #     return
-                # retrieval_result_wc, retrieval_result_woc = result
-                yield json.dumps({"type": "result", "content": f"{nl2sru_result}###{original_sru_query}"})
+                yield f"data: {json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})}\n\n"
             else:
                 response += reinitialization_notification
                 session["llm_response"] = response
-                yield json.dumps({
-                    "type": "response",
-                    "content": {
-                        "message": response,
-                        "metadata": None,
-                        "needsAnnotation": False
+                
+                yield f"data: {json.dumps({
+                    'type': 'response',
+                    'content': {
+                        'message': response,
+                        'metadata': {'session': session_id, 'query': user_input},
+                        'needsAnnotation': False
                     }
-                }) + "\n"
-                save_conv(user_id,first_input,prev_chat_history+[user_input,refusal_response],"refused")
-                yield json.dumps({"type": "reinitialize", "content": ""}) + stream_split_marker
+                })}\n\n"
+                
+                save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
+                yield f"data: {json.dumps({'type': 'reinitialize', 'content': ''})}\n\n"
             return
-        # yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
 
+        # Extract topics and SRU hints
         topics, sru_hints = result["topic"], result["sru_statements"]
 
-        # module-4: retrieval result relevance checker
-        result = call_relevance_checker(current_user_intent,topics)
-        if isinstance(result,str):
-            yield result + stream_split_marker
-            return
-        time_count["relevance_check"] = result[0]
-        yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
+        # Relevance checker
+        thought_process.append("Vérification de la pertinence des résultats...")
+        yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
         
-        conclusion, facet_ids = result[1]
-        # session["process"].append(f"- [Relevance check] Retrieval result relevant? {conclusion}")
-        # yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
+        result = call_relevance_checker(current_user_intent, topics)
+        if isinstance(result, str):
+            yield f"data: {json.dumps({'type': 'error', 'content': result})}\n\n"
+            return
+            
+        time_count["relevance_check"] = result[0]
+        yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
+        
         conclusion, facet_ids = result[1]
         
         if conclusion == "no":
-            # no relevant facets based on LLM relevance checker
+            # No relevant facets based on LLM relevance checker
+            thought_process.append("Aucun sujet jugé pertinent")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+            
             response = refusal_response
             if last_user_intent:
                 response += search_notification
                 session["llm_response"] = response
-                yield json.dumps({
-                    "type": "response",
-                    "content": {
-                        "message": response,
-                        "metadata": None,
-                        "needsAnnotation": False
+                
+                yield f"data: {json.dumps({
+                    'type': 'response',
+                    'content': {
+                        'message': response,
+                        'metadata': {'session': session_id, 'query': user_input},
+                        'needsAnnotation': False
                     }
-                }) + "\n"
-                save_conv(user_id,first_input,prev_chat_history+[user_input,refusal_response],"refused_and_search")
+                })}\n\n"
+                
+                save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused_and_search")
             else:
                 response += reinitialization_notification
                 session["llm_response"] = response
-                yield json.dumps({
-                    "type": "response",
-                    "content": {
-                        "message": response,
-                        "metadata": None,
-                        "needsAnnotation": False
+                
+                yield f"data: {json.dumps({
+                    'type': 'response',
+                    'content': {
+                        'message': response,
+                        'metadata': {'session': session_id, 'query': user_input},
+                        'needsAnnotation': False
                     }
-                }) + "\n"
-                save_conv(user_id,first_input,prev_chat_history+[user_input,refusal_response],"refused")
-                yield json.dumps({"type": "reinitialize", "content": ""}) + stream_split_marker
+                })}\n\n"
+                
+                save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
+                yield f"data: {json.dumps({'type': 'reinitialize', 'content': ''})}\n\n"
             return
+            
+        # Filter topics based on facet IDs
         sru_hints = [sru_hints[ix-1] for ix in facet_ids]
         topics = [topics[ix-1] for ix in facet_ids]
 
-        session["process"].append("Sujets pertinents:")
+        # Display relevant topics
+        thought_process.append("Sujets pertinents identifiés:")
         for ix, topic in enumerate(topics):
-            session["process"].append(f"{ix+1}. {topic}")
-            yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
+            thought_process.append(f"{ix+1}. {topic}")
+        
+        yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
 
-        # module-5: RAC. If relevant, CQ generation based on relevant topics
-        result = call_rac(prev_chat_history+[user_input],topics)
-        if isinstance(result,str):
-            yield result + stream_split_marker
+        # RAC (Request for Additional Clarification)
+        thought_process.append("Analyse du besoin de clarification...")
+        yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+        
+        result = call_rac(prev_chat_history + [user_input], topics)
+        if isinstance(result, str):
+            yield f"data: {json.dumps({'type': 'error', 'content': result})}\n\n"
             return
+            
         time_count["rac"] = result[0]
-        yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
+        yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
 
         conclusion, cq = result[1]
         if conclusion == "yes":
-            # session["process"].append(f"- [RAC] could be further clarified? {conclusion}")
-            # yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
+            thought_process.append("Demande de clarification nécessaire")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
 
             session["llm_response"] = cq
-            yield json.dumps({
-                    "type": "response",
-                    "content": {
-                        "message": cq,
-                        "metadata": None,
-                        "needsAnnotation": False
-                    }
-                }) + "\n"
-            save_conv(user_id,first_input,prev_chat_history+[user_input,cq],user_intent=current_user_intent)
+            yield f"data: {json.dumps({
+                'type': 'response',
+                'content': {
+                    'message': cq,
+                    'metadata': {'session': session_id, 'query': user_input},
+                    'needsAnnotation': False
+                }
+            })}\n\n"
+            
+            save_conv(user_id, first_input, prev_chat_history + [user_input, cq], user_intent=current_user_intent)
         else:
-            # session["process"].append(f"- [RAC] could be further clarified? {conclusion}")
-            # yield json.dumps({"type": "info", "content": '\n'.join(session["process"])}) + stream_split_marker
+            thought_process.append("Requête suffisamment claire, préparation de la recherche finale")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
 
             session["llm_response"] = terminate_response
-            yield json.dumps({
-                    "type": "response",
-                    "content": {
-                        "message": terminate_response,
-                        "metadata": None,
-                        "needsAnnotation": False
-                    }
-                }) + "\n"
-            save_conv(user_id,first_input,prev_chat_history+[user_input,terminate_response],status="termintated_by_system")
+            yield f"data: {json.dumps({
+                'type': 'response',
+                'content': {
+                    'message': terminate_response,
+                    'metadata': {'session': session_id, 'query': user_input},
+                    'needsAnnotation': False
+                }
+            })}\n\n"
+            
+            save_conv(user_id, first_input, prev_chat_history + [user_input, terminate_response], status="termintated_by_system")
 
-            # otherwise: terminate, use hint SRU statements from the previous turn for NL2SRU 
-            rag_result = knn(current_user_intent,1)
+            # NL2SRU conversion for search
+            rag_result = knn(current_user_intent, 1)
             sru_hint = rag_result["sru_statements"][0]
-            result = call_nl2sru(current_user_intent,sru_hint)
-            if isinstance(result,str):
-                yield result + stream_split_marker
+            
+            thought_process.append("Conversion de la requête naturelle en SRU...")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+            
+            result = call_nl2sru(current_user_intent, sru_hint)
+            if isinstance(result, str):
+                yield f"data: {json.dumps({'type': 'error', 'content': result})}\n\n"
                 return
+                
             time_count["nl2sru"] = result[0]
-            yield json.dumps({"type": "time", "content": time_count}) + stream_split_marker
-            # session["process"].append("- [Conversion to SRU query] ✔️")
+            yield f"data: {json.dumps({'type': 'time', 'content': time_count})}\n\n"
+            
             nl2sru_result = extract_sru_query(result[1])
-            if isinstance(nl2sru_result,Exception):
-                yield json.dumps({"type": "error", "content": f"parse NL2SRU result\n"+fetch_error(nl2sru_result)}) + stream_split_marker
+            if isinstance(nl2sru_result, Exception):
+                yield f"data: {json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})}\n\n"
                 return
+                
             original_sru_query = f"gallica all {first_user_query}"
-            # result = retrieve_result_page(nl2sru_result,original_sru_query)
-            # if isinstance(result,Exception):
-            #     yield json.dumps({"type": "error", "content": str(result)}) + stream_split_marker
-            #     return
-            # retrieval_result_wc, retrieval_result_woc = result
-            yield json.dumps({"type": "result", "content": f"{nl2sru_result}###{original_sru_query}"})
-    return Response(stream_with_context(multi_stage_process_user_input()), content_type='text/html')
+            
+            thought_process.append("Recherche finalisée")
+            yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+            
+            yield f"data: {json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})}\n\n"
+
+    # Set proper headers for Server-Sent Events
+    headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no"
+    }
+    
+    return Response(stream_with_context(multi_stage_process_user_input()), headers=headers)
 
 
 @bp.route('/user-annotation', methods=['POST'])
@@ -468,3 +546,144 @@ def get_tutorial_texts():
         "step4": "Évaluez la pertinence des résultats. Ceci est l'étape 4."
     }
     return jsonify(tutorial_texts)
+
+
+@bp.route("/stream", methods=['GET'])
+def stream_processing():
+    try:
+        # Get query parameters
+        user_input = request.args.get('query', '')
+        is_first_input = request.args.get('first', 'false').lower() == 'true'
+        current_session = request.args.get('session', '1')
+        
+        # URL-decode the input
+        # user_input = unquote(user_input)
+        
+        logger.info(f"Received stream request: query='{user_input}', first={is_first_input}, session={current_session}")
+        
+        # Store in session if needed
+        session["chat_mode"] = "respond"
+        session["user_input"] = user_input
+        session["session_id"] = current_session
+        
+        def generate_stream():
+            """Generator function that yields chat processing results as SSE format"""
+            
+            # Initialize processing state
+            timing_info = {}
+            
+            try:
+                # Send an initial message to establish the connection
+                yield f"data: {json.dumps({'type': 'connection', 'content': 'Connected'})}\n\n"
+                
+                # Initial typing indicator
+                yield f"data: {json.dumps({'type': 'typing', 'content': 'Initialisation...'})}\n\n"
+                
+                # Get existing processing steps from your regular input handler
+                # This allows you to reuse the existing processing logic
+                
+                # Step 1: Process the query - adapt from your existing input handler
+                start_time = time.time()
+                
+                # Update information about processing
+                thought_process = ["Analyse de votre requête..."]
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
+                # Here you would add your actual processing logic that was in your 
+                # existing /input route, sending updates through the stream
+                
+                # Example: Entity extraction
+                start_entity_time = time.time()
+                # ... your actual entity extraction code here ...
+                end_entity_time = time.time()
+                
+                timing_info["entity_extraction"] = f"{end_entity_time - start_entity_time:.3f}s"
+                yield f"data: {json.dumps({'type': 'time', 'content': timing_info})}\n\n"
+                
+                thought_process.append("Entités extraites...")
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
+                # Example: Query construction
+                start_query_time = time.time()
+                # ... your actual query construction code here ...
+                end_query_time = time.time()
+                
+                timing_info["query_construction"] = f"{end_query_time - start_query_time:.3f}s"
+                yield f"data: {json.dumps({'type': 'time', 'content': timing_info})}\n\n"
+                
+                thought_process.append("Construction de la requête...")
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
+                # Example: Search execution
+                start_search_time = time.time()
+                # ... your actual search execution code here ...
+                end_search_time = time.time()
+                
+                timing_info["search_execution"] = f"{end_search_time - start_search_time:.3f}s"
+                yield f"data: {json.dumps({'type': 'time', 'content': timing_info})}\n\n"
+                
+                thought_process.append("Recherche exécutée...")
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
+                # Example: Response generation
+                start_response_time = time.time()
+                # ... your actual response generation code here ...
+                end_response_time = time.time()
+                
+                timing_info["response_generation"] = f"{end_response_time - start_response_time:.3f}s"
+                yield f"data: {json.dumps({'type': 'time', 'content': timing_info})}\n\n"
+                
+                thought_process.append("Génération de la réponse...")
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
+                # Generate final response 
+                # This should be adapted from your existing input handler's response generation
+                
+                # Example response
+                response_data = {
+                    "message": f"Voici votre réponse pour '{user_input}'",
+                    "metadata": {
+                        "session": current_session,
+                        "query": user_input,
+                        # Add any other metadata you need
+                    },
+                    "needsAnnotation": False  # Set to True if annotation is needed
+                }
+                
+                # Calculate total time
+                end_time = time.time()
+                timing_info["total_time"] = f"{end_time - start_time:.3f}s"
+                yield f"data: {json.dumps({'type': 'time', 'content': timing_info})}\n\n"
+                
+                # Final thought process update
+                thought_process.append("Traitement terminé!")
+                yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
+                
+                # Send the final response
+                yield f"data: {json.dumps({'type': 'response', 'content': response_data})}\n\n"
+                
+            except Exception as e:
+                logger.error(f"Error in stream generation: {str(e)}")
+                logger.error(traceback.format_exc())
+                
+                # Handle errors
+                yield f"data: {json.dumps({'type': 'typing', 'content': 'Une erreur est survenue...'})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': f'Une erreur est survenue: {str(e)}'})}\n\n"
+        
+        # Set proper headers for Server-Sent Events
+        headers = {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+        
+        return Response(
+            stream_with_context(generate_stream()),
+            headers=headers
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in stream handler: {str(e)}")
+        logger.error(traceback.format_exc())
+        return {"error": str(e)}, 500

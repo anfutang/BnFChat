@@ -1,6 +1,5 @@
 import React from 'react';
-import './ChatInterface.css';
-import ProbableReference from './ProbableReference';
+// import './ChatInterface.css';
 
 const SessionNavigation = ({ 
   currentSession, 
@@ -29,12 +28,7 @@ const SessionNavigation = ({
               <button onClick={onConfirmChat} className="confirm-btn">
                 Confirmer
               </button>
-              {probableReference && currentSession === 3 && (
-                  <ProbableReference 
-                    reference={probableReference} 
-                    onView={onViewReference}
-                  />
-                )}
+
       </div>
       
       {/* Navigation entre sessions */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import './ChatInterface.css';
+// import './ChatInterface.css';
 
 const ThoughtProcess = ({ process, timing }) => {
   return (
