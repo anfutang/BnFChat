@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 
+// Dans App.js, ajoutez cet import
+import BNFChatInterface from './demo/BNFChatInterface';
+
+// Puis ajoutez cette route dans le composant Routes
+
 // Auth Components
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
@@ -117,6 +122,12 @@ function App() {
             {/* Default Redirect */}
             <Route path="/" element={<Navigate to="/login" />} />
             <Route path="*" element={<Navigate to="/login" />} />
+            <Route path="/demo-chat" element={
+            <ProtectedRoute>
+              <BNFChatInterface />
+            </ProtectedRoute>
+          } />
+
           </Routes>
         </div>
       </Router>

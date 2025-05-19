@@ -1,7 +1,7 @@
 import os
 from flask import (Flask, g, session, redirect, url_for, render_template, jsonify)
 from .db import db, init_app, ensure_database_exists
-from . import auth, user, admin, dev, module
+from . import auth, user, admin, dev, module, demo
 from . import chatbot
 from flask_cors import CORS
 
@@ -44,6 +44,7 @@ def create_app(test_config=None):
     app.register_blueprint(dev.bp, url_prefix='/api/dev')
     app.register_blueprint(module.bp, url_prefix='/module')
     app.register_blueprint(chatbot.bp, url_prefix='/api/chatbot')
+    app.register_blueprint(demo.bp, url_prefix='/api/demo')
 
     # Set a default route if needed
     # app.add_url_rule('/', view_func=auth.login, endpoint='auth.index')
