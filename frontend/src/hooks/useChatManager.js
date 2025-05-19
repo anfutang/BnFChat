@@ -47,6 +47,8 @@ const useChatManager = (setShowSessionMessage) => {
     };
     
     setChatHistory(prev => [...prev, newUserMessage]);
+
+    // console.log('isFirstInput :', isFirstInput);
     
     try {
       // Utiliser fetch au lieu d'axios pour le streaming
@@ -128,13 +130,21 @@ const useChatManager = (setShowSessionMessage) => {
                   metadata: data.content.metadata,
                   timestamp: new Date().toISOString()
                 };
+
+                console.log(botResponse);
                 
                 setChatHistory(prev => [...prev, botResponse]);
                 setCurrentResponse(botResponse);
                 
                 if (data.content.needsAnnotation) {
-                  setNeedsAnnotation(true);
+                  setNeedsAnnotation(false);
                 }
+                break;
+              
+              case 'reinitialize':
+                break;
+              
+              case 'result':
                 break;
             }
           } catch (err) {

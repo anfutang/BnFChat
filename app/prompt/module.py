@@ -1,9 +1,5 @@
 from .few_shot_examples.module import conv_summarization_fs_examples
 
-conv_summarization_fs_examples = """
-
-"""
-
 examples = """
 Query: Je cherche un biographie de Flaubert.
 
@@ -107,6 +103,19 @@ Constraints:
 
 Refer to the following examples for guidance:
 {conv_summarization_fs_examples}
+"""
+
+conv_intent_detection = """I will provide a dialogue between a user and a virtual assistant in a conversational search system. The assistant's role is to help the user refine their query by asking clarification questions. However, the user may sometimes want to abandon the conversation due to poor interaction quality, or proceed to search immediately without further clarification.
+
+Your task is to infer the user's current intent based on their latest response. There are three possible outcomes:
+1. If the user is engaging normally with the assistant, output "continue".
+2. If the user wants to end the conversation, output "abandon".
+3. If the user ignores a clarifying question and explicitly wants to search immediately with the last detected intent, output "search". 
+4. If the user responds to the previously asked clarifying question then explicitly instructs to search, output "respond_and_search".
+
+Be careful to output "search" or "respond_and_search" only when the user clearly indicates to search, such as "cherche maintenant", "... et c'est tout", "ne clarifie plus".
+
+Output must be in JSON format with a single key named "intent". Do not include any explanations or extra text.
 """
 
 test = "Given the user query, guess the user intent. Be creative."

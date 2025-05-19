@@ -2,6 +2,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import create_engine, Table, Column, Integer, JSON, MetaData, select, update, insert, delete, inspect, text
 from sqlalchemy.engine import reflection
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
+
 from .db import db
 from flask import current_app as app
 from .utils.constant import admin_users, user_profile_keys
@@ -98,6 +101,20 @@ def insert_chat_entry(user_id,chat_data):
             connection.execute(stmt)
             connection.commit()
 
+    # with app.app_context():
+    #     session: Session = db.session()
+    #     try:
+    #         session.execute(stmt)
+    #         session.commit()
+    #     except OperationalError as e:
+    #         session.rollback()
+    #         if "database is locked" in str(e):
+    #             print("Database is locked. Retry or handle appropriately.")
+    #         else:
+    #             raise
+    #     finally:
+    #         session.close()
+
 def update_chat_entry(user_id, updated_data):
     # Fetch the most recent chat entry
     table, last_entry_id, _ = fetch_last_chat_entry(user_id)
@@ -121,6 +138,12 @@ def delete_chat_entry(user_id,chat_id):
     with db.engine.connect() as connection:
         connection.execute(delete_stmt)
         connection.commit()
+
+def save_conv(user_id,first_input,chat_history,status="ongoing",user_intent=""):
+    if first_input:
+        insert_chat_entry(user_id,{"status":status,"chat_mode":"respond","chat_history":chat_history,"user_intent":user_intent})
+    else:
+        update_chat_entry(user_id,{"status":status,"chat_mode":"respond","chat_history":chat_history,"user_intent":user_intent})
 
 def create_user(username,password,user_profile_data):
     new_user = User(
@@ -183,9 +206,3 @@ def get_all_users_with_chats():
                 users_with_chats.append(user)
     
     return users_with_chats
-
-def save_conv(user_id,chat_history,first_input):
-    if first_input:
-        insert_chat_entry(user_id,{"status":"ongoing","chat_mode":"respond","chat_history":chat_history})
-    else:
-        update_chat_entry(user_id,{"status":"ongoing","chat_mode":"respond","chat_history":chat_history})

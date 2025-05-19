@@ -2,6 +2,9 @@ import pydantic
 from pydantic import BaseModel
 from typing import List
 
+class ConvIntentDetection(BaseModel):
+    intent: str
+
 class entityDisambiguation(BaseModel):
     conclusion: str
     clarifying_question: str

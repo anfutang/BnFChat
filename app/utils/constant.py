@@ -17,8 +17,11 @@ chatmode2ky = {"select":"reformulated_queries",
                "respond":"clarification_question",
                "select+respond":"clarification_questions"}
 
+abandon_response = "Vous avez décidé d'abondonner le dialogue. Votre conversation sera réinitialisée."
+search_response = "Recherche lancée selon l'intention détectée la plus récente. Veuillez patienter."
 refusal_response = "Désolé, nul document pertinent trouvé dans notre base de données actuelle."
 terminate_response = "Impossible de clarifier davantage. Recherche lancée selon la dernière intention détectée. Veuillez patienter."
+no_intent_response = "Pas d'intention détectée. Votre conversation sera réinitialisée."
 reinitialization_notification = " Votre conversation sera réinitialisée."
 search_notification = " Recherche lancée selon la dernière intention détectée. Veuillez patienter."
 

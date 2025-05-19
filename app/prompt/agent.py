@@ -1,9 +1,5 @@
 from .few_shot_examples.agent import rac_fs_examples
 
-rac_fs_examples = """
-
-"""
-
 ambiguity_detector = """Given a French query, reason following the given steps sequentially and execute the corresponding action if the condition is satisfied. 
 
 #Step 1. If the query is incoherent, heavily misspelled, or incomprehensible, generate a clarification question asking the user to rephrase. Return only the clarification question without verbosity.
