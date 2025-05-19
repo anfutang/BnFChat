@@ -135,14 +135,15 @@ def user_input():
         
         if conv_intent == "abandon":
             session["llm_response"] = abandon_response
-            yield f"data: {json.dumps({
+            response_data = {
                 'type': 'response',
                 'content': {
                     'message': abandon_response,
                     'metadata': {'session': session_id, 'query': user_input},
                     'needsAnnotation': False
                 }
-            })}\n\n"
+            }
+            yield f"data: {json.dumps(response_data)}\n\n"
             save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "abandoned")
             yield f"data: {json.dumps({'type': 'reinitialize', 'content': ''})}\n\n"
             return
@@ -175,14 +176,15 @@ def user_input():
                 yield f"data: {json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})}\n\n"
             else:
                 session["llm_response"] = no_intent_response
-                yield f"data: {json.dumps({
+                response_data = {
                     'type': 'response',
                     'content': {
                         'message': no_intent_response,
                         'metadata': {'session': session_id, 'query': user_input},
                         'needsAnnotation': False
                     }
-                })}\n\n"
+                }
+                yield f"data: {json.dumps(response_data)}\n\n"
                 save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
                 yield f"data: {json.dumps({'type': 'reinitialize', 'content': ''})}\n\n"
             return
@@ -213,14 +215,15 @@ def user_input():
                 thought_process.append("Requête ambiguë détectée")
                 yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
                 
-                yield f"data: {json.dumps({
+                response_data = {
                     'type': 'response',
                     'content': {
                         'message': cq,
                         'metadata': {'session': session_id, 'query': user_input},
                         'needsAnnotation': False
                     }
-                })}\n\n"
+                }
+                yield f"data: {json.dumps(response_data)}\n\n"
                 save_conv(user_id, first_input, prev_chat_history + [user_input, cq])
                 return
         
@@ -290,14 +293,15 @@ def user_input():
                 response += search_notification
                 session["llm_response"] = response
                 
-                yield f"data: {json.dumps({
+                response_data = {
                     'type': 'response',
                     'content': {
                         'message': response,
                         'metadata': {'session': session_id, 'query': user_input},
                         'needsAnnotation': False
                     }
-                })}\n\n"
+                }
+                yield f"data: {json.dumps(response_data)}\n\n"
                 
                 save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused_and_search")
 
@@ -327,14 +331,15 @@ def user_input():
                 response += reinitialization_notification
                 session["llm_response"] = response
                 
-                yield f"data: {json.dumps({
+                response_data = {
                     'type': 'response',
                     'content': {
                         'message': response,
                         'metadata': {'session': session_id, 'query': user_input},
                         'needsAnnotation': False
                     }
-                })}\n\n"
+                }
+                yield f"data: {json.dumps(response_data)}\n\n"
                 
                 save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
                 yield f"data: {json.dumps({'type': 'reinitialize', 'content': ''})}\n\n"
@@ -366,29 +371,30 @@ def user_input():
             if last_user_intent:
                 response += search_notification
                 session["llm_response"] = response
-                
-                yield f"data: {json.dumps({
+                response_data = {
                     'type': 'response',
                     'content': {
-                        'message': response,
+                        'message': cq,
                         'metadata': {'session': session_id, 'query': user_input},
                         'needsAnnotation': False
                     }
-                })}\n\n"
+                }
+                yield f"data: {json.dumps(response_data)}\n\n"
                 
                 save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused_and_search")
             else:
                 response += reinitialization_notification
                 session["llm_response"] = response
                 
-                yield f"data: {json.dumps({
+                response_data = {
                     'type': 'response',
                     'content': {
-                        'message': response,
+                        'message': terminate_response,
                         'metadata': {'session': session_id, 'query': user_input},
                         'needsAnnotation': False
                     }
-                })}\n\n"
+                }
+                yield f"data: {json.dumps(response_data)}\n\n"
                 
                 save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
                 yield f"data: {json.dumps({'type': 'reinitialize', 'content': ''})}\n\n"
@@ -423,14 +429,15 @@ def user_input():
             yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
 
             session["llm_response"] = cq
-            yield f"data: {json.dumps({
+            response_data = {
                 'type': 'response',
                 'content': {
-                    'message': cq,
+                    'message': terminate_response,
                     'metadata': {'session': session_id, 'query': user_input},
                     'needsAnnotation': False
                 }
-            })}\n\n"
+            }
+            yield f"data: {json.dumps(response_data)}\n\n"
             
             save_conv(user_id, first_input, prev_chat_history + [user_input, cq], user_intent=current_user_intent)
         else:
@@ -438,14 +445,15 @@ def user_input():
             yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
 
             session["llm_response"] = terminate_response
-            yield f"data: {json.dumps({
+            response_data = {
                 'type': 'response',
                 'content': {
                     'message': terminate_response,
                     'metadata': {'session': session_id, 'query': user_input},
                     'needsAnnotation': False
                 }
-            })}\n\n"
+            }
+            yield f"data: {json.dumps(response_data)}\n\n"
             
             save_conv(user_id, first_input, prev_chat_history + [user_input, terminate_response], status="termintated_by_system")
 
