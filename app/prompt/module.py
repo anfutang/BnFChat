@@ -1,4 +1,4 @@
-# from .few_shot_examples.module import conv_summarization_fs_examples
+from .few_shot_examples.module import conv_summarization_fs_examples
 
 conv_summarization_fs_examples = """
 

@@ -1,4 +1,4 @@
-# from .few_shot_examples.agent import rac_fs_examples
+from .few_shot_examples.agent import rac_fs_examples
 
 rac_fs_examples = """
 
