@@ -16,6 +16,7 @@ import ProfileWizard from './components/auth/ProfileWizard';
 import ChatInterface from './components/chat/ChatInterface';
 import FeedbackForm from './components/feedback/FeedbackForm';
 import AdminDashboard from './components/admin/AdminDashboard';
+import Demo2 from './demo/Demo2';
 
 // Context
 import { AuthProvider } from './context/AuthContext';
@@ -126,6 +127,10 @@ function App() {
             <ProtectedRoute>
               <BNFChatInterface />
             </ProtectedRoute>
+          } />
+
+          <Route path="/demo2" element={
+              <Demo2 />
           } />
 
           </Routes>
