@@ -1,10 +1,12 @@
 import React from 'react';
-import { ChatContainer, ConversationHeader, MessageList, MessageInput } from '@chatscope/chat-ui-kit-react';
+import { 
+  ChatContainer, 
+  MessageInput as ChatScopeMessageInput 
+} from '@chatscope/chat-ui-kit-react';
 import SessionHeader from './SessionHeader';
 import ChatMessages from './ChatMessages';
 import AnnotationForm from './AnnotationForm';
 
-// Ce composant est une version simplifiée qui assure que l'entrée est toujours visible
 const ChatArea = ({
   // Props pour le header
   currentSession,
@@ -57,13 +59,14 @@ const ChatArea = ({
       
       {/* Garantir que l'entrée est toujours visible, même en mode tutoriel */}
       {!needsAnnotation ? (
-        <MessageInput
+        <ChatScopeMessageInput
           placeholder="Tapez votre message ici..."
           value={userInput}
-          onChange={val => setUserInput(val)}
-          onSend={onSend}
+          onChange={setUserInput}
+          onSend={() => onSend(userInput)}
           disabled={isLoading || tutorialMode}
           attachButton={false}
+          sendButton={true}
           className="message-input-fixed"
         />
       ) : (

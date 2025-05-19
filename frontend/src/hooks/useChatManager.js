@@ -47,9 +47,8 @@ const useChatManager = (setShowSessionMessage) => {
     };
     
     setChatHistory(prev => [...prev, newUserMessage]);
+    
     try {
-      setIsLoading(true);
-      
       // Utiliser fetch au lieu d'axios pour le streaming
       const response = await fetch('/api/dev/input', {
         method: 'POST',
@@ -58,9 +57,14 @@ const useChatManager = (setShowSessionMessage) => {
         },
         body: JSON.stringify({
           userInput: message,
-          firstInput: isFirstInput
+          firstInput: isFirstInput,
+          sessionId: currentSession
         })
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -82,10 +86,8 @@ const useChatManager = (setShowSessionMessage) => {
           
           try {
             const data = JSON.parse(line);
-            console.log("Received data:", data); // Debug
             
             switch (data.type) {
-              // Les mêmes cases que vous aviez avant
               case 'info':
                 setThoughtProcess(data.content);
                 break;
@@ -94,31 +96,30 @@ const useChatManager = (setShowSessionMessage) => {
                 setTimingData(data.content);
                 break;
                 
-
-            case 'error':
-              console.error('Error from server:', data.content);
-              // Ajouter un message d'erreur au chat
-              setChatHistory(prev => [
-                ...prev, 
-                {
-                  sender: 'system',
-                  message: `Erreur: ${data.content}`,
-                  timestamp: new Date().toISOString()
-                }
-              ]);
-              
-              // Ajouter une réponse de fallback après l'erreur
-              if (data.content.includes("ParseError") || data.content.includes("syntax error")) {
+              case 'error':
+                console.error('Error from server:', data.content);
+                // Ajouter un message d'erreur au chat
                 setChatHistory(prev => [
                   ...prev, 
                   {
-                    sender: 'bot',
-                    message: "Je suis désolé, mais je n'ai pas pu traiter votre requête correctement. Il semble y avoir un problème avec la formulation de la recherche. Pourriez-vous essayer de reformuler votre question de manière plus simple ou avec des termes différents ?",
+                    sender: 'system',
+                    message: `Erreur: ${data.content}`,
                     timestamp: new Date().toISOString()
                   }
                 ]);
-              }
-              break;
+                
+                // Ajouter une réponse de fallback après l'erreur
+                if (data.content.includes("ParseError") || data.content.includes("syntax error")) {
+                  setChatHistory(prev => [
+                    ...prev, 
+                    {
+                      sender: 'bot',
+                      message: "Je suis désolé, mais je n'ai pas pu traiter votre requête correctement. Il semble y avoir un problème avec la formulation de la recherche. Pourriez-vous essayer de reformuler votre question de manière plus simple ou avec des termes différents ?",
+                      timestamp: new Date().toISOString()
+                    }
+                  ]);
+                }
+                break;
                 
               case 'response':
                 const botResponse = {
@@ -141,6 +142,21 @@ const useChatManager = (setShowSessionMessage) => {
           }
         }
       }
+      
+      // Marquer comme non-premier input après le succès
+      setIsFirstInput(false);
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Ajouter un message d'erreur au chat
+      setChatHistory(prev => [
+        ...prev, 
+        {
+          sender: 'system',
+          message: `Erreur de communication avec le serveur: ${error.message}`,
+          timestamp: new Date().toISOString()
+        }
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -228,7 +244,7 @@ const useChatManager = (setShowSessionMessage) => {
   };
 
   // Confirmer une conversation comme satisfaisante
-  const handleConfirmChat = async (probableReference, showReferenceModal) => {
+  const handleConfirmChat = async () => {
     if (chatHistory.length <= 1) {
       // Aucune conversation à confirmer
       alert('Aucune conversation à confirmer. Posez d\'abord une question.');

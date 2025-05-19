@@ -1,59 +1,50 @@
-from flask import (
-    Blueprint, g, render_template, request, session, jsonify, Response, stream_with_context
-)
-
-import os
+from flask import Blueprint, jsonify, request, session, Response, stream_with_context
 import time
 import json
-from datetime import datetime
+import random
 import functools
-
-from .db import db
-from .models import *
-from .utils.utils import *
-from .utils.constant import *
-from .utils.tutorial_llm_responses import fetch_demo_llm_responses
-from .utils.retriever import *
-from .utils.constant import THRES_OPEN_GENERATION, THRES_STOPPING
-from .llm.llm import *
+from datetime import datetime
 
 bp = Blueprint('dev', __name__, url_prefix="/api/dev")
 
-stream_split_marker = '\n'
-thres_stopping_num_records = 20
+# Mock data
+MOCK_RESPONSES = [
+    "Je vous recommande de consulter les ressources suivantes sur ce sujet dans notre catalogue...",
+    "D'après la base de données de la BNF, voici quelques ouvrages pertinents que vous pourriez consulter...",
+    "J'ai trouvé plusieurs références qui pourraient vous intéresser sur cette thématique...",
+    "La BNF dispose de nombreux ouvrages sur ce thème. Voici une sélection des plus pertinents...",
+    "Plusieurs documents dans nos collections correspondent à votre requête, notamment..."
+]
 
+MOCK_METADATA = [
+    "<ul><li>Auteur: Victor Hugo</li><li>Date: 1862</li><li>Cote: RF-12345</li><li>Collection: Littérature française</li></ul>",
+    "<ul><li>Auteur: Émile Zola</li><li>Date: 1885</li><li>Cote: LF-67890</li><li>Collection: Romans naturalistes</li></ul>",
+    "<ul><li>Auteur: Marcel Proust</li><li>Date: 1913</li><li>Cote: MS-24680</li><li>Collection: Manuscrits modernes</li></ul>",
+    "<ul><li>Auteur: Simone de Beauvoir</li><li>Date: 1949</li><li>Cote: PH-97531</li><li>Collection: Philosophie</li></ul>"
+]
+
+# Helper function to check login
 def login_required(f):
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
-        if g.user is None:
-            return jsonify({"error": "Authentication required"}), 401
+        # Always consider user as logged in for the dummy backend
         return f(*args, **kwargs)
     return decorated_function
-
-@bp.route('/tutorial-texts', methods=['GET'])
-@login_required
-def get_tutorial_texts():
-    """Get tutorial texts data"""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    tutorial_text__path = os.path.join(current_dir, 'tutorial_text.json')
-    with open(tutorial_text__path, 'r', encoding='utf-8') as f:
-        tutorial_texts = json.load(f)
-    tutorial_texts = {k: turn_tutorial_text_to_html(v) for k, v in tutorial_texts.items()}
-    return jsonify(tutorial_texts)
 
 @bp.route('/session-data', methods=['GET'])
 @login_required
 def get_session_data():
     """Get current session data for client"""
+    # Use session data if available, otherwise provide defaults
     session_data = {
-        "username": session.get("username"),
-        "userId": session.get("user_id"),
-        "avatarSeed": session.get("avatar-seed"),
-        "permissionLevel": session.get("permission_level"),
+        "username": session.get("username", "Utilisateur Test"),
+        "userId": session.get("user_id", 123),
+        "avatarSeed": session.get("avatar-seed", "default"),
+        "permissionLevel": session.get("permission_level", 1),
         "sessionId": session.get("session_id", 1),
         "freeTest": session.get("free_test", True),
         "chatMode": session.get("chat_mode", "respond"),
-        "devMode": session.get("dev_mode", False)
+        "devMode": session.get("dev_mode", True)
     }
     return jsonify(session_data)
 
@@ -61,268 +52,142 @@ def get_session_data():
 @login_required
 def get_chat_history():
     """Get current chat history"""
-    user_id = session["user_id"]
-    if session.get("first_input", True):
-        return jsonify([])
-    
-    _, _, prev_chat_data = fetch_last_chat_entry(user_id)
-    prev_chat_history = prev_chat_data.get("chat_history", [])
-    return jsonify(prev_chat_history)
+    # Return empty history or mock history
+    if not session.get("chat_history"):
+        session["chat_history"] = []
+    return jsonify(session["chat_history"])
+
 
 @bp.route('/input', methods=['POST'])
 @login_required
 def user_input():
-    print("user_input")
-    """Process user input and generate response"""
-    session["chat_mode"] = "respond"
-    user_input = request.json.get("userInput")
-    session["user_input"] = user_input
+    """Process user input and generate mock response"""
+    user_input_text = request.json.get("userInput", "")
     first_input = request.json.get("firstInput", True)
-    user_id = session["user_id"]
-
-    def multi_stage_process_user_input():
-        time_count = {}
-        title_match_hint = ''
-
-        if first_input:
-            session["process"] = []
-            prev_chat_history = []
-            # Module 1: title match
-            title_match_hint, title_matching_time = find_exact_title_matches(user_input)
-            time_count["title_matching_time"] = f"{title_matching_time:.3f} s"
-        else:
-            _, _, prev_chat_data = fetch_last_chat_entry(session["user_id"])
-            prev_chat_history = prev_chat_data["chat_history"]
-
-        if title_match_hint:
-            session["process"].append("- Title matching: ✅")
-            yield json.dumps({
-                "type": "time", 
-                "content": time_count
-            }) + stream_split_marker
-
-        # Module 2: entity disambiguation
-        start_time = time.time()
-        result = call_entity_disambiguation(prev_chat_history+[user_input])
-        end_time = time.time()
-        time_count["entity_disambiguation_time"] = f"{end_time-start_time:.3f} s"
+    
+    # Initialize chat history if needed
+    if "chat_history" not in session:
+        session["chat_history"] = []
+    
+    # Add user message to chat history
+    user_message = {
+        "sender": "user",
+        "message": user_input_text,
+        "timestamp": datetime.now().isoformat()
+    }
+    session["chat_history"].append(user_message)
+    session.modified = True  # Important: mark session as modified
+    
+    def generate_mock_stream():
+        # Stream thinking process (unchanged)
         yield json.dumps({
-            "type": "time", 
-            "content": time_count
-        }) + stream_split_marker
-
-        if isinstance(result, Exception):
-            yield json.dumps({
-                "type": "error", 
-                "content": fetch_error(result)
-            }) + stream_split_marker
-            return
+            "type": "info",
+            "content": [
+                "- Analyse de la requête...", 
+                "- Recherche de références bibliographiques...",
+                "- Query avec focus clair ? ✓",
+                "- SRU query: dc.title all \"" + user_input_text + "\" sortby dc.date/sort.descending"
+            ]
+        }) + "\n"
         
-        if result[0].lower() in ["no", "false"]:
-            cq = result[1]
-            session["llm_response"] = cq
-            session["process"].append("- Query with a clear focus? ✖️")
-            save_conv(user_id, prev_chat_history+[user_input, cq], first_input)
-
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-            
-            yield json.dumps({
-                "type": "response", 
-                "content": {
-                    "message": cq,
-                    "needsAnnotation": True
-                }
-            }) + stream_split_marker
-        else:
-            session["process"].append("- Query with a clear focus? ✔️")
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-
-        # Module 3: NL2SRU
-        start_time = time.time()
-        try:
-            # Pass the correct parameters
-            result = call_nl2sru(prev_chat_history+[user_input], "")  # Add empty string as sru_hint
-            
-            # Debug the result
-            print("NL2SRU result:", result)
-            
-            if not result or len(result) < 2:
-                raise Exception("Invalid response format from NL2SRU")
-                
-            end_time = time.time()
-            time_count["nl2sru_time"] = f"{end_time-start_time:.3f} s"
-            
-            yield json.dumps({
-                "type": "time", 
-                "content": time_count
-            }) + stream_split_marker
-            
-            session["process"].append("- NL2SRU: ✔️")
-            session["process"].append(f"- SRU query: {result[1]}")
-            
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-        except Exception as e:
-            print(f"Error in NL2SRU processing: {e}")
-            yield json.dumps({
-                "type": "error", 
-                "content": fetch_error(e)
-            }) + stream_split_marker
-            return
-
-        # Module 4: RAG with Gallica
-        start_time = time.time()
-        try: 
-            if not result[1] or not isinstance(result[1], str):
-                raise ValueError(f"Invalid SRU query format: {result[1]}")
-                
-            num_total_records, records = retrieve_with_gallica(result[1])
-            
-            end_time = time.time()
-            time_count["gallica_retrieval_time"] = f"{end_time-start_time:.3f} s"
-            
-            yield json.dumps({
-                "type": "time", 
-                "content": time_count
-            }) + stream_split_marker
-            
-            session["process"].append("- Retrieve using Gallica: ✔️")
-            session["process"].append(f"- {num_total_records} available records; {len(records)} fetched.")
-            
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-        except Exception as e:
-            print(f"Error in Gallica retrieval: {e}")
-            print(f"Query that caused error: {result[1] if 'result' in locals() else 'No query generated'}")
-            
-            yield json.dumps({
-                "type": "error", 
-                "content": fetch_error(e)
-            }) + stream_split_marker
-            return
-            # Module 5: Process metadata
-            start_time = time.time()
-            metadata_summary = call_metadata_processor(
-                prev_chat_history+[user_input],
-                fetch_titles_and_subjects_only(records)
-            )
-            end_time = time.time()
-            time_count["metadata_processing_time"] = f"{end_time-start_time:.3f} s"
-            yield json.dumps({
-                "type": "time", 
-                "content": time_count
-            }) + stream_split_marker
-            
-            session["process"].append("- Extract facets from the metadata: ✔️")
-            yield json.dumps({
-                "type": "info", 
-                "content": session["process"]
-            }) + stream_split_marker
-            
-            # Module 6: RAG (would continue with the rest of the processing)
-            # For now, we'll send a sample response
-            yield json.dumps({
-                "type": "response", 
-                "content": {
-                    "message": "Here is what I found based on your query...",
-                    "metadata": metadata_summary
-                }
-            }) + stream_split_marker
-
-    return Response(stream_with_context(multi_stage_process_user_input()), content_type='application/json')
+        time.sleep(0.5)
+        
+        # Stream timing info (unchanged)
+        yield json.dumps({
+            "type": "time",
+            "content": {
+                "entity_disambiguation_time": "0.234 s",
+                "nl2sru_time": "0.456 s",
+                "gallica_retrieval_time": "0.789 s",
+                "metadata_processing_time": "0.321 s"
+            }
+        }) + "\n"
+        
+        time.sleep(1.0)
+        
+        # Generate random response
+        response = random.choice(MOCK_RESPONSES)
+        metadata = random.choice(MOCK_METADATA) if random.random() > 0.3 else None
+        needs_annotation = random.random() < 0.3
+        
+        # Add bot response to chat history
+        bot_message = {
+            "sender": "bot",
+            "message": response,
+            "metadata": metadata,
+            "timestamp": datetime.now().isoformat()
+        }
+        session["chat_history"].append(bot_message)
+        session.modified = True  # Important: mark session as modified
+        
+        # Stream bot response
+        yield json.dumps({
+            "type": "response",
+            "content": {
+                "message": response,
+                "metadata": metadata,
+                "needsAnnotation": needs_annotation
+            }
+        }) + "\n"
+    
+    return Response(stream_with_context(generate_mock_stream()), content_type='application/json')
 
 @bp.route('/user-annotation', methods=['POST'])
 @login_required
 def user_annotation():
     """Process user annotation/feedback"""
-    user_id = session["user_id"]
-    chat_mode = "select"
-
-    _, _, prev_chat_data = fetch_last_chat_entry(user_id)
-    current_chat_history = prev_chat_data["chat_history"]
-    session["llm_responses"] = current_chat_history[-1][1]
-
-    annotation_data = request.json
-    conv_label = annotation_data.get("convLabel")
+    # Just acknowledge receipt of the annotation
+    conv_label = request.json.get("convLabel", "")
     
-    collect_evaluations(annotation_data)
-
-    selected_response_tuple = session["llm_responses"][session["evals"]["selectedResponseIndex"]]
-    selected_llm_response = '#'.join(list(selected_response_tuple))
-
-    # Update chat history with evaluation
-    current_chat_history[-1][2] = session["evals"]
-    update_chat_entry(user_id, {
-        "status": "ongoing",
-        "chat_mode": chat_mode,
-        "chat_history": current_chat_history
-    })
-
-    # End conversation if needed
+    # End conversation if user chose to end it
     if conv_label:
-        end_conversation(user_id, chat_mode, conv_label)
-
-    session["first_input"] = False
-    session["annotation_submitted"] = True
-        
+        session["chat_history"] = []
+    
     return jsonify({
         "success": True,
-        "selectedResponse": selected_llm_response
+        "selectedResponse": "dummyResponse"
     })
 
-@bp.route('/erase-chat', methods=['POST'])
+@bp.route('/restart-chat', methods=['POST'])
 @login_required
-def erase_chat():
+def restart_chat():
     """Reset the chat session"""
-    clear_session(user_global_keys)
-    session["first_input"] = True
-    session["annotation_submitted"] = True
-    session["chat_mode"] = "respond"
-    session["process"] = []
+    session["chat_history"] = []
+    return jsonify({"success": True})
+
+@bp.route('/abandon-chat', methods=['POST'])
+@login_required
+def abandon_chat():
+    """Abandon the current chat"""
+    session["chat_history"] = []
+    return jsonify({"success": True})
+
+@bp.route('/confirm-chat', methods=['POST'])
+@login_required
+def confirm_chat():
+    """Confirm the current chat as satisfactory"""
     return jsonify({"success": True})
 
 @bp.route('/change-session', methods=['POST'])
 @login_required
 def change_session():
     """Change the current session settings"""
-    clear_session(user_global_keys)
-
     data = request.json
-    new_session_id = data.get('sessionId')
-    session["session_id"] = new_session_id
-    session["free_test"] = data.get('isFreeTest')
-    session["chat_mode"] = USER_MODES[new_session_id-1]
-    session["first_input"] = True
-    session.modified = True
+    session["session_id"] = data.get('sessionId', 1)
+    session["free_test"] = data.get('isFreeTest', True)
+    session["chat_mode"] = "respond"
+    session["chat_history"] = []
     
     return jsonify({"success": True})
 
-def save_conv(user_id, chat_history, first_input):
-    """Save conversation to database"""
-    if first_input:
-        insert_chat_entry(user_id, {
-            "status": "ongoing",
-            "chat_mode": "respond",
-            "chat_history": chat_history
-        })
-    else:
-        update_chat_entry(user_id, {
-            "status": "ongoing",
-            "chat_mode": "respond",
-            "chat_history": chat_history
-        })
-
-def end_conversation(user_id, chat_mode, conv_label):
-    """End the current conversation"""
-    _, last_chat_id, _ = fetch_last_chat_entry(user_id)
-    delete_chat_entry(user_id, last_chat_id)
+@bp.route('/tutorial-texts', methods=['GET'])
+@login_required
+def get_tutorial_texts():
+    """Get tutorial texts data"""
+    tutorial_texts = {
+        "step1": "Bienvenue dans le tutoriel BNF Chat. Ceci est l'étape 1.",
+        "step2": "Apprenez à rechercher des références. Ceci est l'étape 2.",
+        "step3": "Utilisez des filtres pour affiner vos résultats. Ceci est l'étape 3.",
+        "step4": "Évaluez la pertinence des résultats. Ceci est l'étape 4."
+    }
+    return jsonify(tutorial_texts)
