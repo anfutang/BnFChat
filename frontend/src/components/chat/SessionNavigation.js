@@ -22,12 +22,12 @@ const SessionNavigation = ({
               Recommencer
             </button>
             
-              <button onClick={onAbandonChat} className="abandon-btn">
+              {/* <button onClick={onAbandonChat} className="abandon-btn">
                 Abandonner
               </button>
               <button onClick={onConfirmChat} className="confirm-btn">
                 Confirmer
-              </button>
+              </button> */}
 
       </div>
       

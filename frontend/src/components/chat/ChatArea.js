@@ -4,7 +4,8 @@ import {
   ConversationHeader,
   MessageList,
   Message,
-  MessageInput as ChatScopeMessageInput 
+  MessageInput as ChatScopeMessageInput,
+  TypingIndicator 
 } from '@chatscope/chat-ui-kit-react';
 import SessionHeader from './SessionHeader';
 import AnnotationForm from './AnnotationForm';
@@ -35,7 +36,10 @@ const ChatArea = ({
   setUserInput,
   onSend,
   onAnnotationSubmit,
-  currentResponse
+  currentResponse,
+  
+  // Added prop for thought process
+  thoughtProcess
 }) => {
   // Debug logging
   useEffect(() => {
@@ -64,6 +68,12 @@ const ChatArea = ({
     position: 'normal',
     metadata: msg.metadata
   })) || [];
+  
+  // Get the last thought process message for the loading indicator
+  const lastThoughtProcessMessage = 
+    thoughtProcess && thoughtProcess.length > 0 
+      ? thoughtProcess[thoughtProcess.length - 1] 
+      : "BNF traite votre demande...";
   
   return (
     <ChatContainer className="chat-container-component">
@@ -111,11 +121,9 @@ const ChatArea = ({
         </Message>
       ))}
         
-        {/* Loading indicator */}
+        {/* Loading indicator - replaced with dynamic thought process message */}
         {isLoading && (
-          <div className="typing-indicator">
-            BNF traite votre demande...
-          </div>
+          <TypingIndicator content={lastThoughtProcessMessage} />
         )}
       </MessageList>
       

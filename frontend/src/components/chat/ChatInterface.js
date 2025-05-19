@@ -10,16 +10,16 @@ import {
 // Context
 import { useAuth } from '../../context/AuthContext';
 
-// Composants
+// Components
 import SessionSelector from './SessionSelector';
 import SessionNavigation from './SessionNavigation';
 import ThoughtProcess from './ThoughtProcess';
 import ChatArea from './ChatArea';
+import ResultModal from '../feedback/ResultModal';
 
-// Hooks personnalisés
+// Custom hooks
 import useSessionManager from '../../hooks/useSessionManager';
 import useChatManager from '../../hooks/useChatManager';
-import useReferenceDetection from '../../hooks/useReferenceDetection';
 
 // Styles
 // import './ChatInterface.css';
@@ -28,12 +28,12 @@ const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   
-  // Données de session
+  // Session data
   const [sessionData, setSessionData] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialSteps, setTutorialSteps] = useState([]);
   
-  // Utilisation des hooks personnalisés
+  // Use custom hooks
   const {
     currentSession,
     sessionTimer,
@@ -62,6 +62,9 @@ const ChatInterface = () => {
     messageListRef,
     thoughtProcess,
     timingData,
+    showResultModal,
+    resultModalData,
+    processingResult,
     loadChatHistory,
     handleSubmit,
     handleAnnotationSubmit,
@@ -69,25 +72,22 @@ const ChatInterface = () => {
     handleAbandonChat,
     handleConfirmChat,
     addSystemMessage,
-    resetChat
+    resetChat,
+    handleCloseResultModal,
+    setShowResultModal,
+    setResultModalData,
+    setProcessingResult
   } = useChatManager(setShowSessionMessage);
+
   
-  const {
-    probableReference,
-    showReferenceModal,
-    handleViewReference,
-    handleCloseReferenceModal,
-    handleSubmitReferenceEvaluation
-  } = useReferenceDetection(chatHistory, currentSession);
-  
-  // Charger les données de session et l'historique du chat
+  // Load session data and chat history
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         const sessionResponse = await axios.get('/api/dev/session-data');
         setSessionData(sessionResponse.data);
         
-        // Charger l'historique du chat si on n'est pas en mode tutoriel
+        // Load chat history if not in tutorial mode
         if (sessionResponse.data.sessionId > 1) {
           await loadChatHistory();
         }
@@ -99,12 +99,13 @@ const ChatInterface = () => {
     loadInitialData();
   }, []);
   
-  // Nettoyer les ressources à la fermeture
+  // Clean up resources on close
   useEffect(() => {
     return () => {
       cleanupSessionTimer();
     };
   }, []);
+
   useEffect(() => {
     console.log("ChatInterface rendered with state:", {
       currentSession,
@@ -128,7 +129,8 @@ const ChatInterface = () => {
     sessionData,
     currentSession
   });
-  // Callback pour le tutorial Joyride
+
+  // Handle Joyride tutorial callback
   const handleTutorialCallback = (data) => {
     const { status } = data;
     if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
@@ -136,15 +138,15 @@ const ChatInterface = () => {
     }
   };
   
-  // Gérer la soumission d'un message
+  // Handle message submission
   const handleSendMessage = (message) => {
     handleSubmit(message, currentSession);
   };
   
-  // Gérer la sélection d'un guide
+  // Handle guide selection
   const handleSelectGuide = (sampleQuery) => {
     setUserInput(sampleQuery);
-    // Focus sur l'entrée de message
+    // Focus on message input
     setTimeout(() => {
       const inputElement = document.querySelector('.cs-message-input__content-editor');
       if (inputElement) {
@@ -153,34 +155,36 @@ const ChatInterface = () => {
     }, 100);
   };
   
-  // Gérer la confirmation de chat avec possible référence
-  const handleChatConfirmation = () => {
-    // Si on est en session test et qu'une référence probable a été identifiée
-    if (currentSession === 3 && probableReference) {
-      // Ouvrir directement le modal d'évaluation
-      handleViewReference();
-      return;
-    }
-    
-    // Sinon, confirmation normale
-    handleConfirmChat();
-  };
   
-  // Gérer la déconnexion
+  // Handle logout
   const handleLogout = async () => {
     try {
       cleanupSessionTimer();
       await logout();
       navigate('/login');
     } catch (error) {
-      console.error('Échec de la déconnexion:', error);
+      console.error('Failed to logout:', error);
     }
   };
-
-  // Gérer la soumission de l'évaluation de référence
-  const handleEvaluateReference = (evaluationData) => {
-    handleSubmitReferenceEvaluation(evaluationData, addSystemMessage);
+  const testOpenResultModal = () => {
+    console.log("Test button clicked - opening modal manually");
+    setShowResultModal(true);
+    setProcessingResult(true);
+    
+    // Créer des données factices pour le test
+    setTimeout(() => {
+      setResultModalData({
+        id: "test-id",
+        sruQuery: "Requête SRU de test",
+        originalQuery: "Requête originale de test",
+        items: [
+          { title: "Résultat test 1", author: "Auteur test", date: "2024", description: "Description test" }
+        ]
+      });
+      setProcessingResult(false);
+    }, 1000);
   };
+
 
   return (
     <div className="chat-page">
@@ -201,7 +205,7 @@ const ChatInterface = () => {
         />
       )}
 
-      {/* Interface principale */}
+      {/* Main interface */}
       <div className="chat-layout">
         <div className="sidebar">
           <div className="sidebar-header">
@@ -226,13 +230,10 @@ const ChatInterface = () => {
               onNextSession={handleNextSession}
               onRestartChat={handleRestartChat}
               onAbandonChat={handleAbandonChat}
-              onConfirmChat={handleChatConfirmation}
               tutorialMode={tutorialMode && currentSession === 1}
               onRestartTutorial={handleRestartTutorial}
               onConfirmTutorial={handleConfirmTutorial}
               onExitTutorial={handleExitTutorial}
-              probableReference={probableReference}
-              onViewReference={handleViewReference}
             />
             <button onClick={handleLogout} className="logout-btn">Se déconnecter</button>
           </div>
@@ -241,12 +242,12 @@ const ChatInterface = () => {
         <div className="chat-container">
           <MainContainer>
             <ChatArea 
-              // Props pour le header
+              // Header props
               currentSession={currentSession}
               sessionTimer={sessionTimer}
               sessionData={sessionData}
               
-              // Props pour les messages
+              // Message props
               messageListRef={messageListRef}
               chatHistory={chatHistory}
               isLoading={isLoading}
@@ -259,13 +260,16 @@ const ChatInterface = () => {
               onNextTutorialStep={handleNextTutorialStep}
               onCompleteTutorial={handleCompleteTutorial}
               
-              // Props pour l'entrée
+              // Input props
               needsAnnotation={needsAnnotation}
               userInput={userInput}
               setUserInput={setUserInput}
               onSend={handleSendMessage}
               onAnnotationSubmit={handleAnnotationSubmit}
               currentResponse={currentResponse}
+
+              // Process props
+              thoughtProcess={thoughtProcess}
             />
           </MainContainer>
         </div>
@@ -276,8 +280,24 @@ const ChatInterface = () => {
             timing={timingData} 
           />
         </div>
+        
       </div>
-      
+      <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999 }}>
+    <button 
+      onClick={testOpenResultModal} 
+      style={{ padding: '10px', background: 'red', color: 'white', border: 'none', borderRadius: '5px' }}
+    >
+      TEST MODAL
+    </button>
+  </div>
+
+      {/* Result Modal */}
+      <ResultModal
+        isOpen={showResultModal}
+        onClose={handleCloseResultModal}
+        resultData={resultModalData}
+        isLoading={processingResult}
+      />
     </div>
   );
 };

@@ -13,6 +13,7 @@ from .utils.constant import *
 from .utils.tutorial_llm_responses import fetch_demo_llm_responses
 from .utils.retriever import *
 from .utils.constant import *
+import uuid
 import traceback
 
 from .llm.llm import *
@@ -562,3 +563,90 @@ def get_tutorial_texts():
         "step4": "Évaluez la pertinence des résultats. Ceci est l'étape 4."
     }
     return jsonify(tutorial_texts)
+
+
+
+@bp.route("/manage-result", methods=['POST'])
+@login_required
+def manage_result():
+    """Process SRU query and return results"""
+    data = request.json
+    sru_query = data.get('sruQuery', '')
+    original_query = data.get('originalQuery', '')
+    
+    logger.info(f"Processing search results: SRU query='{sru_query}', original='{original_query}'")
+    
+    # In a real implementation, this would call the actual SRU API
+    # For demo purposes, we'll simulate a delay and return dummy data
+    time.sleep(2)  # Simulate processing time
+    
+    # Generate a unique ID for this result set
+    result_id = str(uuid.uuid4())
+    
+    # Dummy data for testing
+    dummy_items = [
+        {
+            "title": "Les Misérables",
+            "author": "Victor Hugo",
+            "date": "1862",
+            "description": "Roman historique et social se déroulant en France au début du XIXe siècle.",
+            "link": "https://gallica.bnf.fr/ark:/12148/bpt6k6566116j"
+        },
+        {
+            "title": "Notre-Dame de Paris",
+            "author": "Victor Hugo",
+            "date": "1831",
+            "description": "Roman historique se déroulant dans la Paris médiévale du XVe siècle.",
+            "link": "https://gallica.bnf.fr/ark:/12148/bpt6k6497802p"
+        },
+        {
+            "title": "Le Comte de Monte-Cristo",
+            "author": "Alexandre Dumas",
+            "date": "1844",
+            "description": "Roman d'aventures relatant l'histoire d'Edmond Dantès, injustement emprisonné.",
+            "link": "https://gallica.bnf.fr/ark:/12148/bpt6k55886288"
+        },
+        {
+            "title": "Germinal",
+            "author": "Émile Zola",
+            "date": "1885",
+            "description": "Roman social sur la condition des mineurs au XIXe siècle.",
+            "link": "https://gallica.bnf.fr/ark:/12148/bpt6k1057730v"
+        }
+    ]
+    
+    # Log the processed results
+    logger.info(f"Returning {len(dummy_items)} results for query: {sru_query}")
+    
+    # If query contains certain keywords, return fewer results for testing
+    if "poésie" in original_query.lower() or "poésie" in sru_query.lower():
+        dummy_items = dummy_items[:2]
+    elif "introuvable" in original_query.lower() or "introuvable" in sru_query.lower():
+        dummy_items = []
+    
+    return jsonify({
+        "id": result_id,
+        "items": dummy_items,
+        "query": {
+            "sru": sru_query,
+            "original": original_query
+        }
+    })
+
+@bp.route("/result-feedback", methods=['POST'])
+@login_required
+def result_feedback():
+    """Save user feedback about search results"""
+    data = request.json
+    rating = data.get('rating')
+    comment = data.get('comment', '')
+    result_id = data.get('resultId')
+    
+    logger.info(f"Received feedback for result {result_id}: rating={rating}, comment='{comment}'")
+    
+    # In a real implementation, this would save the feedback to a database
+    
+    return jsonify({
+        "success": True,
+        "message": "Feedback enregistré avec succès"
+    })

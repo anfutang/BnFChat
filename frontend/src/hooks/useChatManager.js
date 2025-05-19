@@ -10,6 +10,9 @@ const useChatManager = (setShowSessionMessage) => {
   const [timingData, setTimingData] = useState({});
   const [needsAnnotation, setNeedsAnnotation] = useState(false);
   const [currentResponse, setCurrentResponse] = useState(null);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [resultModalData, setResultModalData] = useState(null);
+  const [processingResult, setProcessingResult] = useState(false);
   const messageListRef = useRef(null);
   const eventSourceRef = useRef(null);
 
@@ -37,6 +40,66 @@ const useChatManager = (setShowSessionMessage) => {
       }
     };
   }, []);
+
+// Version améliorée de processSearchResults
+const processSearchResults = async (content) => {
+  console.log("⭐ Processing search results with content:", content);
+  
+  try {
+    // Vérifier le type de contenu et le traiter en conséquence
+    let sruQuery, originalQuery;
+    
+    if (typeof content === 'string') {
+      // Si c'est une chaîne, essayer de la diviser avec le délimiteur
+      if (content.includes('###')) {
+        [sruQuery, originalQuery] = content.split('###');
+      } else {
+        // Si pas de délimiteur, utiliser tout comme requête SRU
+        sruQuery = content;
+        originalQuery = "Requête originale non spécifiée";
+      }
+    } else if (typeof content === 'object') {
+      // Si c'est un objet, essayer d'extraire les propriétés pertinentes
+      sruQuery = content.sruQuery || JSON.stringify(content);
+      originalQuery = content.originalQuery || "Requête structurée";
+    } else {
+      // Fallback pour tout autre type
+      sruQuery = String(content);
+      originalQuery = "Type de données non reconnu";
+    }
+    
+    console.log("⭐ Extracted queries:", { sruQuery, originalQuery });
+    
+    // Envoyer la requête au backend
+    const response = await axios.post('/api/dev/manage-result', {
+      sruQuery,
+      originalQuery
+    });
+    
+    console.log("⭐ API response:", response.data);
+    
+    // Mettre à jour les données du modal
+    setResultModalData({
+      id: response.data.id,
+      sruQuery,
+      originalQuery,
+      items: response.data.items
+    });
+    
+    console.log("⭐ Result modal data updated");
+  } catch (error) {
+    console.error('Failed to process search results:', error);
+    
+    // En cas d'erreur, afficher un message d'erreur
+    setResultModalData({
+      error: true,
+      message: "Une erreur est survenue lors du traitement des résultats."
+    });
+  } finally {
+    // Fin du traitement, désactiver l'indicateur de chargement
+    setProcessingResult(false);
+  }
+};
 
   // Handle message submission
   const handleSubmit = async (message, currentSession) => {
@@ -95,7 +158,13 @@ const useChatManager = (setShowSessionMessage) => {
             case 'typing':
               // Could show typing indicator or update processing message
               break;
-              
+            case 'result':
+              console.log("Received SSE message:", data.content);
+              setShowResultModal(true);
+              setProcessingResult(true);
+              processSearchResults(data.content);
+              stopStreaming();
+              break;
             case 'response':
               const botResponse = {
                 sender: 'bot',
@@ -114,6 +183,8 @@ const useChatManager = (setShowSessionMessage) => {
               // Close the connection after receiving response
               stopStreaming();
               break;
+              
+
               
             case 'error':
               console.error('Error from server:', data.content);
@@ -196,6 +267,12 @@ const useChatManager = (setShowSessionMessage) => {
       eventSourceRef.current = null;
       setIsLoading(false);
     }
+  };
+
+  // Handle closing the result modal
+  const handleCloseResultModal = () => {
+    setShowResultModal(false);
+    setResultModalData(null);
   };
 
   // Handle annotation submission  
@@ -335,6 +412,14 @@ const useChatManager = (setShowSessionMessage) => {
     needsAnnotation,
     currentResponse,
     messageListRef,
+    showResultModal,
+    resultModalData,
+    processingResult,
+    // Exposer les setters pour le modal
+    setShowResultModal,
+    setResultModalData,
+    setProcessingResult,
+    // Le reste des fonctions
     loadChatHistory,
     handleSubmit,
     handleAnnotationSubmit,
@@ -343,8 +428,9 @@ const useChatManager = (setShowSessionMessage) => {
     handleConfirmChat,
     addSystemMessage,
     resetChat,
-    stopStreaming
+    stopStreaming,
+    handleCloseResultModal
   };
-};
+}
 
 export default useChatManager;
