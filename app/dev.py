@@ -169,11 +169,13 @@ def user_input():
                 
                 nl2sru_result = extract_sru_query(result[1])
                 if isinstance(nl2sru_result, Exception):
-                    yield f"data: {json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})}\n\n"
+                    response_data = json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})
+                    yield f"data: {response_data}\n\n"
                     return
                 
                 original_sru_query = f"gallica all {first_user_query}"
-                yield f"data: {json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})}\n\n"
+                response_data = json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})
+                yield f"data: {response_data}\n\n"
             else:
                 session["llm_response"] = no_intent_response
                 response_data = {
@@ -266,11 +268,13 @@ def user_input():
             
             nl2sru_result = extract_sru_query(result[1])
             if isinstance(nl2sru_result, Exception):
-                yield f"data: {json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})}\n\n"
+                response_data = json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})
+                yield f"data: {response_data}\n\n"
                 return
                 
             original_sru_query = f"gallica all {first_user_query}"
-            yield f"data: {json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})}\n\n"
+            response_data = json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})
+            yield f"data: {response_data}\n\n"
             return
 
         # KNN retrieval
@@ -322,11 +326,13 @@ def user_input():
                 
                 nl2sru_result = extract_sru_query(result[1])
                 if isinstance(nl2sru_result, Exception):
-                    yield f"data: {json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})}\n\n"
+                    response_data = json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})
+                    yield f"data: {response_data}\n\n"
                     return
                     
                 original_sru_query = f"gallica all {first_user_query}"
-                yield f"data: {json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})}\n\n"
+                response_data = json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})
+                yield f"data: {response_data}\n\n"
             else:
                 response += reinitialization_notification
                 session["llm_response"] = response
@@ -474,7 +480,8 @@ def user_input():
             
             nl2sru_result = extract_sru_query(result[1])
             if isinstance(nl2sru_result, Exception):
-                yield f"data: {json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})}\n\n"
+                response_data = json.dumps({'type': 'error', 'content': f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}"})
+                yield f"data: {response_data}\n\n"
                 return
                 
             original_sru_query = f"gallica all {first_user_query}"
@@ -482,7 +489,8 @@ def user_input():
             thought_process.append("Recherche finalisée")
             yield f"data: {json.dumps({'type': 'info', 'content': thought_process})}\n\n"
             
-            yield f"data: {json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})}\n\n"
+            response_data = json.dumps({'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"})
+            yield f"data: {response_data}\n\n"
 
     # Set proper headers for Server-Sent Events
     headers = {
