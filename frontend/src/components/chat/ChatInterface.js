@@ -287,14 +287,6 @@ const ChatInterface = () => {
         </div>
         
       </div>
-      <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999 }}>
-    <button 
-      onClick={testOpenResultModal} 
-      style={{ padding: '10px', background: 'red', color: 'white', border: 'none', borderRadius: '5px' }}
-    >
-      TEST MODAL
-    </button>
-  </div>
 
       {/* Result Modal */}
       <ResultModal

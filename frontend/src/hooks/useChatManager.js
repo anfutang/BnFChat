@@ -135,8 +135,8 @@ const useChatManager = (setShowSessionMessage) => {
       }
       
       // Create new EventSource connection
-      console.log(`Creating EventSource connection to /api/dev/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}`);
-      const eventSource = new EventSource(`/api/dev/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}`);
+      console.log(`Creating EventSource connection to /api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}`);
+      const eventSource = new EventSource(`/api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}`);
       eventSourceRef.current = eventSource;
       
       // Handle different event types

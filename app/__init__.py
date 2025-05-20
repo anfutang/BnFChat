@@ -1,8 +1,7 @@
 import os
-from flask import (Flask, g, session, redirect, url_for, render_template, jsonify)
-from .db import db, init_app, ensure_database_exists
-from . import auth, user, admin, dev, module, demo
-from . import chatbot
+from flask import Flask, jsonify
+from .db import init_app, ensure_database_exists
+from . import auth, dev, stream
 from flask_cors import CORS
 
 from .utils.rag_db_utils import close_rag_db
@@ -16,7 +15,7 @@ def create_app(test_config=None):
         SECRET_KEY="dev",
         DATABASE=os.path.join(app.instance_path, "bnf_chat.sqlite"),
         SQLALCHEMY_DATABASE_URI='sqlite:///' + os.path.join(app.instance_path, 'bnf_chat.sqlite'),
-        SQLALCHEMY_TRACK_MODIFICATIONS=False,  # Optional: Disable track modifications
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
     )
 
     if test_config is None:
@@ -39,28 +38,11 @@ def create_app(test_config=None):
 
     # Register blueprints
     app.register_blueprint(auth.bp, url_prefix='/api/auth')
-    app.register_blueprint(admin.bp, url_prefix='/admin')
-    app.register_blueprint(user.bp, url_prefix='/user')
     app.register_blueprint(dev.bp, url_prefix='/api/dev')
-    app.register_blueprint(module.bp, url_prefix='/module')
-    app.register_blueprint(chatbot.bp, url_prefix='/api/chatbot')
-    app.register_blueprint(demo.bp, url_prefix='/api/demo')
-
-    # Set a default route if needed
-    # app.add_url_rule('/', view_func=auth.login, endpoint='auth.index')
-    @app.route('/')
-    def home():
-        session.clear()
-        return redirect(url_for('auth.login'))
+    app.register_blueprint(stream.bp, url_prefix='/api/stream')
     
-    @app.route('/show_session',methods=['GET'])
-    def show_session():
-        return jsonify(dict(session))
-
-    @app.before_request
-    def clear_session_on_startup():
-        if not app.config.get('SESSION_CLEARED', False):
-            session.clear()
-            app.config['SESSION_CLEARED'] = True
+    @app.route('/api/status')
+    def status():
+        return jsonify({"status": "ok"})
 
     return app
