@@ -11,36 +11,6 @@ import numpy as np
 
 from .constant import *
 
-# chat history format: dict{turn_id: int, data:list[tuple]}
-#  data = list[tuple](user_message: str, llm_responses: list, selected_index: int, eliminated_indexes: list[int] ,evals: dict)
-# => for 'respond', 'llm_responses' is an one-item list [CQ]; 'selected_index' is 0.
-# evals = { redondant: boolean, unnatural: boolean, incomplete: boolean, 
-#           nb_selection_count: int, nb_elimination_count: int, 
-#           user_response_time: float, llm_response_time: float,
-# }  
-
-def make_sure_loggedin():
-    if 'username' not in session:
-        clear_session(user_global_keys)
-        return False, redirect(url_for('auth.login'))
-    return True, None
-
-def block_non_admin_connections():
-    if 'username' not in session:
-        clear_session(user_global_keys)
-        return True, redirect(url_for('auth.login'))
-    if session["permission_level"] == 0:
-        return True, redirect(url_for("user.index"))
-    return False, None
-
-def generate_password(length):
-    if length <= 0:
-        raise ValueError("Password length must be a positive integer.")
-    
-    allowed_chars = (string.digits + string.ascii_lowercase).replace('l','')
-    
-    return ''.join(random.choices(allowed_chars, k=length))
-
 def clear_current_turn():
     session["user_input"] = ''
     session["llm_responses"] = []

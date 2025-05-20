@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, Table, Column, Integer, MetaData, select, 
 from sqlalchemy.engine import reflection
 from sqlalchemy.orm import Session
 from .db import db
+import datetime
 
 class User(db.Model):
     __tablename__ = 'user'
@@ -27,11 +28,11 @@ class User(db.Model):
     time_usage_gallica = db.Column(db.String(50), nullable=True)
     accept_further_contact = db.Column(db.Boolean, nullable=True)
     avatar_seed = db.Column(db.Integer, nullable=True)
-    permission_level = db.Column(db.Integer, nullable=False, default=0)
     profile_created = db.Column(db.Boolean, nullable=False, default=False)
-    
-    # Relationships can be added here later
-    # For example: chats = db.relationship('Chat', backref='user', lazy=True)
+
+    session_step = db.Column(db.String(20), nullable=False, default="tutoriel")
+    timer_libre = db.Column(db.Integer, nullable=False, default=300)
+    timer_test = db.Column(db.Integer, nullable=False, default=2100)
 
     def __init__(self, username, password, **kwargs):
         self.username = username
@@ -50,7 +51,6 @@ class User(db.Model):
         self.time_usage_gallica = kwargs.get('time-usage-gallica')
         self.accept_further_contact = kwargs.get('accept-further-contact')
         self.avatar_seed = kwargs.get('avatar-seed')
-        self.permission_level = kwargs.get('permission_level', 0)
         self.profile_created = kwargs.get('profile_created', False)
 
     def set_password(self, password):
@@ -65,7 +65,6 @@ class User(db.Model):
             'id': self.id,
             'username': self.username,
             'avatarSeed': self.avatar_seed,
-            'permissionLevel': self.permission_level,
             'profileCompleted': self.profile_created
         }
     
@@ -96,49 +95,50 @@ class User(db.Model):
 class Chat(db.Model):
     __tablename__ = 'chat'
     
+    # Single primary key (auto-incrementing)
     id = db.Column(db.Integer, primary_key=True)
+    
+    # These should NOT be primary keys anymore
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    status = db.Column(db.String(20), nullable=False, default="ongoing")
-    chat_mode = db.Column(db.String(20), nullable=False, default="respond")
-    user_intent = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
+    
+    # Other columns remain the same
+    topic = db.Column(db.String(100), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="ongoing")
+    session_step = db.Column(db.String(20), nullable=False, default="session_libre")
     updated_at = db.Column(db.DateTime, nullable=False, 
                          default=db.func.current_timestamp(),
                          onupdate=db.func.current_timestamp())
-    
-    # Relationship
-    messages = db.relationship('ChatMessage', backref='chat', lazy=True, cascade="all, delete-orphan")
+    user_intent = db.Column(db.Text, nullable=True)
+    chat_history = db.Column(db.JSON, nullable=False, default=list)
+    user = db.relationship('User', backref='chats')
     
     def to_dict(self):
         """Convert chat to dictionary for the frontend"""
         return {
-            'id': self.id,
             'user_id': self.user_id,
-            'status': self.status,
-            'chat_mode': self.chat_mode,
-            'user_intent': self.user_intent,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+            'topic': self.topic,
+            'status': self.status,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'chat_history': [message.to_dict() for message in self.messages]
+            'user_intent': self.user_intent,
+            'chat_history': self.chat_history
         }
-
-class ChatMessage(db.Model):
-    __tablename__ = 'chat_message'
     
-    id = db.Column(db.Integer, primary_key=True)
-    chat_id = db.Column(db.Integer, db.ForeignKey('chat.id'), nullable=False)
-    role = db.Column(db.String(20), nullable=False)  # 'user' or 'assistant'
-    content = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
-    
-    def to_dict(self):
-        """Convert message to dictionary for frontend"""
-        return {
-            'id': self.id,
-            'role': self.role,
-            'content': self.content,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None
+    def add_message(self, role, content):
+        """Add a new message to chat_history"""
+        if self.chat_history is None:
+            self.chat_history = []
+            
+        message = {
+            'role': role,
+            'content': content,
+            'timestamp': datetime.datetime.utcnow().isoformat()
         }
+        
+        self.chat_history.append(message)
+        self.updated_at = datetime.datetime.utcnow()
+        return message
     
 def create_user(username, password, user_profile_data=None):
     """Create a new user with profile data"""
@@ -171,142 +171,254 @@ def get_chat_content(user_id, chat_id):
         return None
     return chat.to_dict()
 
-def create_chat(user_id, first_message=None, status="ongoing", user_intent=""):
+def create_chat(user_id, first_message=None, status="ongoing", user_intent="", topic=None, session_step="session_libre"):
     """Create a new chat for a user"""
+    # Initialize with empty chat history
+    chat_history = []
+    
+    # Add first message if provided
+    if first_message:
+        chat_history.append({
+            'role': 'user',
+            'content': first_message,
+            'timestamp': datetime.datetime.utcnow().isoformat()
+        })
+    
+    # Create new chat - no need to set the ID manually
     chat = Chat(
         user_id=user_id,
+        created_at=datetime.datetime.utcnow(),
+        topic=topic,
         status=status,
-        chat_mode="respond",
-        user_intent=user_intent
+        user_intent=user_intent,
+        chat_history=chat_history,
+        session_step=session_step
     )
     
     db.session.add(chat)
     db.session.commit()
     
-    # Add first message if provided
-    if first_message:
-        add_message_to_chat(chat.id, "user", first_message)
-    
+    # After commit, chat.id will contain the auto-assigned ID
     return chat
 
 def add_message_to_chat(chat_id, role, content):
-    """Add a message to an existing chat"""
-    message = ChatMessage(
-        chat_id=chat_id,
-        role=role,
-        content=content
-    )
+    """Add a message to an existing chat identified by chat_id"""
+    # Find the chat
+    chat = Chat.query.filter_by(id=chat_id).first()
     
-    db.session.add(message)
-    db.session.commit()
+    if not chat:
+        raise ValueError(f"Chat not found for chat_id={chat_id}")
     
-    # Update the chat's updated_at timestamp
-    chat = Chat.query.get(chat_id)
-    chat.updated_at = db.func.current_timestamp()
+    # Create new message
+    message = {
+        'role': role,
+        'content': content,
+        'timestamp': datetime.datetime.utcnow().isoformat()
+    }
+    
+    # Add message to chat history
+    if chat.chat_history is None:
+        chat.chat_history = []
+    
+    chat.chat_history.append(message)
+    
+    # Update timestamp
+    chat.updated_at = datetime.datetime.utcnow()
+    
     db.session.commit()
     
     return message
 
-def save_conv(user_id, first_input, chat_history, status="ongoing", user_intent=""):
-    """Save conversation to database and/or session"""
-    # Save to session for all users
-    if isinstance(chat_history, list) and len(chat_history) > 0:
-        if isinstance(chat_history[0], dict):
-            # Already in the right format for models
-            formatted_chat_history = chat_history
-        else:
-            # Convert simple messages to dict format
-            formatted_chat_history = []
-            for i, message in enumerate(chat_history):
-                role = 'user' if i % 2 == 0 else 'assistant'
-                formatted_chat_history.append({
-                    'role': role,
-                    'content': message
-                })
-        
-        # Update session
-        session["chat_history"] = [msg if isinstance(msg, str) else msg['content'] for msg in chat_history]
-        
-        # Save to database if real user
-        if user_id and user_id != 123:  # Real authenticated user
-            if first_input:
-                # Create a new chat
-                chat = Chat(
-                    user_id=user_id,
-                    status=status,
-                    chat_mode="respond",
-                    user_intent=user_intent
-                )
-                db.session.add(chat)
-                db.session.commit()
-                
-                # Add messages
-                for msg in formatted_chat_history:
-                    message = ChatMessage(
-                        chat_id=chat.id,
-                        role=msg['role'],
-                        content=msg['content']
-                    )
-                    db.session.add(message)
-                
-                db.session.commit()
-            else:
-                # Update existing chat
-                chat = Chat.query.filter_by(user_id=user_id).order_by(Chat.updated_at.desc()).first()
-                if chat:
-                    # Update chat fields
-                    chat.status = status
-                    chat.user_intent = user_intent
-                    
-                    # Get existing messages
-                    existing_messages = {i: msg for i, msg in enumerate(chat.messages)}
-                    max_existing = len(existing_messages)
-                    
-                    # Update or add messages
-                    for i, msg in enumerate(formatted_chat_history):
-                        if i < max_existing:
-                            # Update existing message
-                            existing_messages[i].role = msg['role']
-                            existing_messages[i].content = msg['content']
-                        else:
-                            # Add new message
-                            message = ChatMessage(
-                                chat_id=chat.id,
-                                role=msg['role'],
-                                content=msg['content']
-                            )
-                            db.session.add(message)
-                    
-                    db.session.commit()
+def get_latest_chat(user_id):
+    """Get the latest chat for a user"""
+    return Chat.query.filter_by(user_id=user_id).order_by(Chat.created_at.desc()).first()
 
-def operate_on_users(selected_user_ids, action):
-    """Perform operations on multiple users"""
-    selected_users = User.query.filter(User.id.in_(selected_user_ids)).all()
-
-    if action == 'delete':
-        for user in selected_users:
-            # Delete associated chats (cascade will handle chat messages)
-            Chat.query.filter_by(user_id=user.id).delete()
-            db.session.delete(user)
-    elif action == 'promote':
-        for user in selected_users:
-            user.permission_level = 1
-    elif action == 'reset':
-        for user in selected_users:
-            user.age = None
-            user.diploma = None
-            user.situation = None
-            user.other_situation = None
-            user.engaged_in_academic_research = None
-            user.engaged_in_amateur_research = None
-            user.is_gallica_user = None
-            user.frequency_usage_gallica = None
-            user.time_usage_gallica = None
-            user.accept_further_contact = None
-            user.profile_created = False
+def add_message_to_latest_chat(user_id, role, content):
+    """Add a message to the user's latest chat"""
+    chat = get_latest_chat(user_id)
+    
+    if not chat:
+        # No existing chat, create one with this message
+        return create_chat(user_id, first_message=content if role == 'user' else None)
+    
+    # Create new message
+    message = {
+        'role': role,
+        'content': content,
+        'timestamp': datetime.datetime.utcnow().isoformat()
+    }
+    
+    # Add message to chat history
+    if chat.chat_history is None:
+        chat.chat_history = []
+    
+    chat.chat_history.append(message)
+    
+    # Update timestamp
+    chat.updated_at = datetime.datetime.utcnow()
     
     db.session.commit()
+    
+    return message
+
+def save_conv(user_id, first_input, chat_history, status="ongoing", user_intent="", topic=None, chat_id=None):
+    """Save conversation to database, using chat_id if provided"""
+    # Only proceed if we have chat history and a real user
+    if not (isinstance(chat_history, list) and len(chat_history) > 0 and user_id and user_id != 123):
+        return
+        
+    # Format the chat history appropriately
+    if isinstance(chat_history[0], dict):
+        # Already in the right format for models
+        formatted_chat_history = chat_history
+    else:
+        # Convert simple messages to dict format
+        formatted_chat_history = []
+        for i, message in enumerate(chat_history):
+            role = 'user' if i % 2 == 0 else 'assistant'
+            formatted_chat_history.append({
+                'role': role,
+                'content': message,
+                'timestamp': datetime.datetime.utcnow().isoformat()
+            })
+    
+    # Try to find the chat by ID if provided
+    chat = None
+    if chat_id:
+        chat = Chat.query.filter_by(id=chat_id, user_id=user_id).first()
+    
+    # If we found the chat, update it
+    if chat:
+        # Update chat fields
+        chat.status = status
+        chat.user_intent = user_intent
+        if topic:
+            chat.topic = topic
+        
+        # Update chat history
+        chat.chat_history = formatted_chat_history
+        
+        # Update timestamp
+        chat.updated_at = datetime.datetime.utcnow()
+        
+        db.session.commit()
+        return chat
+    
+    # If chat not found by ID or first_input is True, handle accordingly
+    if first_input:
+        # End any existing ongoing chats
+        end_ongoing_chats(user_id, "terminated_by_new_session")
+        
+        # Create a new chat with current timestamp
+        new_chat = Chat(
+            user_id=user_id,
+            created_at=datetime.datetime.utcnow(),
+            topic=topic,
+            status=status,
+            user_intent=user_intent,
+            chat_history=formatted_chat_history
+        )
+        db.session.add(new_chat)
+        db.session.commit()
+        return new_chat
+    else:
+        # Try to get ongoing chat
+        chat = get_ongoing_chat(user_id)
+        
+        if chat:
+            # Update chat fields
+            chat.status = status
+            chat.user_intent = user_intent
+            if topic:
+                chat.topic = topic
+            
+            # Update chat history
+            chat.chat_history = formatted_chat_history
+            
+            # Update timestamp
+            chat.updated_at = datetime.datetime.utcnow()
+            
+            db.session.commit()
+            return chat
+        else:
+            # If no ongoing chat exists (unusual case), create one
+            new_chat = Chat(
+                user_id=user_id,
+                created_at=datetime.datetime.utcnow(),
+                topic=topic,
+                status=status,
+                user_intent=user_intent,
+                chat_history=formatted_chat_history
+            )
+            db.session.add(new_chat)
+            db.session.commit()
+            return new_chat
 
 def get_all_users_with_chats():
     """Get all users who have at least one chat"""
     return User.query.join(Chat).distinct().all()
+
+
+def get_ongoing_chat(user_id):
+    """Get the ongoing chat for a user, or None if not found"""
+    return Chat.query.filter_by(
+        user_id=user_id,
+        status="ongoing"
+    ).order_by(Chat.created_at.desc()).first()
+
+def get_chat_by_id(chat_id, user_id=None):
+    """Get a specific chat by ID, optionally filtering by user"""
+    query = Chat.query.filter_by(id=chat_id)
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    return query.first()
+
+def end_ongoing_chats(user_id, new_status="terminated"):
+    """Mark all ongoing chats for a user as ended with the specified status"""
+    ongoing_chats = Chat.query.filter_by(
+        user_id=user_id,
+        status="ongoing"
+    ).all()
+    
+    for chat in ongoing_chats:
+        chat.status = new_status
+    
+    db.session.commit()
+    return len(ongoing_chats)
+
+def get_or_create_chat(user_id, first_message=None, topic=None, user_intent="", session_step="session_libre"):
+    """Get the ongoing chat for a user, or create a new one if none exists"""
+    
+    # Try to find an ongoing chat
+    chat = get_ongoing_chat(user_id)
+    
+    if chat:
+        # Use the existing ongoing chat
+        return chat
+    
+    # No ongoing chat found, create a new one
+    chat_history = []
+    
+    # Add first message if provided
+    if first_message:
+        chat_history.append({
+            'role': 'user',
+            'content': first_message,
+            'timestamp': datetime.datetime.utcnow().isoformat()
+        })
+    
+    # Create new chat
+    chat = Chat(
+        user_id=user_id,
+        created_at=datetime.datetime.utcnow(),
+        topic=topic,
+        status="ongoing",
+        user_intent=user_intent,
+        chat_history=chat_history,
+        session_step=session_step
+    )
+    
+    db.session.add(chat)
+    db.session.commit()
+    
+    return chat

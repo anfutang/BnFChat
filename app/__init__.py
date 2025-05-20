@@ -1,3 +1,5 @@
+# app/__init__.py
+
 import os
 from flask import Flask, jsonify
 from .db import init_app, ensure_database_exists

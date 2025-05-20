@@ -36,7 +36,6 @@ def check_auth():
         "authenticated": True,
         "username": user.username,
         "avatarSeed": user.avatar_seed,
-        "permissionLevel": user.permission_level,
         "profileCompleted": user.profile_created
     })
 
@@ -59,13 +58,11 @@ def register():
     session["user_id"] = user.id
     session["username"] = username
     session["avatar-seed"] = user.avatar_seed
-    session["permission_level"] = user.permission_level
     
     return jsonify({
         "success": True,
         "username": username,
         "avatarSeed": user.avatar_seed,
-        "permissionLevel": user.permission_level,
         "profileCompleted": user.profile_created
     })
 
@@ -95,7 +92,6 @@ def profile_submit():
     return jsonify({
         "success": True,
         "username": user.username,
-        "permissionLevel": user.permission_level,
         "profileCompleted": True
     })
 
@@ -118,7 +114,6 @@ def login():
     session["user_id"] = user.id
     session["username"] = username
     session["avatar-seed"] = user.avatar_seed
-    session["permission_level"] = user.permission_level
     session["session_id"] = 1
     session["free_test"] = True
     session["first_input"] = True
@@ -132,7 +127,6 @@ def login():
     return jsonify({
         'success': True,
         'username': username,
-        'permissionLevel': user.permission_level,
         'avatarSeed': user.avatar_seed,
         'profileCompleted': user.profile_created
     })

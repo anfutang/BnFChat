@@ -65,7 +65,6 @@ def get_session_data():
         "username": session.get("username", "Utilisateur Test"),
         "userId": user_id,
         "avatarSeed": session.get("avatar-seed", "default") if not user else user.avatar_seed,
-        "permissionLevel": session.get("permission_level", 1) if not user else user.permission_level,
         "sessionId": session.get("session_id", 1),
         "freeTest": session.get("free_test", True),
         "chatMode": session.get("chat_mode", "respond"),

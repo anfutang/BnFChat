@@ -120,24 +120,27 @@ const useChatManager = (setShowSessionMessage) => {
     
     // Add user message to chat
     const newUserMessage = {
-      sender: 'user',
-      message,
-      timestamp: new Date().toISOString()
+        sender: 'user',
+        message,
+        timestamp: new Date().toISOString()
     };
     
     setChatHistory(prev => [...prev, newUserMessage]);
     
     try {
-      // Close any existing EventSource connection
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      
-      // Create new EventSource connection
-      console.log(`Creating EventSource connection to /api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}`);
-      const eventSource = new EventSource(`/api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}`);
-      eventSourceRef.current = eventSource;
+        // Close any existing EventSource connection
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+        }
+        
+        // Get current chat ID from the last response if available
+        const chatId = currentResponse?.metadata?.chatId || '';
+        
+        // Create new EventSource connection with chat ID
+        console.log(`Creating EventSource connection to /api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}&chatId=${chatId}`);
+        const eventSource = new EventSource(`/api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}&chatId=${chatId}`);
+        eventSourceRef.current = eventSource;
       
       // Handle different event types
       eventSource.onmessage = (event) => {
