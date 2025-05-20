@@ -87,20 +87,57 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
           ) : (
             <>
               {resultData && (
-                <div className="result-data">
-                  <h3>Requête SRU générée:</h3>
-                  <div className="sru-query-box">
-                    {resultData.sruQuery}
+                <div className="result-container">
+                  <div className="result-data">
+                    <h2>♠️ Avec Conversation</h2>
+                    <h3>Requête SRU générée</h3>
+                    <div className="sru-query-box">
+                      {resultData.sruQuery}
+                    </div>
+                    
+                    <h3>Résultats</h3>
+                    <div className="results-list">
+                      {resultData.wcResults && resultData.wcResults.map((item, index) => (
+                        <div className="result-item" key={index}>
+                          <h4>{item.title}</h4>
+                          {item.creator && <p className="result-creator">creator: {String(item.creator)}</p>}
+                          {item.description && <p className="result-description">description: {String(item.description)}</p>}
+                          {item.subject && <p className="result-subject">subject: {String(item.subject)}</p>}
+                          {item.date && <p className="result-date">date: {String(item.date)}</p>}
+                          {item.type && <p className="result-type">type: {String(item.type)}</p>}
+                          {item.link && (
+                            <a href={item.link} target="_blank" rel="noopener noreferrer" className="result-link">
+                              Voir dans Gallica
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {resultData.wcResults && resultData.wcResults.length === 0 && (
+                      <div className="no-results">
+                        <p>Aucun résultat. Mauvaise traduction SRU.</p>
+                      </div>
+                    )}
                   </div>
-                  
-                  <h3>Résultats:</h3>
+
+                  <div className="result-data">
+                  <h2>♣️ Sans Conversation</h2>
+                  <h3>Requête SRU utilisée</h3>
+                  <div className="sru-query-box">
+                    {resultData.originalQuery}
+                  </div>
+
+                  <h3>Résultats</h3>
                   <div className="results-list">
-                    {resultData.items && resultData.items.map((item, index) => (
+                    {resultData.wocResults && resultData.wocResults.map((item, index) => (
                       <div className="result-item" key={index}>
                         <h4>{item.title}</h4>
-                        <p className="result-author">{item.author}</p>
-                        <p className="result-date">{item.date}</p>
-                        <p className="result-description">{item.description}</p>
+                        {item.creator && <p className="result-creator">creator: {String(item.creator)}</p>}
+                        {item.description && <p className="result-description">description: {String(item.description)}</p>}
+                        {item.subject && <p className="result-subject">subject: {String(item.subject)}</p>}
+                        {item.date && <p className="result-date">date: {String(item.date)}</p>}
+                        {item.type && <p className="result-type">type: {String(item.type)}</p>}
                         {item.link && (
                           <a href={item.link} target="_blank" rel="noopener noreferrer" className="result-link">
                             Voir dans Gallica
@@ -109,23 +146,36 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
                       </div>
                     ))}
                   </div>
-                  
-                  {resultData.items && resultData.items.length === 0 && (
+
+                  {resultData.wocResults && resultData.wocResults.length === 0 && (
                     <div className="no-results">
-                      <p>Aucun résultat trouvé pour votre recherche.</p>
+                      <p>Aucun résultat sans conversation.</p>
                     </div>
                   )}
+                  </div>
                 </div>
               )}
               
               {!feedbackSubmitted ? (
                 <div className="feedback-section">
-                  <h3>Évaluez ces résultats</h3>
+                  <h4>Q1. Quel résultat préférez-vous (avec / sans conversation) ?</h4>
                   <div className="stars-container">
                     {renderStars()}
                   </div>
+
+                  <h4>Q2. Évaluez la qualité du résultat avec conversation.</h4>
+                  <div className="stars-container">
+                    {renderStars()}
+                  </div>
+
+                  <h4>Q3. Évaluez la qualité globale de la conversation.</h4>
+                  <div className="stars-container">
+                    {renderStars()}
+                  </div>
+
+                  <h4>Q4. (optionnel) Si vous connaissez le format SRU, comment formuleriez-vous une requête SRU pour votre intention de recherche ?</h4>
                   <textarea
-                    placeholder="Commentaires additionnels (optionnel)"
+                    placeholder="Requête SRU que vous souhaiteriez utiliser"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     rows={3}

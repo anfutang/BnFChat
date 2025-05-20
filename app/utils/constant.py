@@ -1,7 +1,5 @@
 import os
 
-LLM_API_URL = 'http://192.168.0.152:8002/predict' 
-PROMPT_TYPE = "AT-CoT" # standard, CoT, AT-CoT
 DEV_MODE = True
 MAX_NUM_REFRESH = 3
 USER_MODES = ["select","respond","select+respond"]

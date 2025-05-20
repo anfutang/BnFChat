@@ -250,7 +250,8 @@ def manage_result():
         
         return jsonify({
             "id": result_id,
-            "items": retrieval_result_wc,  # Using the results with clarification
+            "wcResults": retrieval_result_wc,  # Using the results with clarification
+            "wocResults": retrieval_result_woc,
             "query": {
                 "sru": sru_query,
                 "original": original_query

@@ -4,22 +4,22 @@ examples = """
 Query: Je cherche un biographie de Flaubert.
 
 #Reason: The user query focuses on biographies of Flaubert, the author is therefore not necessarily Flaubert himself, so dc.creator should not be used. The keyword "Flaubert" should appear in both dc.title and dc.subject. The document type corresponding to a biography should be "monographie".
-#Field: dc.title, dc.subject.
-#SRU-like: dc.title adj flaubert, dc.subject adj flaubert
-#SRU: dc.title adj flaubert and dc.subject adj flaubert
+#Field: dc.title, dc.subject, dc.type.
+#SRU-like: dc.title adj flaubert, dc.subject adj flaubert, dc.type all monographie
+#SRU: dc.title adj flaubert and (dc.subject adj flaubert) and (dc.type all monographie)
 
 Query: Je veux des peintures de Jongkind.
 
 #Reason: The user query focus on paintings of Jongkind, the author should therefore be Jongkind and the target document type should be "image". Other fields like dc.subject and dc.date are not involved.
 #Field: dc.creator, dc.type.
-#SRU-like: dc.creator adj jongkind, dc.type adj image
-#SRU: dc.creator adj jongkind and dc.type adj image
+#SRU-like: dc.creator adj jongkind, dc.type all image
+#SRU: dc.creator adj jongkind and dc.type all image
 
 Query: Je cherche Le Figaro avant l'année 1900.
 
 #Reason: Since Le Figaro is a newspaper, therefore dc.type should be "fascicule", and "le figaro" must appear in dc.title. Before the year of 1900 sets a time period of searching, gallicapublication_date should be used.
 #Field: dc.title, dc.type, gallicapublication_date.
-#SRU-like: dc.title adj "le figaro" and (dc.type adj fascicule) and (gallicapublication_date <= "1900")
+#SRU-like: dc.title adj "le figaro" and (dc.type all fascicule) and (gallicapublication_date <= "1900")
 #SRU: dc.title adj "le figaro" and (dc.type all "fascicule") and (gallicapublication_date <= "1900")
 """
 
@@ -31,6 +31,7 @@ Format:
 
 Rules:
 - For entities (e.g., names, titles), use the adj operator with quotation marks, e.g., dc.creator adj "Flaubert", dc.title adj "Le Figaro".
+- For dc.type, always use the all operator instead of adj.
 - For date constraints (typically years), use gallicapublication_date, e.g., gallicapublication_date < "1900". Always enclose the date in quotation marks.
 - For topic-related queries, use the provided SRU queries hint as a reference. Choose SRU queries that are coherent with your reasoning as suggestions. 
 - Use dc.type and dc.date only when the user query directly concerns date or type conditions.

@@ -8,6 +8,7 @@ const useChatManager = (setShowSessionMessage) => {
   const [isFirstInput, setIsFirstInput] = useState(true);
   const [thoughtProcess, setThoughtProcess] = useState([]);
   const [timingData, setTimingData] = useState({});
+  const [intentData, setIntentData] = useState({});
   const [needsAnnotation, setNeedsAnnotation] = useState(false);
   const [currentResponse, setCurrentResponse] = useState(null);
   const [showResultModal, setShowResultModal] = useState(false);
@@ -87,7 +88,8 @@ const loadChatHistory = async () => {
         id: response.data.id,
         sruQuery,
         originalQuery,
-        items: response.data.items
+        wcResults: response.data.wcResults,
+        wocResults: response.data.wocResults
       });
       
       // Use a small delay to ensure state updates are processed in sequence
@@ -119,6 +121,7 @@ const loadChatHistory = async () => {
     setIsLoading(true);
     setThoughtProcess([]);
     setTimingData({});
+    setIntentData('');
     setNeedsAnnotation(false);
     
     // Add user message to chat
@@ -163,6 +166,10 @@ const loadChatHistory = async () => {
               
             case 'time':
               setTimingData(data.content);
+              break;
+
+            case 'intent':
+              setIntentData(data.content);
               break;
               
             case 'typing':
@@ -454,6 +461,7 @@ const loadChatHistory = async () => {
     isFirstInput,
     thoughtProcess,
     timingData,
+    intentData,
     needsAnnotation,
     currentResponse,
     messageListRef,

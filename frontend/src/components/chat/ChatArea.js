@@ -17,6 +17,7 @@ const ChatArea = ({
   currentSession,
   sessionTimer,
   sessionData,
+  intentData,
   
   // Props for messages
   messageListRef,
@@ -84,6 +85,7 @@ const ChatArea = ({
             currentSession={currentSession}
             sessionTimer={sessionTimer}
             sessionData={sessionData}
+            intentData={intentData}
           />
         </ConversationHeader.Content>
       </ConversationHeader>

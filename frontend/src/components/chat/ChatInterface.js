@@ -25,8 +25,6 @@ import useChatManager from '../../hooks/useChatManager';
 // import './ChatInterface.css';
 
 
-
-
 const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -65,6 +63,7 @@ const ChatInterface = () => {
     messageListRef,
     thoughtProcess,
     timingData,
+    intentData,
     showResultModal,
     resultModalData,
     processingResult,
@@ -147,6 +146,11 @@ const ChatInterface = () => {
       console.error('Failed to logout:', error);
     }
   };
+
+  useEffect(() => {
+    window.testOpenResultModal = testOpenResultModal;
+  }, []);
+
   const testOpenResultModal = () => {
     console.log("Test button clicked - opening modal manually");
     setShowResultModal(true);
@@ -156,10 +160,15 @@ const ChatInterface = () => {
     setTimeout(() => {
       setResultModalData({
         id: "test-id",
-        sruQuery: "Requête SRU de test",
-        originalQuery: "Requête originale de test",
-        items: [
-          { title: "Résultat test 1", author: "Auteur test", date: "2024", description: "Description test" }
+        sruQuery: "dc.title all bovary and dc.author adj flaubert",
+        originalQuery: "gallica all madame bovary flaubert",
+        wcResults: [
+          { title: "Madame Bovary", author: "Gustave Flaubert", date: "1901", description: "roman" },
+          { title: "Madame Bovary", author: "Gustave Flaubert", date: "1901", description: "roman" },
+          { title: "Madame Bovary", author: "Gustave Flaubert", date: "1901", description: "roman" }
+        ],
+        wocResults: [
+          { title: "Madame Bovary : mœurs de province : Edition définitive", author: "Gustave Flaubert", date:"1877" }
         ]
       });
       setProcessingResult(false);
@@ -227,6 +236,7 @@ const ChatInterface = () => {
               currentSession={currentSession}
               sessionTimer={sessionTimer}
               sessionData={sessionData}
+              intentData={intentData}
               
               // Message props
               messageListRef={messageListRef}

@@ -1,12 +1,16 @@
 import React from 'react';
 import { ConversationHeader } from '@chatscope/chat-ui-kit-react';
 
-const SessionHeader = ({ currentSession, sessionTimer, sessionData }) => {
+const SessionHeader = ({ currentSession, sessionTimer, sessionData, intentData }) => {
   return (
     <ConversationHeader>
       <ConversationHeader.Content>
         {currentSession === 3 ? (
-          <div className="test-session-title">Recherche documentaire BNF</div>
+          typeof intentData === 'string' && intentData.trim() !== '' && (
+            <div className="test-session-title">
+              💡 {intentData}
+            </div>
+          )
         ) : (
           <div>
             BNF Chat {currentSession === 1 ? '- Tutoriel' : currentSession === 2 ? '- Session libre' : ''}
