@@ -64,9 +64,9 @@ def fetch_titles_and_subjects_only(records):
          subjects.add(record["subject"])
     return "Titles: " + "\n".join(titles) + "\nSubjects: " + "\n".join(subjects)
 
-def retrieve_result_page(sru_query_with_clarif,query_without_clarif):
+def retrieve_result_page(sru_query_with_clarif,sru_query_without_clarif):
     url_wc = base_gallica_url.format(sruQuery=sru_query_with_clarif,startRecord=1,maximumRecords=5)
-    url_woc = base_gallica_url.format(sruQuery=f"gallica all {query_without_clarif}",startRecord=1,maximumRecords=5)
+    url_woc = base_gallica_url.format(sruQuery=sru_query_without_clarif,startRecord=1,maximumRecords=5)
     success_wc, records_wc = build_search_result_single_page(url_wc)
     success_woc, records_woc = build_search_result_single_page(url_woc)
     if not success_wc:
@@ -78,72 +78,23 @@ def retrieve_result_page(sru_query_with_clarif,query_without_clarif):
 # tentatively retrieving the first page and get the number of relevant documents
 # if N > threshold, open-domain CG + filter;
 # if N < threshold, RAG.
-def retrieve_with_gallica(sru_query, tentative=False):
-    """
-    Retrieve records from Gallica using SRU query
-    
-    Args:
-        sru_query: SRU query string
-        tentative: If True, only get count without fetching records
-    
-    Returns:
-        Tuple of (number_of_records, records)
-    """
-    try:
-        # Validate input
-        if not sru_query or not isinstance(sru_query, str):
-            raise ValueError(f"Invalid SRU query format: {sru_query}")
-        
-        # Log the query for debugging
-        print(f"SRU query being sent to Gallica: {repr(sru_query)}")
-        
-        # URL-encode the SRU query to handle special characters
-        encoded_query = urllib.parse.quote(sru_query)
-        
-        # Make request with proper error handling
-        target_url = test_gallica_url.format(sruQuery=encoded_query, startRecord=1)
-        print(f"Request URL: {target_url}")
-        
-        response = requests.get(target_url)
-        if response.status_code != 200:
-            raise Exception(f"Gallica API returned status code {response.status_code}")
-        
-        # Parse XML response
-        try:
-            root = ET.fromstring(response.text)
-        except ET.ParseError as e:
-            print(f"XML Parse error: {e}")
-            print(f"Response content: {response.text[:500]}...")  # Print first 500 chars
-            raise Exception(f"Failed to parse Gallica response: {e}")
-        
-        # Get record count
-        try:
-            number_of_records = int(root.find(".//srw:numberOfRecords", xml_namespaces).text)
-        except (AttributeError, TypeError, ValueError) as e:
-            print(f"Error getting record count: {e}")
-            print(f"XML structure: {ET.tostring(root)[:500]}...")
-            raise Exception(f"Failed to get record count: {e}")
-        
-        if tentative or number_of_records > THRES_OPEN_GENERATION:
-            return number_of_records, []
-        else:
-            complete_records = []
-            # fetch up to 500 results
-            for startIndex in range(min(MAX_NUM_PAGES_TO_RETRIEVAL, (number_of_records - 1) // 50 + 1)):
-                target_url = base_gallica_url.format(
-                    sruQuery=encoded_query,
-                    startRecord=1+startIndex*50,
-                    maximumRecords=50
-                )
-                success, tmp_records = build_search_result_single_page(target_url)
-                if success:
-                    complete_records += tmp_records
-            return number_of_records, complete_records
-    
-    except Exception as e:
-        print(f"Error in retrieve_with_gallica: {e}")
-        # Return empty results to avoid crashing
-        return 0, []
+def retrieve_with_gallica(sru_query,tentative=False):
+    # tentative retrieval: only to get the number of relevant records
+    target_url = test_gallica_url.format(sruQuery=sru_query,startRecord=1)
+    root = ET.fromstring(requests.get(target_url).text)
+    number_of_records = int(root.find(".//srw:numberOfRecords", xml_namespaces).text)
+
+    if tentative or number_of_records > THRES_OPEN_GENERATION:
+        return number_of_records, []
+    else:
+        complete_records = []
+        # fetch up to 500 results
+        for startIndex in range(min(MAX_NUM_PAGES_TO_RETRIEVAL,(number_of_records - 1) // 50+1)):
+            target_url = base_gallica_url.format(sruQuery=sru_query,startRecord=1+startIndex*50,maximumRecords=50)
+            success, tmp_records = build_search_result_single_page(target_url)
+            if success:
+                complete_records += tmp_records
+        return number_of_records, complete_records
 
 # quickly verify if a SRU query is valid
 def is_valid_sru(sru_query):
