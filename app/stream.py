@@ -69,6 +69,11 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     # Yield initial connection and typing indicators
     yield event_data('connection', 'Connected')
     yield event_data('typing', 'Traitement en cours...')
+    
+    # If we have a last user intent, emit it immediately
+    if last_user_intent:
+        yield event_data('intent', last_user_intent)
+    
     # Title matching (only for first input)
     if first_input:
         title_match_hint, title_matching_time = find_exact_title_matches(user_input)
@@ -116,6 +121,7 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     # Summarize conversation for non-first inputs
     current_user_intent = summarize_conversation(prev_chat_history, user_input, first_input, 
                                                 time_count, thought_process)
+    # Emit the updated user intent
     yield event_data('intent', current_user_intent)
     
     # Handle respond_and_search intent
@@ -130,7 +136,7 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     if not retrieval_result:
         logger.info(f"Connection closing: No topics found for session {session_id}")
         yield from handle_no_topics_found(user_id, first_input, prev_chat_history, user_input, 
-                                        last_user_intent, first_user_query, session_id, time_count, thought_process)
+                                        last_user_intent, first_user_query, session_id, time_count, thought_process, current_user_intent)
         return
     
     topics, sru_hints = retrieval_result
@@ -141,7 +147,7 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     if not relevant_topics:
         logger.info(f"Connection closing: No relevant facets for session {session_id}")
         yield from handle_no_relevant_facets(user_id, first_input, prev_chat_history, user_input, 
-                                           last_user_intent, first_user_query, session_id, time_count, thought_process)
+                                           last_user_intent, first_user_query, session_id, time_count, thought_process, current_user_intent)
         return
     
     # Display relevant topics
@@ -316,6 +322,9 @@ def handle_search_intent(user_id, first_input, prev_chat_history, user_input, la
                        first_user_query, session_id, time_count, thought_process):
     """Handle the 'search' conversation intent"""
     if last_user_intent:
+        # Emit the user intent for search
+        yield event_data('intent', last_user_intent)
+        
         # Process search with last intent
         thought_process.append("Préparation de la recherche...")
         yield event_data('info', thought_process)
@@ -374,6 +383,9 @@ def handle_entity_disambiguation(user_id, first_input, prev_chat_history, user_i
         thought_process.append("Requête ambiguë détectée")
         yield event_data('info', thought_process)
         
+        # If entity disambiguation fails, we don't update the user intent
+        # as we're asking for clarification
+        
         response_data = {
             'type': 'response',
             'content': {
@@ -394,6 +406,8 @@ def handle_entity_disambiguation(user_id, first_input, prev_chat_history, user_i
 
 def handle_respond_search_intent(current_user_intent, first_user_query, time_count, thought_process):
     """Handle the 'respond_and_search' conversation intent"""
+    # We've already emitted the user intent earlier, no need to do it again
+    
     thought_process.append("Préparation de la recherche...")
     yield event_data('info', thought_process)
     
@@ -412,10 +426,15 @@ def handle_respond_search_intent(current_user_intent, first_user_query, time_cou
 
 
 def handle_no_topics_found(user_id, first_input, prev_chat_history, user_input, last_user_intent, 
-                          first_user_query, session_id, time_count, thought_process):
+                          first_user_query, session_id, time_count, thought_process, current_user_intent=None):
     """Handle case where no relevant topics are found"""
     response = refusal_response
     
+    # Always save the current user intent if available
+    if current_user_intent:
+        # Emit the user intent for no topics
+        yield event_data('intent', current_user_intent)
+        
     if last_user_intent:
         response += search_notification
         session["llm_response"] = response
@@ -430,13 +449,17 @@ def handle_no_topics_found(user_id, first_input, prev_chat_history, user_input, 
         }
         yield f"data: {json.dumps(response_data)}\n\n"
         
-        save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused_and_search")
+        # Save with the most current intent if available
+        user_intent_to_save = current_user_intent if current_user_intent else last_user_intent
+        save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused_and_search", user_intent=user_intent_to_save)
 
         # Try alternative search
         thought_process.append("Tentative de recherche alternative...")
         yield event_data('info', thought_process)
         
-        nl2sru_result, original_sru_query = convert_to_sru(last_user_intent, first_user_query, time_count, thought_process)
+        # Use the most current intent for the search
+        search_intent = current_user_intent if current_user_intent else last_user_intent
+        nl2sru_result, original_sru_query = convert_to_sru(search_intent, first_user_query, time_count, thought_process)
         if nl2sru_result.startswith("Error:") or nl2sru_result.startswith("Erreur"):
             logger.info(f"Connection not closing: Error in NL2SRU conversion for no topics found in session {session_id}: {nl2sru_result}")
             yield event_data('error', nl2sru_result)
@@ -462,17 +485,24 @@ def handle_no_topics_found(user_id, first_input, prev_chat_history, user_input, 
         }
         yield f"data: {json.dumps(response_data)}\n\n"
         
-        save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
+        # Save with the current intent if available
+        save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused", 
+                 user_intent=current_user_intent if current_user_intent else None)
         yield event_data('reinitialize', '')
         logger.info(f"Connection closing: No intent available for no topics in session {session_id}")
         yield event_data('close_connection', '')
 
 
 def handle_no_relevant_facets(user_id, first_input, prev_chat_history, user_input, last_user_intent, 
-                             first_user_query, session_id, time_count, thought_process):
+                             first_user_query, session_id, time_count, thought_process, current_user_intent=None):
     """Handle case where no relevant facets are found"""
     response = refusal_response
     
+    # Always save the current user intent if available
+    if current_user_intent:
+        # Emit the user intent for no relevant facets
+        yield event_data('intent', current_user_intent)
+        
     if last_user_intent:
         response += search_notification
         session["llm_response"] = response
@@ -487,10 +517,14 @@ def handle_no_relevant_facets(user_id, first_input, prev_chat_history, user_inpu
         }
         yield f"data: {json.dumps(response_data)}\n\n"
         
-        save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused_and_search")
+        # Save with the most current intent if available
+        user_intent_to_save = current_user_intent if current_user_intent else last_user_intent
+        save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused_and_search", user_intent=user_intent_to_save)
         
         # Continue with alternative search
-        nl2sru_result, original_sru_query = convert_to_sru(last_user_intent, first_user_query, time_count, thought_process)
+        # Use the most current intent for the search
+        search_intent = current_user_intent if current_user_intent else last_user_intent
+        nl2sru_result, original_sru_query = convert_to_sru(search_intent, first_user_query, time_count, thought_process)
         if nl2sru_result.startswith("Error:") or nl2sru_result.startswith("Erreur"):
             logger.info(f"Connection not closing: Error in NL2SRU conversion for no relevant facets in session {session_id}: {nl2sru_result}")
             yield event_data('error', nl2sru_result)
@@ -514,7 +548,9 @@ def handle_no_relevant_facets(user_id, first_input, prev_chat_history, user_inpu
         }
         yield f"data: {json.dumps(response_data)}\n\n"
         
-        save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
+        # Save with the current intent if available
+        save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused",
+                 user_intent=current_user_intent if current_user_intent else None)
         yield event_data('reinitialize', '')
         logger.info(f"Connection closing: No intent available for no relevant facets in session {session_id}")
         yield event_data('close_connection', '')
@@ -523,6 +559,10 @@ def handle_no_relevant_facets(user_id, first_input, prev_chat_history, user_inpu
 def handle_clarification_needed(user_id, first_input, prev_chat_history, user_input, clarification_question, 
                                current_user_intent, session_id, time_count, thought_process):
     """Handle case where clarification is needed"""
+    # Emit the current user intent before asking for clarification
+    if current_user_intent:
+        yield event_data('intent', current_user_intent)
+        
     session["llm_response"] = clarification_question
     response_data = {
         'type': 'response',
@@ -542,6 +582,9 @@ def handle_clarification_needed(user_id, first_input, prev_chat_history, user_in
 def handle_final_search(user_id, first_input, prev_chat_history, user_input, current_user_intent, 
                        first_user_query, session_id, time_count, thought_process):
     """Handle final search workflow"""
+    # Emit the current user intent for final search
+    yield event_data('intent', current_user_intent)
+    
     session["llm_response"] = terminate_response
     response_data = {
         'type': 'response',
@@ -553,7 +596,7 @@ def handle_final_search(user_id, first_input, prev_chat_history, user_input, cur
     }
     yield f"data: {json.dumps(response_data)}\n\n"
     
-    save_conv(user_id, first_input, prev_chat_history + [user_input, terminate_response], status="termintated_by_system")
+    save_conv(user_id, first_input, prev_chat_history + [user_input, terminate_response], status="termintated_by_system", user_intent=current_user_intent)
 
     # NL2SRU conversion for search
     nl2sru_result, original_sru_query = convert_to_sru(current_user_intent, first_user_query, time_count, thought_process)
