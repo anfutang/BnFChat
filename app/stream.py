@@ -1,3 +1,5 @@
+# app/stream.py
+
 from flask import Blueprint, jsonify, request, session, Response, stream_with_context
 import time
 import json
@@ -65,6 +67,17 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     
     # Initialize chat history and context
     prev_chat_history, first_user_query, last_user_intent = initialize_chat_context(user_id, first_input, user_input)
+    
+    # Update session chat history for compatibility
+    if isinstance(prev_chat_history, list) and all(isinstance(item, dict) for item in prev_chat_history):
+        # Convert dictionary format to simple list format for session
+        session_chat_history = []
+        for msg in prev_chat_history:
+            if msg['role'] == 'user' or msg['role'] == 'assistant':
+                session_chat_history.append(msg['content'])
+        session["chat_history"] = session_chat_history
+    else:
+        session["chat_history"] = prev_chat_history
     
     # Yield initial connection and typing indicators
     yield event_data('connection', 'Connected')
@@ -185,15 +198,36 @@ def initialize_chat_context(user_id, first_input, user_input):
         session["process"] = []
         prev_chat_history = []
         last_user_intent = ""
-        save_conv(user_id, first_input, [])
-        first_user_query = user_input
+        # Create a new chat for this user if they're authenticated
+        if user_id and user_id != 123:  # 123 is used for anonymous users in dev mode
+            create_chat(user_id)
+        return prev_chat_history, user_input, last_user_intent
     else:
-        _, _, prev_chat_data = fetch_last_chat_entry(user_id)
-        prev_chat_history = prev_chat_data["chat_history"]
-        last_user_intent = prev_chat_data.get("user_intent", "")
-        first_user_query = prev_chat_history[0]
-    
-    return prev_chat_history, first_user_query, last_user_intent
+        # Get the latest chat for this user
+        if user_id and user_id != 123:  # Real authenticated user
+            latest_chat = Chat.query.filter_by(user_id=user_id).order_by(Chat.updated_at.desc()).first()
+            if latest_chat:
+                # Convert messages to chat history format
+                prev_chat_history = [
+                    {'role': msg.role, 'content': msg.content} 
+                    for msg in latest_chat.messages
+                ]
+                last_user_intent = latest_chat.user_intent or ""
+                # Get the first user message as the first query
+                first_user_query = prev_chat_history[0]['content'] if prev_chat_history and prev_chat_history[0]['role'] == 'user' else user_input
+                return prev_chat_history, first_user_query, last_user_intent
+        
+        # Fallback to session-based history for anonymous users or if no chat found
+        if "chat_history" in session:
+            prev_chat_history = session["chat_history"]
+        else:
+            prev_chat_history = []
+            session["chat_history"] = []
+        
+        last_user_intent = ""
+        first_user_query = prev_chat_history[0] if prev_chat_history else user_input
+        
+        return prev_chat_history, first_user_query, last_user_intent
 
 
 def detect_conversation_intent(chat_history):

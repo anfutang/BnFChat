@@ -1,3 +1,4 @@
+# app/dev.py
 from flask import Blueprint, jsonify, request, session, Response, stream_with_context
 import time
 import json
@@ -18,6 +19,8 @@ import traceback
 
 from .llm.llm import *
 from .llm.rag import knn
+
+from .auth import login_required
 
 bp = Blueprint('dev', __name__, url_prefix="/api/dev")
 
@@ -49,24 +52,20 @@ MOCK_METADATA = [
     "<ul><li>Auteur: Simone de Beauvoir</li><li>Date: 1949</li><li>Cote: PH-97531</li><li>Collection: Philosophie</li></ul>"
 ]
 
-# Helper function to check login
-def login_required(f):
-    @functools.wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Always consider user as logged in for the dummy backend
-        return f(*args, **kwargs)
-    return decorated_function
 
 @bp.route('/session-data', methods=['GET'])
 @login_required
 def get_session_data():
     """Get current session data for client"""
     # Use session data if available, otherwise provide defaults
+    user_id = session.get("user_id", 123)
+    user = User.query.get(user_id) if user_id != 123 else None
+    
     session_data = {
         "username": session.get("username", "Utilisateur Test"),
-        "userId": session.get("user_id", 123),
-        "avatarSeed": session.get("avatar-seed", "default"),
-        "permissionLevel": session.get("permission_level", 1),
+        "userId": user_id,
+        "avatarSeed": session.get("avatar-seed", "default") if not user else user.avatar_seed,
+        "permissionLevel": session.get("permission_level", 1) if not user else user.permission_level,
         "sessionId": session.get("session_id", 1),
         "freeTest": session.get("free_test", True),
         "chatMode": session.get("chat_mode", "respond"),
@@ -78,11 +77,23 @@ def get_session_data():
 @login_required
 def get_chat_history():
     """Get current chat history"""
-    # Return empty history or mock history
+    user_id = session.get("user_id")
+    
+    # If we have a real user ID, try to get their latest chat
+    if user_id and user_id != 123:
+        latest_chat = Chat.query.filter_by(user_id=user_id).order_by(Chat.updated_at.desc()).first()
+        
+        if latest_chat:
+            # Convert the chat to the expected format
+            chat_history = [
+                message.to_dict() for message in latest_chat.messages
+            ]
+            return jsonify(chat_history)
+    
+    # If no user ID or no chats, return empty history or session-based history
     if not session.get("chat_history"):
         session["chat_history"] = []
     return jsonify(session["chat_history"])
-
 
 @bp.route('/user-annotation', methods=['POST'])
 @login_required
@@ -90,9 +101,18 @@ def user_annotation():
     """Process user annotation/feedback"""
     # Just acknowledge receipt of the annotation
     conv_label = request.json.get("convLabel", "")
+    user_id = session.get("user_id")
     
     # End conversation if user chose to end it
     if conv_label:
+        if user_id and user_id != 123:
+            # Mark latest chat as closed in database
+            latest_chat = Chat.query.filter_by(user_id=user_id).order_by(Chat.updated_at.desc()).first()
+            if latest_chat:
+                latest_chat.status = "closed"
+                db.session.commit()
+        
+        # Clear session chat history
         session["chat_history"] = []
     
     return jsonify({
@@ -104,6 +124,13 @@ def user_annotation():
 @login_required
 def restart_chat():
     """Reset the chat session"""
+    user_id = session.get("user_id")
+    
+    # If we have a real user, create a new chat for them
+    if user_id and user_id != 123:
+        create_chat(user_id)
+    
+    # Clear session chat history
     session["chat_history"] = []
     return jsonify({"success": True})
 
@@ -111,6 +138,16 @@ def restart_chat():
 @login_required
 def abandon_chat():
     """Abandon the current chat"""
+    user_id = session.get("user_id")
+    
+    # If we have a real user, mark their latest chat as abandoned
+    if user_id and user_id != 123:
+        latest_chat = Chat.query.filter_by(user_id=user_id).order_by(Chat.updated_at.desc()).first()
+        if latest_chat:
+            latest_chat.status = "abandoned"
+            db.session.commit()
+    
+    # Clear session chat history
     session["chat_history"] = []
     return jsonify({"success": True})
 
@@ -118,6 +155,15 @@ def abandon_chat():
 @login_required
 def confirm_chat():
     """Confirm the current chat as satisfactory"""
+    user_id = session.get("user_id")
+    
+    # If we have a real user, mark their latest chat as confirmed
+    if user_id and user_id != 123:
+        latest_chat = Chat.query.filter_by(user_id=user_id).order_by(Chat.updated_at.desc()).first()
+        if latest_chat:
+            latest_chat.status = "confirmed"
+            db.session.commit()
+    
     return jsonify({"success": True})
 
 @bp.route('/change-session', methods=['POST'])
@@ -128,7 +174,14 @@ def change_session():
     session["session_id"] = data.get('sessionId', 1)
     session["free_test"] = data.get('isFreeTest', True)
     session["chat_mode"] = "respond"
+    
+    # Reset chat history in session
     session["chat_history"] = []
+    
+    # If we have a real user, create a new chat for them with the new session settings
+    user_id = session.get("user_id")
+    if user_id and user_id != 123:
+        create_chat(user_id)
     
     return jsonify({"success": True})
 
@@ -143,8 +196,6 @@ def get_tutorial_texts():
         "step4": "Évaluez la pertinence des résultats. Ceci est l'étape 4."
     }
     return jsonify(tutorial_texts)
-
-
 
 @bp.route("/manage-result", methods=['POST'])
 @login_required
@@ -194,8 +245,15 @@ def result_feedback():
     
     logger.info(f"Received feedback for result {result_id}: rating={rating}, comment='{comment}'")
     
-    #TODO save in db
-    # In a real implementation, this would save the feedback to a database
+    # TODO: Save feedback in a proper SearchFeedback model
+    # This could be implemented with a new model like:
+    # class SearchFeedback(db.Model):
+    #     id = db.Column(db.Integer, primary_key=True)
+    #     result_id = db.Column(db.String(36), nullable=False)
+    #     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    #     rating = db.Column(db.Integer, nullable=False)
+    #     comment = db.Column(db.Text, nullable=True)
+    #     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     
     return jsonify({
         "success": True,

@@ -1,3 +1,5 @@
+# app/auth.py
+
 import functools
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, session, url_for, jsonify
@@ -9,6 +11,15 @@ from .utils.constant import *
 from .utils.utils import *
 
 bp = Blueprint('auth', __name__, url_prefix="/api/auth")
+
+def login_required(f):
+    """Decorator to require login for routes"""
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        if g.user is None:
+            return jsonify({"error": "Authentication required"}), 401
+        return f(*args, **kwargs)
+    return decorated_function
 
 @bp.route('/check-auth', methods=['GET'])
 def check_auth():
@@ -24,9 +35,9 @@ def check_auth():
     return jsonify({
         "authenticated": True,
         "username": user.username,
-        "avatarSeed": user.data.get("avatar-seed"),
-        "permissionLevel": user.data.get("permission_level", 0),
-        "profileCompleted": user.data.get("profile_created", False)
+        "avatarSeed": user.avatar_seed,
+        "permissionLevel": user.permission_level,
+        "profileCompleted": user.profile_created
     })
 
 
@@ -37,11 +48,26 @@ def register():
     username = data.get("username")
     password = data.get("password")
     
-    # Store in session temporarily
-    session["username"] = username
-    session["password"] = password
+    # Check if username already exists
+    if User.query.filter_by(username=username).first() is not None:
+        return jsonify({"error": "Username already exists"}), 400
     
-    return jsonify({"success": True})
+    # Create the user in the database
+    user = create_user(username, password)
+    
+    # Store user ID in session
+    session["user_id"] = user.id
+    session["username"] = username
+    session["avatar-seed"] = user.avatar_seed
+    session["permission_level"] = user.permission_level
+    
+    return jsonify({
+        "success": True,
+        "username": username,
+        "avatarSeed": user.avatar_seed,
+        "permissionLevel": user.permission_level,
+        "profileCompleted": user.profile_created
+    })
 
 @bp.route('/check-username', methods=['POST'])
 def check_username_availability():
@@ -51,9 +77,8 @@ def check_username_availability():
     
     return jsonify({'available': user is None})
 
-
 @bp.route('/profile-submit', methods=['POST'])
-# @login_required  # Ensure user is authenticated
+@login_required
 def profile_submit():
     """Update user profile data for authenticated user"""
     profile_data = request.json.get('userProfileData', {})
@@ -61,27 +86,16 @@ def profile_submit():
     # User must be authenticated to reach this point due to @login_required
     user = g.user
     
-    # Extract relevant profile data
-    user_profile_data = {key: profile_data.get(key) for key in user_profile_keys}
-    
-    # Keep existing permission level
-    user_profile_data["permission_level"] = user.data.get("permission_level", 0)
-    user_profile_data["profile_created"] = True
-    
-    # Add avatar seed if not present
-    if "avatar-seed" not in user_profile_data and "avatar-seed" not in user.data:
-        user_profile_data["avatar-seed"] = profile_data.get("avatar_id") or hash(user.username) % 1000
-    
-    # Update user data
-    update_user(user, user_profile_data)
+    # Update user with profile data
+    update_user(user, profile_data)
     
     # Update session data
-    session["avatar-seed"] = user.data.get("avatar-seed")
+    session["avatar-seed"] = user.avatar_seed
     
     return jsonify({
         "success": True,
         "username": user.username,
-        "permissionLevel": user.data.get("permission_level", 0),
+        "permissionLevel": user.permission_level,
         "profileCompleted": True
     })
 
@@ -103,8 +117,8 @@ def login():
     # Login success
     session["user_id"] = user.id
     session["username"] = username
-    session["avatar-seed"] = user.data.get("avatar-seed")
-    session["permission_level"] = user.data.get("permission_level", 0)
+    session["avatar-seed"] = user.avatar_seed
+    session["permission_level"] = user.permission_level
     session["session_id"] = 1
     session["free_test"] = True
     session["first_input"] = True
@@ -114,15 +128,13 @@ def login():
     session["dev_mode"] = IS_DEV_MODE
     clear_current_turn()
 
-    # Check if profile is complete
-    profile_completed = user.data.get('profile_created', False)
-
+    # Return user data
     return jsonify({
         'success': True,
         'username': username,
-        'permissionLevel': user.data.get("permission_level", 0),
-        'avatarSeed': user.data.get("avatar-seed"),
-        'profileCompleted': profile_completed
+        'permissionLevel': user.permission_level,
+        'avatarSeed': user.avatar_seed,
+        'profileCompleted': user.profile_created
     })
 
 @bp.route('/logout', methods=['POST'])
@@ -141,11 +153,3 @@ def load_logged_in_user():
     else:
         g.user = User.query.get(user_id)
 
-def login_required(f):
-    """Decorator to require login for routes"""
-    @functools.wraps(f)
-    def decorated_function(*args, **kwargs):
-        if g.user is None:
-            return jsonify({"error": "Authentication required"}), 401
-        return f(*args, **kwargs)
-    return decorated_function

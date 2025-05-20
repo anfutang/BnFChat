@@ -17,8 +17,8 @@ const Register = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // If user is already logged in, redirect
-    if (currentUser) {
+    // Only redirect to chat if user is logged in AND has completed their profile
+    if (currentUser && currentUser.profileCompleted) {
       navigate('/chat');
     }
   }, [currentUser, navigate]);
