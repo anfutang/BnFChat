@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+// Updated ResultModal component with forced re-render mechanism
+
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { FaStar, FaRegStar, FaTimes } from 'react-icons/fa';
 import './ResultModal.css';
@@ -7,17 +9,38 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [renderKey, setRenderKey] = useState(0); // Added render key for forcing updates
+  const prevOpenRef = useRef(isOpen);
+  
+  // Force re-render when modal open state changes
+  useEffect(() => {
+    if (isOpen !== prevOpenRef.current) {
+      console.log("⭐ Modal open state changed:", { previousState: prevOpenRef.current, currentState: isOpen });
+      setRenderKey(prev => prev + 1);
+      prevOpenRef.current = isOpen;
+    }
+  }, [isOpen]);
+
+  // Reset feedback state when modal is opened with new data
+  useEffect(() => {
+    if (isOpen && resultData) {
+      console.log("⭐ Resetting feedback state with new data");
+      setRating(0);
+      setComment('');
+      setFeedbackSubmitted(false);
+    }
+  }, [isOpen, resultData]);
 
   useEffect(() => {
     console.log("⭐ ResultModal state changed:", { 
       isOpen, 
       isLoading, 
-      hasResultData: !!resultData 
+      hasResultData: !!resultData,
+      renderKey
     });
-  }, [isOpen, isLoading, resultData]);
+  }, [isOpen, isLoading, resultData, renderKey]);
   
-  // Le reste du code existant...
-  if (!isOpen) return null;
+  // If modal is closed, don't render anything
   if (!isOpen) return null;
 
   const handleSubmitFeedback = async () => {
@@ -46,7 +69,7 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
   };
 
   return (
-    <div className="result-modal-overlay">
+    <div className="result-modal-overlay" key={renderKey}>
       <div className="result-modal">
         <div className="result-modal-header">
           <h2>Résultats de recherche</h2>

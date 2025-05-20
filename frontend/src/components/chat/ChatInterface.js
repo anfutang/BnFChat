@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Joyride, { STATUS } from 'react-joyride';
@@ -23,6 +23,9 @@ import useChatManager from '../../hooks/useChatManager';
 
 // Styles
 // import './ChatInterface.css';
+
+
+
 
 const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
@@ -79,7 +82,9 @@ const ChatInterface = () => {
     setProcessingResult
   } = useChatManager(setShowSessionMessage);
 
-  
+  const memoizedCloseHandler = useCallback(() => {
+    handleCloseResultModal();
+  }, [handleCloseResultModal]);
   // Load session data and chat history
   useEffect(() => {
     const loadInitialData = async () => {
@@ -293,11 +298,12 @@ const ChatInterface = () => {
 
       {/* Result Modal */}
       <ResultModal
-        isOpen={showResultModal}
-        onClose={handleCloseResultModal}
-        resultData={resultModalData}
-        isLoading={processingResult}
-      />
+  key={`result-modal-${showResultModal ? 'open' : 'closed'}-${Date.now()}`}
+  isOpen={showResultModal}
+  onClose={memoizedCloseHandler}
+  resultData={resultModalData}
+  isLoading={processingResult}
+/>
     </div>
   );
 };

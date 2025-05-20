@@ -5,7 +5,8 @@ import {
   MessageList,
   Message,
   MessageInput as ChatScopeMessageInput,
-  TypingIndicator 
+  TypingIndicator,
+  MessageSeparator
 } from '@chatscope/chat-ui-kit-react';
 import SessionHeader from './SessionHeader';
 import AnnotationForm from './AnnotationForm';
@@ -93,35 +94,43 @@ const ChatArea = ({
       >
         {/* Show session intro message if necessary */}
         {showSessionMessage && (
-          <div className="session-intro-message">
-            {/* Session intro message content goes here */}
-            {/* You'll need to use Message components from chatscope here */}
-          </div>
+          <Message model={{
+            message: "Session démarrée. Vous pouvez poser vos questions.",
+            sentTime: new Date().toISOString(),
+            sender: "system",
+            direction: "incoming",
+            position: "normal"
+          }} />
         )}
         
         {/* Show guides if necessary */}
         {showGuides && currentSession === '3' && (
-          <div className="guided-search-container">
-            {/* Your guided search content */}
-          </div>
+          <Message model={{
+            message: "Utilisez les guides disponibles pour votre recherche.",
+            sentTime: new Date().toISOString(),
+            sender: "system",
+            direction: "incoming",
+            position: "normal"
+          }} />
         )}
         
         {/* Empty chat message */}
         {(!chatHistory || chatHistory.length === 0) && !showSessionMessage && !sessionEndAlert && (
-          <div className="empty-chat">
-            <p>Commencez une nouvelle conversation en tapant un message ci-dessous.</p>
-          </div>
+          <Message model={{
+            message: "Commencez une nouvelle conversation en tapant un message ci-dessous.",
+            sentTime: new Date().toISOString(),
+            sender: "system",
+            direction: "incoming",
+            position: "normal"
+          }} />
         )}
         
         {/* Render actual chat messages */}
         {processedMessages.map((msgModel, index) => (
-        <Message key={index} model={msgModel}>
-          <Message.Header sender={msgModel.sender} sentTime={msgModel.sentTime} />
-          <Message.Content>{msgModel.message}</Message.Content>
-        </Message>
-      ))}
+          <Message key={index} model={msgModel} />
+        ))}
         
-        {/* Loading indicator - replaced with dynamic thought process message */}
+        {/* Loading indicator */}
         {isLoading && (
           <TypingIndicator content={lastThoughtProcessMessage} />
         )}

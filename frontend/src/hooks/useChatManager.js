@@ -15,6 +15,7 @@ const useChatManager = (setShowSessionMessage) => {
   const [processingResult, setProcessingResult] = useState(false);
   const messageListRef = useRef(null);
   const eventSourceRef = useRef(null);
+  const [processingResultEvent, setProcessingResultEvent] = useState(false);
 
   // Load chat history if it exists
   const loadChatHistory = async () => {
@@ -41,65 +42,68 @@ const useChatManager = (setShowSessionMessage) => {
     };
   }, []);
 
-// Version améliorée de processSearchResults
-const processSearchResults = async (content) => {
-  console.log("⭐ Processing search results with content:", content);
-  
-  try {
-    // Vérifier le type de contenu et le traiter en conséquence
-    let sruQuery, originalQuery;
+  const processSearchResults = async (content) => {
+    console.log("⭐ Processing search results with content:", content);
     
-    if (typeof content === 'string') {
-      // Si c'est une chaîne, essayer de la diviser avec le délimiteur
-      if (content.includes('###')) {
-        [sruQuery, originalQuery] = content.split('###');
+    try {
+      // Vérifier le type de contenu et le traiter en conséquence
+      let sruQuery, originalQuery;
+      
+      if (typeof content === 'string') {
+        // Si c'est une chaîne, essayer de la diviser avec le délimiteur
+        if (content.includes('###')) {
+          [sruQuery, originalQuery] = content.split('###');
+        } else {
+          // Si pas de délimiteur, utiliser tout comme requête SRU
+          sruQuery = content;
+          originalQuery = "Requête originale non spécifiée";
+        }
+      } else if (typeof content === 'object') {
+        // Si c'est un objet, essayer d'extraire les propriétés pertinentes
+        sruQuery = content.sruQuery || JSON.stringify(content);
+        originalQuery = content.originalQuery || "Requête structurée";
       } else {
-        // Si pas de délimiteur, utiliser tout comme requête SRU
-        sruQuery = content;
-        originalQuery = "Requête originale non spécifiée";
+        // Fallback pour tout autre type
+        sruQuery = String(content);
+        originalQuery = "Type de données non reconnu";
       }
-    } else if (typeof content === 'object') {
-      // Si c'est un objet, essayer d'extraire les propriétés pertinentes
-      sruQuery = content.sruQuery || JSON.stringify(content);
-      originalQuery = content.originalQuery || "Requête structurée";
-    } else {
-      // Fallback pour tout autre type
-      sruQuery = String(content);
-      originalQuery = "Type de données non reconnu";
+      
+      console.log("⭐ Extracted queries:", { sruQuery, originalQuery });
+      
+      // Envoyer la requête au backend
+      const response = await axios.post('/api/dev/manage-result', {
+        sruQuery,
+        originalQuery
+      });
+      
+      console.log("⭐ API response:", response.data);
+      
+      // Important: First update the result data, then update loading state
+      // This ensures the modal has the data when it becomes visible
+      setResultModalData({
+        id: response.data.id,
+        sruQuery,
+        originalQuery,
+        items: response.data.items
+      });
+      
+      // Use a small delay to ensure state updates are processed in sequence
+      setTimeout(() => {
+        setProcessingResult(false);
+      }, 50);
+      
+      console.log("⭐ Result modal data updated");
+    } catch (error) {
+      console.error('Failed to process search results:', error);
+      
+      // En cas d'erreur, afficher un message d'erreur
+      setResultModalData({
+        error: true,
+        message: "Une erreur est survenue lors du traitement des résultats."
+      });
+      setProcessingResult(false);
     }
-    
-    console.log("⭐ Extracted queries:", { sruQuery, originalQuery });
-    
-    // Envoyer la requête au backend
-    const response = await axios.post('/api/dev/manage-result', {
-      sruQuery,
-      originalQuery
-    });
-    
-    console.log("⭐ API response:", response.data);
-    
-    // Mettre à jour les données du modal
-    setResultModalData({
-      id: response.data.id,
-      sruQuery,
-      originalQuery,
-      items: response.data.items
-    });
-    
-    console.log("⭐ Result modal data updated");
-  } catch (error) {
-    console.error('Failed to process search results:', error);
-    
-    // En cas d'erreur, afficher un message d'erreur
-    setResultModalData({
-      error: true,
-      message: "Une erreur est survenue lors du traitement des résultats."
-    });
-  } finally {
-    // Fin du traitement, désactiver l'indicateur de chargement
-    setProcessingResult(false);
-  }
-};
+  };
 
   // Handle message submission
   const handleSubmit = async (message, currentSession) => {
@@ -158,14 +162,10 @@ const processSearchResults = async (content) => {
             case 'typing':
               // Could show typing indicator or update processing message
               break;
-            case 'result':
-              console.log("Received SSE message:", data.content);
-              setShowResultModal(true);
-              setProcessingResult(true);
-              processSearchResults(data.content);
-              stopStreaming();
-              break;
+
+            
             case 'response':
+              // Process response normally
               const botResponse = {
                 sender: 'bot',
                 message: data.content.message || data.content,
@@ -179,12 +179,51 @@ const processSearchResults = async (content) => {
               if (data.content.needsAnnotation) {
                 setNeedsAnnotation(true);
               }
-              
-              // Close the connection after receiving response
-              stopStreaming();
               break;
-              
 
+            // Modify the case for result event
+            case 'result':
+              console.log("⭐⭐⭐ RESULT EVENT RECEIVED ⭐⭐⭐");
+              console.log("Result content:", data.content);
+              
+              // Set flag to indicate we're processing a result
+              setProcessingResultEvent(true);
+              
+              // Process the result
+              setProcessingResult(true);
+              setShowResultModal(true);
+              
+              // Process results and then clear the flag when done
+              processSearchResults(data.content)
+                .then(() => {
+                  console.log("Result processing completed");
+                  setProcessingResultEvent(false);
+                })
+                .catch(err => {
+                  console.error("Error processing results:", err);
+                  setProcessingResultEvent(false);
+                });
+              break;
+
+            // Modify the case for close_connection
+            case 'close_connection':
+              console.log("Server requested connection close");
+              
+              // Check if we're processing a result
+              if (processingResultEvent) {
+                console.log("Delaying connection close until result processing completes");
+                
+                // Poll until processingResultEvent is false
+                const checkInterval = setInterval(() => {
+                  if (!processingResultEvent) {
+                    clearInterval(checkInterval);
+                    stopStreaming();
+                  }
+                }, 100);
+              } else {
+                stopStreaming();
+              }
+              break;
               
             case 'error':
               console.error('Error from server:', data.content);
