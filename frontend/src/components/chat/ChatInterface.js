@@ -111,30 +111,6 @@ const ChatInterface = () => {
     };
   }, []);
 
-  useEffect(() => {
-    console.log("ChatInterface rendered with state:", {
-      currentSession,
-      sessionTimer,
-      showSessionMessage,
-      sessionEndAlert,
-      tutorialMode,
-      tutorialStep,
-      showGuides,
-      chatHistoryLength: chatHistory ? chatHistory.length : 0,
-      userInput,
-      isLoading,
-      needsAnnotation,
-    });
-  }, [currentSession, sessionTimer, showSessionMessage, sessionEndAlert, tutorialMode, tutorialStep, showGuides, chatHistory, userInput, isLoading, needsAnnotation]);
-  
-  // Add this right before the return statement
-  console.log("About to render ChatInterface components with:", {
-    chatHistory,
-    showSessionMessage,
-    sessionData,
-    currentSession
-  });
-
   // Handle Joyride tutorial callback
   const handleTutorialCallback = (data) => {
     const { status } = data;
@@ -290,7 +266,6 @@ const ChatInterface = () => {
 
       {/* Result Modal */}
       <ResultModal
-  key={`result-modal-${showResultModal ? 'open' : 'closed'}-${Date.now()}`}
   isOpen={showResultModal}
   onClose={memoizedCloseHandler}
   resultData={resultModalData}

@@ -156,62 +156,32 @@ def manage_result():
     
     logger.info(f"Processing search results: SRU query='{sru_query}', original='{original_query}'")
     
-    # In a real implementation, this would call the actual SRU API
-    # For demo purposes, we'll simulate a delay and return dummy data
-    time.sleep(2)  # Simulate processing time
-    
-    # Generate a unique ID for this result set
-    result_id = str(uuid.uuid4())
-    
-    # Dummy data for testing
-    dummy_items = [
-        {
-            "title": "Les Misérables",
-            "author": "Victor Hugo",
-            "date": "1862",
-            "description": "Roman historique et social se déroulant en France au début du XIXe siècle.",
-            "link": "https://gallica.bnf.fr/ark:/12148/bpt6k6566116j"
-        },
-        {
-            "title": "Notre-Dame de Paris",
-            "author": "Victor Hugo",
-            "date": "1831",
-            "description": "Roman historique se déroulant dans la Paris médiévale du XVe siècle.",
-            "link": "https://gallica.bnf.fr/ark:/12148/bpt6k6497802p"
-        },
-        {
-            "title": "Le Comte de Monte-Cristo",
-            "author": "Alexandre Dumas",
-            "date": "1844",
-            "description": "Roman d'aventures relatant l'histoire d'Edmond Dantès, injustement emprisonné.",
-            "link": "https://gallica.bnf.fr/ark:/12148/bpt6k55886288"
-        },
-        {
-            "title": "Germinal",
-            "author": "Émile Zola",
-            "date": "1885",
-            "description": "Roman social sur la condition des mineurs au XIXe siècle.",
-            "link": "https://gallica.bnf.fr/ark:/12148/bpt6k1057730v"
-        }
-    ]
-    
-    # Log the processed results
-    logger.info(f"Returning {len(dummy_items)} results for query: {sru_query}")
-    
-    # If query contains certain keywords, return fewer results for testing
-    if "poésie" in original_query.lower() or "poésie" in sru_query.lower():
-        dummy_items = dummy_items[:2]
-    elif "introuvable" in original_query.lower() or "introuvable" in sru_query.lower():
-        dummy_items = []
-    
-    return jsonify({
-        "id": result_id,
-        "items": dummy_items,
-        "query": {
-            "sru": sru_query,
-            "original": original_query
-        }
-    })
+    try:
+        # Call the retrieval function with both queries
+        result = retrieve_result_page(sru_query, original_query)
+        retrieval_result_wc, retrieval_result_woc = result
+        
+        # Generate a unique ID for this result set
+        result_id = str(uuid.uuid4())
+        
+        # Log the processed results
+        logger.info(f"Returning results for query: {sru_query}")
+        
+        return jsonify({
+            "id": result_id,
+            "items": retrieval_result_wc,  # Using the results with clarification
+            "query": {
+                "sru": sru_query,
+                "original": original_query
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error retrieving results: {str(e)}")
+        return jsonify({
+            "error": "Failed to retrieve results",
+            "message": str(e)
+        }), 500
 
 @bp.route("/result-feedback", methods=['POST'])
 @login_required
@@ -224,6 +194,7 @@ def result_feedback():
     
     logger.info(f"Received feedback for result {result_id}: rating={rating}, comment='{comment}'")
     
+    #TODO save in db
     # In a real implementation, this would save the feedback to a database
     
     return jsonify({

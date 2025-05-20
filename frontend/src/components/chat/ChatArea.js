@@ -141,7 +141,6 @@ const ChatArea = ({
           placeholder="Tapez votre message ici..."
           value={userInput || ''}
           onChange={val => {
-            console.log("Input changed:", val);
             setUserInput(val);
           }}
           onSend={handleSend}
