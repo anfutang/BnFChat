@@ -132,6 +132,7 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     # Detect conversation intent
     conv_intent, conv_intent_time = detect_conversation_intent(prev_chat_history + [user_input])
     if isinstance(conv_intent, str) and conv_intent.startswith("Error:"):
+        logger.info(f"Connection closing: Error in conversation intent detection - {conv_intent}")
         yield event_data('error', conv_intent)
         return
         
@@ -144,18 +145,23 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     
     # Handle different conversation intents
     if conv_intent == "abandon":
+        logger.info(f"Connection closing: Abandon intent detected for session {session_id}")
         yield from handle_abandon_intent(user_id, first_input, prev_chat_history, user_input, session_id)
         return
     
     elif conv_intent == "search":
+        logger.info(f"Connection closing: Search intent detected for session {session_id}")
         yield from handle_search_intent(user_id, first_input, prev_chat_history, user_input, last_user_intent, 
                                       first_user_query, session_id, time_count, thought_process)
         return
     
     # Handle entity disambiguation for 'continue' intent
     if conv_intent == "continue":
-        yield from handle_entity_disambiguation(user_id, first_input, prev_chat_history, user_input, 
+        disambiguation_result = yield from handle_entity_disambiguation(user_id, first_input, prev_chat_history, user_input, 
                                               session_id, time_count, thought_process)
+        if disambiguation_result:
+            logger.info(f"Connection already closed by entity disambiguation for session {session_id}")
+            return
     
     # Summarize conversation for non-first inputs
     current_user_intent = summarize_conversation(prev_chat_history, user_input, first_input, 
@@ -164,6 +170,7 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     
     # Handle respond_and_search intent
     if conv_intent == "respond_and_search":
+        logger.info(f"Connection closing: respond_and_search intent detected for session {session_id}")
         yield from handle_respond_search_intent(current_user_intent, first_user_query, 
                                               time_count, thought_process)
         return
@@ -171,6 +178,7 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     # Perform knowledge retrieval
     retrieval_result = perform_knowledge_retrieval(current_user_intent, time_count, thought_process)
     if not retrieval_result:
+        logger.info(f"Connection closing: No topics found for session {session_id}")
         yield from handle_no_topics_found(user_id, first_input, prev_chat_history, user_input, 
                                         last_user_intent, first_user_query, session_id, time_count, thought_process)
         return
@@ -181,6 +189,7 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
     relevant_topics, relevant_hints = check_topic_relevance(current_user_intent, topics, sru_hints, 
                                                            time_count, thought_process)
     if not relevant_topics:
+        logger.info(f"Connection closing: No relevant facets for session {session_id}")
         yield from handle_no_relevant_facets(user_id, first_input, prev_chat_history, user_input, 
                                            last_user_intent, first_user_query, session_id, time_count, thought_process)
         return
@@ -196,11 +205,13 @@ def process_user_input_stream(user_input, first_input, session_id, user_id):
         prev_chat_history, user_input, relevant_topics, time_count, thought_process)
     
     if clarification_needed:
+        logger.info(f"Connection closing: Clarification needed for session {session_id}")
         yield from handle_clarification_needed(user_id, first_input, prev_chat_history, user_input, 
                                              clarification_question, current_user_intent, session_id, time_count, thought_process)
         return
     
     # Final search workflow
+    logger.info(f"Connection closing: Proceeding to final search for session {session_id}")
     yield from handle_final_search(user_id, first_input, prev_chat_history, user_input, 
                                  current_user_intent, first_user_query, session_id, time_count, thought_process)
 
@@ -301,7 +312,7 @@ def check_clarification_needed(prev_chat_history, user_input, topics, time_count
     time_count["rac"] = result[0]
     conclusion, clarification_question = result[1]
     
-    if conclusion == "yes":
+    if False: #conclusion == "yes" # TODO: for a reason is always returning yes
         thought_process.append("Demande de clarification nécessaire")
         return True, clarification_question
     else:
@@ -347,6 +358,7 @@ def handle_abandon_intent(user_id, first_input, prev_chat_history, user_input, s
     
     save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "abandoned")
     yield event_data('reinitialize', '')
+    logger.info(f"Connection closing: Completed abandon intent handling for session {session_id}")
     yield event_data('close_connection', '')
 
 
@@ -360,6 +372,7 @@ def handle_search_intent(user_id, first_input, prev_chat_history, user_input, la
         
         nl2sru_result, original_sru_query = convert_to_sru(last_user_intent, first_user_query, time_count, thought_process)
         if nl2sru_result.startswith("Error:") or nl2sru_result.startswith("Erreur"):
+            logger.info(f"Connection not closing: Error in NL2SRU conversion for search intent in session {session_id}: {nl2sru_result}")
             yield event_data('error', nl2sru_result)
             return
         
@@ -367,6 +380,7 @@ def handle_search_intent(user_id, first_input, prev_chat_history, user_input, la
         
         response_data = {'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"}
         yield f"data: {json.dumps(response_data)}\n\n"
+        logger.info(f"Connection closing: Completed search with last intent for session {session_id}")
         yield event_data('close_connection', '')
     else:
         # No intent available
@@ -383,6 +397,7 @@ def handle_search_intent(user_id, first_input, prev_chat_history, user_input, la
         
         save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
         yield event_data('reinitialize', '')
+        logger.info(f"Connection closing: No intent available for search in session {session_id}")
         yield event_data('close_connection', '')
 
 
@@ -394,6 +409,7 @@ def handle_entity_disambiguation(user_id, first_input, prev_chat_history, user_i
     
     result = call_entity_disambiguation(prev_chat_history + [user_input])
     if isinstance(result, str):
+        logger.info(f"Connection not closing: Error in entity disambiguation for session {session_id}: {result}")
         yield event_data('error', result)
         return True
     
@@ -419,6 +435,7 @@ def handle_entity_disambiguation(user_id, first_input, prev_chat_history, user_i
         yield f"data: {json.dumps(response_data)}\n\n"
         
         save_conv(user_id, first_input, prev_chat_history + [user_input, clarification_question])
+        logger.info(f"Connection closing: Ambiguous query detected in session {session_id}")
         yield event_data('close_connection', '')
         return True
     
@@ -432,6 +449,7 @@ def handle_respond_search_intent(current_user_intent, first_user_query, time_cou
     
     nl2sru_result, original_sru_query = convert_to_sru(current_user_intent, first_user_query, time_count, thought_process)
     if nl2sru_result.startswith("Error:") or nl2sru_result.startswith("Erreur"):
+        logger.info(f"Connection not closing: Error in NL2SRU conversion for respond_search_intent: {nl2sru_result}")
         yield event_data('error', nl2sru_result)
         return
     
@@ -439,6 +457,7 @@ def handle_respond_search_intent(current_user_intent, first_user_query, time_cou
     
     response_data = {'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"}
     yield f"data: {json.dumps(response_data)}\n\n"
+    logger.info(f"Connection closing: Completed respond_and_search intent")
     yield event_data('close_connection', '')
 
 
@@ -469,6 +488,7 @@ def handle_no_topics_found(user_id, first_input, prev_chat_history, user_input, 
         
         nl2sru_result, original_sru_query = convert_to_sru(last_user_intent, first_user_query, time_count, thought_process)
         if nl2sru_result.startswith("Error:") or nl2sru_result.startswith("Erreur"):
+            logger.info(f"Connection not closing: Error in NL2SRU conversion for no topics found in session {session_id}: {nl2sru_result}")
             yield event_data('error', nl2sru_result)
             return
         
@@ -476,6 +496,7 @@ def handle_no_topics_found(user_id, first_input, prev_chat_history, user_input, 
         
         response_data = {'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"}
         yield f"data: {json.dumps(response_data)}\n\n"
+        logger.info(f"Connection closing: Completed alternative search for no topics in session {session_id}")
         yield event_data('close_connection', '')
     else:
         response += reinitialization_notification
@@ -493,6 +514,7 @@ def handle_no_topics_found(user_id, first_input, prev_chat_history, user_input, 
         
         save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
         yield event_data('reinitialize', '')
+        logger.info(f"Connection closing: No intent available for no topics in session {session_id}")
         yield event_data('close_connection', '')
 
 
@@ -520,11 +542,13 @@ def handle_no_relevant_facets(user_id, first_input, prev_chat_history, user_inpu
         # Continue with alternative search
         nl2sru_result, original_sru_query = convert_to_sru(last_user_intent, first_user_query, time_count, thought_process)
         if nl2sru_result.startswith("Error:") or nl2sru_result.startswith("Erreur"):
+            logger.info(f"Connection not closing: Error in NL2SRU conversion for no relevant facets in session {session_id}: {nl2sru_result}")
             yield event_data('error', nl2sru_result)
             return
         
         response_data = {'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"}
         yield f"data: {json.dumps(response_data)}\n\n"
+        logger.info(f"Connection closing: Completed alternative search for no relevant facets in session {session_id}")
         yield event_data('close_connection', '')
     else:
         response += reinitialization_notification
@@ -542,6 +566,7 @@ def handle_no_relevant_facets(user_id, first_input, prev_chat_history, user_inpu
         
         save_conv(user_id, first_input, prev_chat_history + [user_input, refusal_response], "refused")
         yield event_data('reinitialize', '')
+        logger.info(f"Connection closing: No intent available for no relevant facets in session {session_id}")
         yield event_data('close_connection', '')
 
 
@@ -560,6 +585,7 @@ def handle_clarification_needed(user_id, first_input, prev_chat_history, user_in
     yield f"data: {json.dumps(response_data)}\n\n"
     
     save_conv(user_id, first_input, prev_chat_history + [user_input, clarification_question], user_intent=current_user_intent)
+    logger.info(f"Connection closing: Clarification needed in session {session_id}")
     yield event_data('close_connection', '')
 
 
@@ -582,6 +608,7 @@ def handle_final_search(user_id, first_input, prev_chat_history, user_input, cur
     # NL2SRU conversion for search
     nl2sru_result, original_sru_query = convert_to_sru(current_user_intent, first_user_query, time_count, thought_process)
     if nl2sru_result.startswith("Error:") or nl2sru_result.startswith("Erreur"):
+        logger.info(f"Connection not closing: Error in NL2SRU conversion for final search in session {session_id}: {nl2sru_result}")
         yield event_data('error', nl2sru_result)
         return
     
@@ -592,7 +619,9 @@ def handle_final_search(user_id, first_input, prev_chat_history, user_input, cur
     
     response_data = {'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"}
     yield f"data: {json.dumps(response_data)}\n\n"
+    logger.info(f"Connection closing: Completed final search in session {session_id}")
     yield event_data('close_connection', '')
+
 
 @bp.route('/user-annotation', methods=['POST'])
 @login_required
