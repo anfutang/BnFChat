@@ -18,29 +18,32 @@ const useChatManager = (setShowSessionMessage) => {
   const [processingResultEvent, setProcessingResultEvent] = useState(false);
 
   // Load chat history if it exists
-  const loadChatHistory = async () => {
-    try {
-      const historyResponse = await axios.get('/api/dev/chat-history');
-      if (historyResponse.data && historyResponse.data.length > 0) {
-        setChatHistory(historyResponse.data);
-        setIsFirstInput(false);
-        setShowSessionMessage(false);
+// Load chat history if it exists
+const loadChatHistory = async () => {
+  try {
+    const historyResponse = await axios.get('/api/dev/chat-history');
+    if (historyResponse.data && historyResponse.data.messages && historyResponse.data.messages.length > 0) {
+      setChatHistory(historyResponse.data.messages);
+      
+      // Store the chat ID if it exists
+      if (historyResponse.data.chatId) {
+        // If using currentResponse to store chat ID, update it
+        setCurrentResponse(prev => ({
+          ...prev,
+          metadata: {
+            ...((prev && prev.metadata) || {}),
+            chatId: historyResponse.data.chatId
+          }
+        }));
       }
-    } catch (error) {
-      console.error('Failed to load chat history:', error);
+      
+      setIsFirstInput(false);
+      setShowSessionMessage(false);
     }
-  };
-
-  // Clean up the EventSource on unmount
-  useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        console.log("Closing SSE connection on unmount");
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    };
-  }, []);
+  } catch (error) {
+    console.error('Failed to load chat history:', error);
+  }
+};
 
   const processSearchResults = async (content) => {
     console.log("⭐ Processing search results with content:", content);

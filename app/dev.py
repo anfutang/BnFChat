@@ -82,17 +82,48 @@ def get_chat_history():
     if user_id and user_id != 123:
         latest_chat = Chat.query.filter_by(user_id=user_id).order_by(Chat.updated_at.desc()).first()
         
-        if latest_chat:
-            # Convert the chat to the expected format
-            chat_history = [
-                message.to_dict() for message in latest_chat.messages
-            ]
-            return jsonify(chat_history)
+        if latest_chat and latest_chat.chat_history:
+            # Convert the chat_history format to match what the frontend expects
+            formatted_messages = []
+            for msg in latest_chat.chat_history:
+                # Transform from role/content to sender/message format
+                formatted_messages.append({
+                    'sender': 'user' if msg.get('role') == 'user' else 'bot' if msg.get('role') == 'assistant' else 'system',
+                    'message': msg.get('content', ''),
+                    'timestamp': msg.get('timestamp', datetime.datetime.utcnow().isoformat())
+                })
+                
+            return jsonify({
+                "messages": formatted_messages,
+                "chatId": latest_chat.id
+            })
     
     # If no user ID or no chats, return empty history or session-based history
     if not session.get("chat_history"):
         session["chat_history"] = []
-    return jsonify(session["chat_history"])
+        
+    # Format session-based history if it exists
+    formatted_session_history = []
+    for msg in session.get("chat_history", []):
+        if isinstance(msg, dict):
+            # If it's already a dict with role/content format
+            formatted_session_history.append({
+                'sender': 'user' if msg.get('role') == 'user' else 'bot' if msg.get('role') == 'assistant' else 'system',
+                'message': msg.get('content', ''),
+                'timestamp': msg.get('timestamp', datetime.datetime.utcnow().isoformat())
+            })
+        else:
+            # If it's just a string message (old format)
+            formatted_session_history.append({
+                'sender': 'system',
+                'message': str(msg),
+                'timestamp': datetime.datetime.utcnow().isoformat()
+            })
+            
+    return jsonify({
+        "messages": formatted_session_history,
+        "chatId": None
+    })
 
 @bp.route('/user-annotation', methods=['POST'])
 @login_required
