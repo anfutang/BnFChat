@@ -1,15 +1,16 @@
-// Updated ResultModal component with forced re-render mechanism
-
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { FaStar, FaRegStar, FaTimes } from 'react-icons/fa';
 import './ResultModal.css';
 
 const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
-  const [rating, setRating] = useState(0);
+  // State for storing feedback
+  const [preferenceType, setPreferenceType] = useState(''); // 'avec' or 'sans'
+  const [qualityRating, setQualityRating] = useState(0); // for question 2
+  const [conversationRating, setConversationRating] = useState(0); // for question 3
   const [comment, setComment] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
-  const [renderKey, setRenderKey] = useState(0); // Added render key for forcing updates
+  const [renderKey, setRenderKey] = useState(0);
   const prevOpenRef = useRef(isOpen);
   
   // Force re-render when modal open state changes
@@ -25,7 +26,9 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
   useEffect(() => {
     if (isOpen && resultData) {
       console.log("⭐ Resetting feedback state with new data");
-      setRating(0);
+      setPreferenceType('');
+      setQualityRating(0);
+      setConversationRating(0);
       setComment('');
       setFeedbackSubmitted(false);
     }
@@ -40,13 +43,23 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
     });
   }, [isOpen, isLoading, resultData, renderKey]);
   
+  // Check if all mandatory fields are filled
+  const isMandatoryFilled = preferenceType !== '' && qualityRating > 0 && conversationRating > 0;
+  
   // If modal is closed, don't render anything
   if (!isOpen) return null;
 
   const handleSubmitFeedback = async () => {
+    if (!isMandatoryFilled) {
+      alert("Veuillez remplir tous les champs obligatoires avant de soumettre.");
+      return;
+    }
+    
     try {
       await axios.post('/api/dev/result-feedback', {
-        rating,
+        preferenceType,
+        qualityRating,
+        conversationRating,
         comment,
         resultId: resultData?.id
       });
@@ -56,24 +69,55 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
     }
   };
 
-  const renderStars = () => {
-    return Array(5).fill(0).map((_, i) => (
-      <span 
-        key={i} 
-        onClick={() => setRating(i + 1)}
-        className="star-icon"
-      >
-        {i < rating ? <FaStar className="filled" /> : <FaRegStar />}
-      </span>
-    ));
+  // Simplified close handler - prioritize making modal work first
+  const handleCloseModal = () => {
+    if (feedbackSubmitted || !resultData || isLoading) {
+      onClose();
+    } else if (resultData && !isMandatoryFilled) {
+      // Only block closing if we have results and mandatory fields aren't filled
+      alert("Veuillez remplir tous les champs obligatoires avant de fermer.");
+    } else {
+      onClose();
+    }
+  };
+
+  // Render star rating with labels
+  const renderRatingStars = (currentValue, setValueFunction, ratingId) => {
+    const ratingLabels = ["Très mauvais", "Mauvais", "Moyen", "Bon", "Parfait"];
+    
+    return (
+      <div className="rating-container">
+        <div className="stars-container">
+          {Array(5).fill(0).map((_, i) => (
+            <span 
+              key={`${ratingId}-${i}`} 
+              onClick={() => setValueFunction(i + 1)}
+              className="star-icon"
+            >
+              {i < currentValue ? <FaStar className="filled" /> : <FaRegStar />}
+            </span>
+          ))}
+        </div>
+        <div className="rating-labels">
+          {ratingLabels.map((label, i) => (
+            <span 
+              key={`label-${ratingId}-${i}`} 
+              className={`rating-label ${currentValue === i + 1 ? 'selected' : ''}`}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="result-modal-overlay" key={renderKey}>
+    <div className="result-modal-overlay">
       <div className="result-modal">
         <div className="result-modal-header">
           <h2>Résultats de recherche</h2>
-          <button className="close-button" onClick={onClose}>
+          <button className="close-button" onClick={handleCloseModal}>
             <FaTimes />
           </button>
         </div>
@@ -158,20 +202,27 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
               
               {!feedbackSubmitted ? (
                 <div className="feedback-section">
-                  <h4>Q1. Quel résultat préférez-vous (avec / sans conversation) ?</h4>
-                  <div className="stars-container">
-                    {renderStars()}
+                  <h4>Q1. Quel résultat préférez-vous ? <span className="mandatory">*</span></h4>
+                  <div className="preference-selector">
+                    <div 
+                      className={`preference-option ${preferenceType === 'avec' ? 'selected' : ''}`}
+                      onClick={() => setPreferenceType('avec')}
+                    >
+                      Avec conversation
+                    </div>
+                    <div 
+                      className={`preference-option ${preferenceType === 'sans' ? 'selected' : ''}`}
+                      onClick={() => setPreferenceType('sans')}
+                    >
+                      Sans conversation
+                    </div>
                   </div>
 
-                  <h4>Q2. Évaluez la qualité du résultat avec conversation.</h4>
-                  <div className="stars-container">
-                    {renderStars()}
-                  </div>
+                  <h4>Q2. Évaluez la qualité du résultat avec conversation. <span className="mandatory">*</span></h4>
+                  {renderRatingStars(qualityRating, setQualityRating, 'quality')}
 
-                  <h4>Q3. Évaluez la qualité globale de la conversation.</h4>
-                  <div className="stars-container">
-                    {renderStars()}
-                  </div>
+                  <h4>Q3. Évaluez la qualité globale de la conversation. <span className="mandatory">*</span></h4>
+                  {renderRatingStars(conversationRating, setConversationRating, 'conversation')}
 
                   <h4>Q4. (optionnel) Si vous connaissez le format SRU, comment formuleriez-vous une requête SRU pour votre intention de recherche ?</h4>
                   <textarea
@@ -181,9 +232,9 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
                     rows={3}
                   />
                   <button 
-                    className="submit-feedback"
+                    className={`submit-feedback ${!isMandatoryFilled ? 'disabled' : ''}`}
                     onClick={handleSubmitFeedback}
-                    disabled={rating === 0}
+                    disabled={!isMandatoryFilled}
                   >
                     Soumettre l'évaluation
                   </button>
