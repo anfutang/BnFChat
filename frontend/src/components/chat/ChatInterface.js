@@ -21,10 +21,6 @@ import ResultModal from '../feedback/ResultModal';
 import useSessionManager from '../../hooks/useSessionManager';
 import useChatManager from '../../hooks/useChatManager';
 
-// Styles
-// import './ChatInterface.css';
-
-
 const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -34,7 +30,7 @@ const ChatInterface = () => {
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialSteps, setTutorialSteps] = useState([]);
   
-  // Use custom hooks
+  // Use session manager hook
   const {
     currentSession,
     sessionTimer,
@@ -44,6 +40,7 @@ const ChatInterface = () => {
     tutorialMode,
     tutorialStep,
     showGuides,
+    currentChatId, // Get current chat ID from session manager
     handleNextSession,
     handleNextTutorialStep,
     handleRestartTutorial,
@@ -53,11 +50,15 @@ const ChatInterface = () => {
     cleanupSessionTimer
   } = useSessionManager();
   
+  // Use chat manager hook with session context
   const {
     chatHistory,
+    setChatHistory,
     userInput,
     setUserInput,
     isLoading,
+    isFirstInput,
+    setIsFirstInput,
     needsAnnotation,
     currentResponse,
     messageListRef,
@@ -76,11 +77,26 @@ const ChatInterface = () => {
     setShowResultModal,
     setResultModalData,
     setProcessingResult
-  } = useChatManager(setShowSessionMessage);
+  } = useChatManager(setShowSessionMessage, currentSession, currentChatId);
 
   const memoizedCloseHandler = useCallback(() => {
     handleCloseResultModal();
   }, [handleCloseResultModal]);
+  // Add this in the ChatInterface.js component
+useEffect(() => {
+  // Save timer when component unmounts or page is refreshed/closed
+  const handleBeforeUnload = () => {
+    if (currentSession === 2 || currentSession === 3) {
+      cleanupSessionTimer();
+    }
+  };
+  
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  
+  return () => {
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+  };
+}, [currentSession, cleanupSessionTimer]);
   // Load session data and chat history
   useEffect(() => {
     const loadInitialData = async () => {
@@ -89,8 +105,8 @@ const ChatInterface = () => {
         setSessionData(sessionResponse.data);
         
         // Load chat history if not in tutorial mode
-        if (sessionResponse.data.sessionStep !== "tutoriel") {
-          await loadChatHistory();
+        if (sessionResponse.data.sessionId !== 1) {
+          await loadChatHistory(sessionResponse.data.sessionId);
         }
       } catch (error) {
         console.error('Failed to load initial data:', error);
@@ -99,6 +115,20 @@ const ChatInterface = () => {
     
     loadInitialData();
   }, []);
+  
+  // Effect to handle session changes
+  useEffect(() => {
+    if (currentSession && sessionData && sessionData.sessionId !== currentSession) {
+      // Update session data in state
+      setSessionData(prev => ({
+        ...prev,
+        sessionId: currentSession
+      }));
+      
+      // Load the chat history for this session
+      loadChatHistory(currentSession);
+    }
+  }, [currentSession]);
   
   // Clean up resources on close
   useEffect(() => {
@@ -132,6 +162,23 @@ const ChatInterface = () => {
     }, 100);
   };
   
+  // Handle session transition
+  const handleSessionTransition = async () => {
+    const result = await handleNextSession();
+    
+    if (result.resetChat) {
+      // Clear chat history 
+      setChatHistory([]);
+      setIsFirstInput(true);
+      
+      // If a new chat ID was returned, load that chat
+      if (result.chatId) {
+        setTimeout(() => {
+          loadChatHistory(currentSession + 1);
+        }, 500);
+      }
+    }
+  };
   
   // Handle logout
   const handleLogout = async () => {
@@ -143,35 +190,6 @@ const ChatInterface = () => {
       console.error('Failed to logout:', error);
     }
   };
-
-  useEffect(() => {
-    window.testOpenResultModal = testOpenResultModal;
-  }, []);
-
-  const testOpenResultModal = () => {
-    console.log("Test button clicked - opening modal manually");
-    setShowResultModal(true);
-    setProcessingResult(true);
-    
-    // Créer des données factices pour le test
-    setTimeout(() => {
-      setResultModalData({
-        id: "test-id",
-        sruQuery: "dc.title all bovary and dc.author adj flaubert",
-        originalQuery: "gallica all madame bovary flaubert",
-        wcResults: [
-          { title: "Madame Bovary", author: "Gustave Flaubert", date: "1901", description: "roman" },
-          { title: "Madame Bovary", author: "Gustave Flaubert", date: "1901", description: "roman" },
-          { title: "Madame Bovary", author: "Gustave Flaubert", date: "1901", description: "roman" }
-        ],
-        wocResults: [
-          { title: "Madame Bovary : mœurs de province : Edition définitive", author: "Gustave Flaubert", date:"1877" }
-        ]
-      });
-      setProcessingResult(false);
-    }, 1000);
-  };
-
 
   return (
     <div className="chat-page">
@@ -214,7 +232,7 @@ const ChatInterface = () => {
           <div className="sidebar-footer">
             <SessionNavigation 
               currentSession={currentSession}
-              onNextSession={handleNextSession}
+              onNextSession={handleSessionTransition}
               onRestartChat={handleRestartChat}
               onAbandonChat={handleAbandonChat}
               tutorialMode={tutorialMode && currentSession === 1}
@@ -222,7 +240,7 @@ const ChatInterface = () => {
               onConfirmTutorial={handleConfirmTutorial}
               onExitTutorial={handleExitTutorial}
             />
-            <button onClick={handleLogout} className="logout-btn">Se déconnecter</button>
+            <button onClick={handleLogout} className="logout-btn">Log out</button>
           </div>
         </div>
         
@@ -268,16 +286,15 @@ const ChatInterface = () => {
             timing={timingData} 
           />
         </div>
-        
       </div>
 
       {/* Result Modal */}
       <ResultModal
-  isOpen={showResultModal}
-  onClose={memoizedCloseHandler}
-  resultData={resultModalData}
-  isLoading={processingResult}
-/>
+        isOpen={showResultModal}
+        onClose={memoizedCloseHandler}
+        resultData={resultModalData}
+        isLoading={processingResult}
+      />
     </div>
   );
 };

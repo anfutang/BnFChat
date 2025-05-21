@@ -4,31 +4,47 @@ import { useNavigate } from 'react-router-dom';
 import { formatTime } from '../utils/formatUtils';
 
 const useSessionManager = () => {
-  const [currentSession, setCurrentSession] = useState("tutoriel"); // Commence par le tutoriel
-  const [sessionTimer, setSessionTimer] = useState(null);
+  const [currentSession, setCurrentSession] = useState(1); // Start with tutorial
+  const [sessionTimer, setSessionTimer] = useState(null); // Formatted time display
+  const [timeRemaining, setTimeRemaining] = useState(null); // Time in seconds
   const [showSessionMessage, setShowSessionMessage] = useState(true);
   const [sessionEndAlert, setSessionEndAlert] = useState(false);
   const [tutorialMode, setTutorialMode] = useState(true);
   const [tutorialStep, setTutorialStep] = useState(1);
   const [showGuides, setShowGuides] = useState(false);
+  const [currentChatId, setCurrentChatId] = useState(null);
   const timerIntervalRef = useRef(null);
+  const saveTimerIntervalRef = useRef(null);
   const navigate = useNavigate();
 
-  // Charger les données de session initiales
+  // Load initial session data
   useEffect(() => {
     const loadSessionData = async () => {
       try {
         const sessionResponse = await axios.get('/api/dev/session-data');
         
-        // Définir la session actuelle basée sur les données du serveur
-        setCurrentSession(sessionResponse.data.sessionStep || "tutoriel");
+        // Set current session based on server data
+        const sessionId = sessionResponse.data.sessionId || 1;
+        setCurrentSession(sessionId);
         
-        // Si on est dans la session tutoriel, activer le mode tutoriel
-        if (sessionResponse.data.sessionStep === "tutoriel") {
+        // If we're in tutorial session, activate tutorial mode
+        if (sessionId === 1) {
           setTutorialMode(true);
           setTutorialStep(1);
         } else {
           setTutorialMode(false);
+          
+          // Initialize timer with the saved value from the server or use defaults
+          // Immediately start the timer with the appropriate value based on session type
+          if (sessionId === 2) {
+            const initialTime = sessionResponse.data.timerExercise !== null ? 
+              sessionResponse.data.timerExercise : 300; // Default 5 minutes
+            startTimer(initialTime);
+          } else if (sessionId === 3) {
+            const initialTime = sessionResponse.data.timerTest !== null ? 
+              sessionResponse.data.timerTest : 2100; // Default 35 minutes
+            startTimer(initialTime);
+          }
         }
       } catch (error) {
         console.error('Failed to load session data:', error);
@@ -36,30 +52,36 @@ const useSessionManager = () => {
     };
     
     loadSessionData();
+    
+    // Clean up on unmount
+    return () => {
+      clearTimers();
+    };
   }, []);
 
-  // Effet pour démarrer le minuteur pour la session appropriée
+  // Effect to start appropriate timer when session changes
   useEffect(() => {
+    // When entering a new session (not on initial load), start the appropriate timer
     if (currentSession === 2) {
-      return startSessionTimer(5 * 60); // 5 minutes pour la session exercice
+      startSessionTimer(300); // 5 minutes for exercise session
     } else if (currentSession === 3) {
-      return startSessionTimer(35 * 60); // 35 minutes pour la session test
+      startSessionTimer(2100); // 35 minutes for test session
     }
   }, [currentSession]);
 
-  // Gérer la fin de la session exercice
+  // Handle exercise session end
   useEffect(() => {
     if (sessionEndAlert) {
       const alertTimeout = setTimeout(() => {
         handleNextSession();
         setSessionEndAlert(false);
-      }, 3000); // Après l'affichage de l'alerte
+      }, 3000); // After alert display
       
       return () => clearTimeout(alertTimeout);
     }
   }, [sessionEndAlert]);
 
-  // Effet pour afficher les guides dans la session test
+  // Effect to show guides in test session
   useEffect(() => {
     if (currentSession === 3 && showSessionMessage) {
       setShowGuides(true);
@@ -68,79 +90,130 @@ const useSessionManager = () => {
     }
   }, [currentSession, showSessionMessage]);
 
-  // Démarrer le minuteur
-  const startSessionTimer = (totalSeconds) => {
-    // Nettoyer tout minuteur existant
+  // Clear all timers
+  const clearTimers = () => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
     }
-    
-    let timeLeft = totalSeconds;
-    
-    setSessionTimer(formatTime(timeLeft));
-    
-    timerIntervalRef.current = setInterval(() => {
-      timeLeft -= 1;
-      setSessionTimer(formatTime(timeLeft));
-      
-      if (timeLeft <= 0) {
-        clearInterval(timerIntervalRef.current);
-        
-        // Alerte de fin selon la session
-        if (currentSession === 2) {
-          setSessionEndAlert(true);
-        } else if (currentSession === 3) {
-          // Peut-être une alerte différente pour la fin de session test
-          return { type: 'systemMessage', message: 'Votre temps de session test est écoulé. Veuillez confirmer et terminer la session.' };
-        }
-      }
-    }, 1000);
-    
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
+    if (saveTimerIntervalRef.current) {
+      clearInterval(saveTimerIntervalRef.current);
+      saveTimerIntervalRef.current = null;
+    }
   };
 
-  // Fonction pour passer à la session suivante
+  // Start a timer from a specific time value
+  const startTimer = (seconds) => {
+    // Clear any existing timer
+    clearTimers();
+    
+    // Start a new timer
+    setTimeRemaining(seconds);
+    setSessionTimer(formatTime(seconds));
+    
+    timerIntervalRef.current = setInterval(() => {
+      setTimeRemaining(prevTime => {
+        const newTime = prevTime - 1;
+        setSessionTimer(formatTime(newTime));
+        
+        if (newTime <= 0) {
+          clearInterval(timerIntervalRef.current);
+          
+          // Alert based on session
+          if (currentSession === 2) {
+            setSessionEndAlert(true);
+          } else if (currentSession === 3) {
+            // Different alert for test session end
+            // You might want to handle this differently
+            alert('Your test session time is up. Please confirm and end the session.');
+          }
+          return 0;
+        }
+        
+        return newTime;
+      });
+    }, 1000);
+    
+    // Start a separate interval to save timer value every 30 seconds
+    saveTimerIntervalRef.current = setInterval(() => {
+      saveTimerToDatabase();
+    }, 30000); // Save every 30 seconds
+  };
+
+  // Save current timer value to database
+  const saveTimerToDatabase = async () => {
+    if (currentSession !== 1 && timeRemaining !== null) {
+      try {
+        await axios.post('/api/dev/update-timer', {
+          sessionId: currentSession,
+          timerValue: timeRemaining
+        });
+        console.log('Timer value saved:', timeRemaining);
+      } catch (error) {
+        console.error('Failed to save timer value:', error);
+      }
+    }
+  };
+
+  // Start the session timer
+  const startSessionTimer = (totalSeconds) => {
+    startTimer(totalSeconds);
+  };
+
+  // Function to move to next session
   const handleNextSession = async () => {
     if (currentSession < 3) {
       try {
-        // Désactiver le mode tutoriel si on quitte la session 1
+        // Save the current timer before moving to next session
+        if (currentSession === 2 || currentSession === 3) {
+          await saveTimerToDatabase();
+        }
+        
+        // Disable tutorial mode if leaving session 1
         if (currentSession === 1) {
           setTutorialMode(false);
         }
         
-        // Nettoyage du minuteur pour les sessions avec chronomètre
-        if ((currentSession === 2 || currentSession === 3) && timerIntervalRef.current) {
-          clearInterval(timerIntervalRef.current);
-          setSessionTimer(null);
-        }
+        // Clean up timer for timed sessions
+        clearTimers();
         
-        // Appel API pour changer de session
-        await axios.post('/api/dev/change-session', { 
-          sessionStep: currentSession + 1, 
+        // Reset timer state
+        setSessionTimer(null);
+        setTimeRemaining(null);
+        
+        // API call to change session
+        const response = await axios.post('/api/dev/change-session', { 
+          sessionId: currentSession + 1
         });
         
-        // Mise à jour de la session
+        // Store the new chat ID
+        if (response.data.chatId) {
+          setCurrentChatId(response.data.chatId);
+        }
+        
+        // Update session
         setCurrentSession(prevSession => prevSession + 1);
         setShowSessionMessage(true);
-        setShowGuides(currentSession + 1 === 3); // Afficher les guides si on passe à la session test
+        setShowGuides(currentSession + 1 === 3); // Show guides if moving to test session
         
-        return { resetChat: true };
+        // The timer for the new session will be started by the useEffect that watches currentSession
+        
+        return { resetChat: true, chatId: response.data.chatId };
       } catch (error) {
-        console.error('Échec du changement de session:', error);
+        console.error('Failed to change session:', error);
         return { error: true };
       }
     } else {
-      // Rediriger vers la page de feedback
+      // Save the timer one last time before redirecting
+      await saveTimerToDatabase();
+      
+      // Redirect to feedback page
       navigate('/feedback');
       return { redirect: true };
     }
   };
 
-  // Fonctions liées au tutoriel
+  // Tutorial functions
   const handleNextTutorialStep = () => {
     setTutorialStep(prevStep => prevStep + 1);
   };
@@ -154,13 +227,13 @@ const useSessionManager = () => {
   };
 
   const handleCompleteTutorial = async () => {
-    // Désactiver le mode tutoriel
+    // Disable tutorial mode
     setTutorialMode(false);
     
-    // Enregistrer que le tutoriel est terminé
+    // Mark tutorial as completed
     try {
       await axios.post('/api/dev/complete-tutorial');
-      // Préparer le passage à la session exercice
+      // Prepare for transition to exercise session
       return handleNextSession();
     } catch (error) {
       console.error('Failed to complete tutorial:', error);
@@ -168,19 +241,20 @@ const useSessionManager = () => {
     }
   };
 
-  // Fonction pour confirmer le tutoriel
+  // Function to confirm tutorial
   const handleConfirmTutorial = () => {
     return { 
       type: 'systemMessage', 
-      message: 'Tutoriel confirmé. Vous pouvez maintenant passer à la session exercice.' 
+      message: 'Tutorial confirmed. You can now move to the exercise session.' 
     };
   };
 
-  // Nettoyage à la fermeture
+  // Cleanup on close
   const cleanupSessionTimer = () => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-    }
+    clearTimers();
+    
+    // Save the timer one last time
+    saveTimerToDatabase();
   };
 
   return {
@@ -192,13 +266,15 @@ const useSessionManager = () => {
     tutorialMode,
     tutorialStep,
     showGuides,
+    currentChatId,
     handleNextSession,
     handleNextTutorialStep,
     handleRestartTutorial,
     handleExitTutorial,
     handleCompleteTutorial,
     handleConfirmTutorial,
-    cleanupSessionTimer
+    cleanupSessionTimer,
+    saveTimerToDatabase
   };
 };
 

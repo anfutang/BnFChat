@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 
-const useChatManager = (setShowSessionMessage) => {
+const useChatManager = (setShowSessionMessage, currentSession, currentChatId) => {
   const [chatHistory, setChatHistory] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,62 +19,95 @@ const useChatManager = (setShowSessionMessage) => {
   const [processingResultEvent, setProcessingResultEvent] = useState(false);
 
   // Load chat history if it exists
-// Load chat history if it exists
-const loadChatHistory = async () => {
-  try {
-    const historyResponse = await axios.get('/api/dev/chat-history');
-    if (historyResponse.data && historyResponse.data.messages && historyResponse.data.messages.length > 0) {
-      setChatHistory(historyResponse.data.messages);
+  const loadChatHistory = async (specificSessionId) => {
+    try {
+      // Use either specified session ID, current session from props, or default
+      const sessionId = specificSessionId || currentSession || 1;
       
-      // Store the chat ID if it exists
-      if (historyResponse.data.chatId) {
-        // If using currentResponse to store chat ID, update it
-        setCurrentResponse(prev => ({
-          ...prev,
-          metadata: {
-            ...((prev && prev.metadata) || {}),
-            chatId: historyResponse.data.chatId
-          }
-        }));
+      // Include session ID in request
+      const historyResponse = await axios.get(`/api/dev/chat-history?sessionId=${sessionId}`);
+      
+      if (historyResponse.data && historyResponse.data.messages && historyResponse.data.messages.length > 0) {
+        setChatHistory(historyResponse.data.messages);
+        
+        // Store the chat ID if it exists
+        if (historyResponse.data.chatId) {
+          setCurrentResponse(prev => ({
+            ...prev,
+            metadata: {
+              ...((prev && prev.metadata) || {}),
+              chatId: historyResponse.data.chatId
+            }
+          }));
+        }
+        
+        setIsFirstInput(false);
+        setShowSessionMessage(false);
       }
-      
-      setIsFirstInput(false);
-      setShowSessionMessage(false);
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
     }
-  } catch (error) {
-    console.error('Failed to load chat history:', error);
-  }
-};
+  };
+
+  // Effect to reload chat history when session changes
+  useEffect(() => {
+    if (currentSession) {
+      loadChatHistory(currentSession);
+    }
+  }, [currentSession]);
+
+  // Effect to update the current chat ID when it changes from props
+  useEffect(() => {
+    if (currentChatId) {
+      setCurrentResponse(prev => ({
+        ...prev,
+        metadata: {
+          ...((prev && prev.metadata) || {}),
+          chatId: currentChatId
+        }
+      }));
+    }
+  }, [currentChatId]);
+
+  // Stop the SSE stream
+  const stopStreaming = () => {
+    if (eventSourceRef.current) {
+      console.log("Closing SSE connection");
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+      setIsLoading(false);
+    }
+  };
 
   const processSearchResults = async (content) => {
     console.log("⭐ Processing search results with content:", content);
     
     try {
-      // Vérifier le type de contenu et le traiter en conséquence
+      // Process the content
       let sruQuery, originalQuery;
       
       if (typeof content === 'string') {
-        // Si c'est une chaîne, essayer de la diviser avec le délimiteur
+        // If it's a string, try to split with delimiter
         if (content.includes('###')) {
           [sruQuery, originalQuery] = content.split('###');
         } else {
-          // Si pas de délimiteur, utiliser tout comme requête SRU
+          // If no delimiter, use all as SRU query
           sruQuery = content;
-          originalQuery = "Requête originale non spécifiée";
+          originalQuery = "Original query not specified";
         }
       } else if (typeof content === 'object') {
-        // Si c'est un objet, essayer d'extraire les propriétés pertinentes
+        // If it's an object, try to extract relevant properties
         sruQuery = content.sruQuery || JSON.stringify(content);
-        originalQuery = content.originalQuery || "Requête structurée";
+        originalQuery = content.originalQuery || "Structured query";
       } else {
-        // Fallback pour tout autre type
+        // Fallback for any other type
         sruQuery = String(content);
-        originalQuery = "Type de données non reconnu";
+        originalQuery = "Unrecognized data type";
       }
       
       console.log("⭐ Extracted queries:", { sruQuery, originalQuery });
       
-      // Envoyer la requête au backend
+      // Send request to backend
       const response = await axios.post('/api/dev/manage-result', {
         sruQuery,
         originalQuery
@@ -82,8 +115,7 @@ const loadChatHistory = async () => {
       
       console.log("⭐ API response:", response.data);
       
-      // Important: First update the result data, then update loading state
-      // This ensures the modal has the data when it becomes visible
+      // Update result data, then update loading state
       setResultModalData({
         id: response.data.id,
         sruQuery,
@@ -101,20 +133,20 @@ const loadChatHistory = async () => {
     } catch (error) {
       console.error('Failed to process search results:', error);
       
-      // En cas d'erreur, afficher un message d'erreur
+      // In case of error, display error message
       setResultModalData({
         error: true,
-        message: "Une erreur est survenue lors du traitement des résultats."
+        message: "An error occurred while processing results."
       });
       setProcessingResult(false);
     }
   };
 
   // Handle message submission
-  const handleSubmit = async (message, currentSession) => {
+  const handleSubmit = async (message, sessionId) => {
     if (!message.trim() || isLoading) return;
     
-    // Hide the intro message after first user input
+    // Hide intro message after first user input
     setShowSessionMessage(false);
     
     setUserInput('');
@@ -140,14 +172,18 @@ const loadChatHistory = async () => {
             eventSourceRef.current = null;
         }
         
-        // Get current chat ID from the last response if available
-        const chatId = currentResponse?.metadata?.chatId || '';
+        // Get current chat ID from the last response or props
+        const chatId = currentResponse?.metadata?.chatId || currentChatId || '';
         
-        // Create new EventSource connection with chat ID
-        console.log(`Creating EventSource connection to /api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}&chatId=${chatId}`);
-        const eventSource = new EventSource(`/api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${currentSession}&chatId=${chatId}`);
+        // Make sure we're using the correct session ID
+        const useSessionId = sessionId || currentSession || 1;
+        
+        // Create new EventSource connection with chat ID and session ID
+        console.log(`Creating EventSource connection to /api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${useSessionId}&chatId=${chatId}`);
+        
+        const eventSource = new EventSource(`/api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${useSessionId}&chatId=${chatId}`);
         eventSourceRef.current = eventSource;
-      
+
       // Handle different event types
       eventSource.onmessage = (event) => {
         console.log("Received SSE message:", event.data);
@@ -175,7 +211,6 @@ const loadChatHistory = async () => {
             case 'typing':
               // Could show typing indicator or update processing message
               break;
-
             
             case 'response':
               // Process response normally
@@ -194,7 +229,6 @@ const loadChatHistory = async () => {
               }
               break;
 
-            // Modify the case for result event
             case 'result':
               console.log("⭐⭐⭐ RESULT EVENT RECEIVED ⭐⭐⭐");
               console.log("Result content:", data.content);
@@ -218,7 +252,6 @@ const loadChatHistory = async () => {
                 });
               break;
 
-            // Modify the case for close_connection
             case 'close_connection':
               console.log("Server requested connection close");
               
@@ -245,7 +278,7 @@ const loadChatHistory = async () => {
                 ...prev, 
                 {
                   sender: 'system',
-                  message: `Erreur: ${data.content}`,
+                  message: `Error: ${data.content}`,
                   timestamp: new Date().toISOString()
                 }
               ]);
@@ -256,7 +289,7 @@ const loadChatHistory = async () => {
                   ...prev, 
                   {
                     sender: 'bot',
-                    message: "Je suis désolé, mais je n'ai pas pu traiter votre requête correctement. Il semble y avoir un problème avec la formulation de la recherche. Pourriez-vous essayer de reformuler votre question de manière plus simple ou avec des termes différents ?",
+                    message: "I'm sorry, but I couldn't process your request correctly. There seems to be a problem with the search formulation. Could you try rephrasing your question more simply or with different terms?",
                     timestamp: new Date().toISOString()
                   }
                 ]);
@@ -285,7 +318,7 @@ const loadChatHistory = async () => {
           ...prev,
           {
             sender: 'system',
-            message: "Erreur de connexion au serveur. Veuillez réessayer.",
+            message: "Server connection error. Please try again.",
             timestamp: new Date().toISOString()
           }
         ]);
@@ -303,20 +336,10 @@ const loadChatHistory = async () => {
         ...prev, 
         {
           sender: 'system',
-          message: `Erreur de communication avec le serveur: ${error.message}`,
+          message: `Server communication error: ${error.message}`,
           timestamp: new Date().toISOString()
         }
       ]);
-      setIsLoading(false);
-    }
-  };
-  
-  // Stop the SSE stream
-  const stopStreaming = () => {
-    if (eventSourceRef.current) {
-      console.log("Closing SSE connection");
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
       setIsLoading(false);
     }
   };
@@ -361,7 +384,7 @@ const loadChatHistory = async () => {
       // Add system message indicating restart
       setChatHistory([{
         sender: 'system',
-        message: 'Nouvelle conversation démarrée.',
+        message: 'New conversation started.',
         timestamp: new Date().toISOString()
       }]);
       
@@ -385,7 +408,7 @@ const loadChatHistory = async () => {
         ...prev,
         {
           sender: 'system',
-          message: 'Conversation abandonnée. Vous pouvez démarrer une nouvelle conversation.',
+          message: 'Conversation abandoned. You can start a new conversation.',
           timestamp: new Date().toISOString()
         }
       ]);
@@ -412,6 +435,7 @@ const loadChatHistory = async () => {
     setUserInput,
     isLoading,
     isFirstInput,
+    setIsFirstInput,
     thoughtProcess,
     timingData,
     intentData,
@@ -421,11 +445,11 @@ const loadChatHistory = async () => {
     showResultModal,
     resultModalData,
     processingResult,
-    // Exposer les setters pour le modal
+    // Expose setters for modal
     setShowResultModal,
     setResultModalData,
     setProcessingResult,
-    // Le reste des fonctions
+    // Functions
     loadChatHistory,
     handleSubmit,
     handleAnnotationSubmit,
@@ -434,6 +458,6 @@ const loadChatHistory = async () => {
     stopStreaming,
     handleCloseResultModal
   };
-}
+};
 
 export default useChatManager;

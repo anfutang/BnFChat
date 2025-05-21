@@ -203,14 +203,17 @@ def event_data(event_type, content):
 
 
 def initialize_chat_context(user_id, first_input, user_input, chat_id=''):
-    """Initialize chat context, ensuring only one active chat per user"""
+    """Initialize chat context, ensuring only one active chat per user per session"""
     if user_id and user_id != 123:  # Real authenticated user
+        user = User.query.get(user_id)
+        session_id = user.session_id if user else session.get("session_id", 2)  # Default to exercise
+        
         if first_input:
             # End any existing ongoing chats before creating a new one
             end_ongoing_chats(user_id, "terminated_by_new_session")
             
-            # Create new chat
-            chat = create_chat(user_id, user_input)
+            # Create new chat with correct session_id
+            chat = create_chat(user_id, user_input, session_id=session_id)
             prev_chat_history = []
             last_user_intent = ""
             return prev_chat_history, user_input, last_user_intent, chat.id
@@ -220,26 +223,30 @@ def initialize_chat_context(user_id, first_input, user_input, chat_id=''):
             if chat_id:
                 chat = Chat.query.filter_by(id=chat_id, user_id=user_id).first()
             
-            # If no specific chat found, get the ongoing chat
+            # If no specific chat found, get the ongoing chat for this session
             if not chat:
-                chat = get_ongoing_chat(user_id)
+                chat = Chat.query.filter_by(
+                    user_id=user_id, 
+                    status="ongoing",
+                    session_id=session_id
+                ).order_by(Chat.created_at.desc()).first()
             
-            # If still no chat, create one
+            # If still no chat, create one with correct session_id
             if not chat:
-                chat = create_chat(user_id)
+                chat = create_chat(user_id, session_id=session_id)
                 prev_chat_history = []
                 last_user_intent = ""
                 return prev_chat_history, user_input, last_user_intent, chat.id
             
-            # Get chat history directly from the chat_history field
+            # Get chat history and continue with existing functionality
             prev_chat_history = chat.chat_history if chat.chat_history else []
             last_user_intent = chat.user_intent or ""
             
-            # Get the first user message as the first query
+            # Get the first user message
             first_user_query = prev_chat_history[0]['content'] if prev_chat_history and prev_chat_history[0]['role'] == 'user' else user_input
             return prev_chat_history, first_user_query, last_user_intent, chat.id
     
-    # Fallback to session-based history for anonymous users
+    # Fallback to session-based history for anonymous users (existing code)
     if "chat_history" in session:
         prev_chat_history = session["chat_history"]
     else:

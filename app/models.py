@@ -29,7 +29,7 @@ class User(db.Model):
     avatar_seed = db.Column(db.Integer, nullable=True)
     profile_created = db.Column(db.Boolean, nullable=False, default=False)
 
-    session_step = db.Column(db.String(20), nullable=False, default="tutoriel")
+    session_id = db.Column(db.Integer, nullable=False, default=1)  # 1: tutoriel, 2: exercice, 3: test
     timer_exercise = db.Column(db.Integer, nullable=False, default=300)
     timer_test = db.Column(db.Integer, nullable=False, default=2100)
 
@@ -103,7 +103,7 @@ class Chat(db.Model):
     # Other columns remain the same
     topic = db.Column(db.String(100), nullable=True)
     status = db.Column(db.String(20), nullable=False, default="ongoing")
-    session_step = db.Column(db.String(20), nullable=False, default="tutoriel")
+    session_id = db.Column(db.Integer, nullable=False, default=2) # 1: tutoriel, 2: exercice, 3: test
     updated_at = db.Column(db.DateTime, nullable=False, 
                          default=db.func.current_timestamp(),
                          onupdate=db.func.current_timestamp())
@@ -170,8 +170,13 @@ def get_chat_content(user_id, chat_id):
         return None
     return chat.to_dict()
 
-def create_chat(user_id, first_message=None, status="ongoing", user_intent="", topic=None, session_step="session_exercise"):
+def create_chat(user_id, first_message=None, status="ongoing", user_intent="", topic=None, session_id=None):
     """Create a new chat for a user"""
+    # Use session_id from parameter or from user's current session
+    if session_id is None:
+        user = User.query.get(user_id)
+        session_id = user.session_id if user else 2  # Default to exercise session
+    
     # Initialize with empty chat history
     chat_history = []
     
@@ -183,7 +188,7 @@ def create_chat(user_id, first_message=None, status="ongoing", user_intent="", t
             'timestamp': datetime.datetime.utcnow().isoformat()
         })
     
-    # Create new chat - no need to set the ID manually
+    # Create new chat with the correct session_id
     chat = Chat(
         user_id=user_id,
         created_at=datetime.datetime.utcnow(),
@@ -191,13 +196,12 @@ def create_chat(user_id, first_message=None, status="ongoing", user_intent="", t
         status=status,
         user_intent=user_intent,
         chat_history=chat_history,
-        session_step=session_step
+        session_id=session_id
     )
     
     db.session.add(chat)
     db.session.commit()
     
-    # After commit, chat.id will contain the auto-assigned ID
     return chat
 
 def add_message_to_chat(chat_id, role, content):
@@ -385,7 +389,7 @@ def end_ongoing_chats(user_id, new_status="terminated"):
     db.session.commit()
     return len(ongoing_chats)
 
-def get_or_create_chat(user_id, first_message=None, topic=None, user_intent="", session_step="session_exercise"):
+def get_or_create_chat(user_id, first_message=None, topic=None, user_intent="", session_id=2):
     """Get the ongoing chat for a user, or create a new one if none exists"""
     
     # Try to find an ongoing chat
@@ -414,7 +418,65 @@ def get_or_create_chat(user_id, first_message=None, topic=None, user_intent="", 
         status="ongoing",
         user_intent=user_intent,
         chat_history=chat_history,
-        session_step=session_step
+        session_id=session_id
+    )
+    
+    db.session.add(chat)
+    db.session.commit()
+    
+    return chat
+
+def update_user_session(user_id, session_id, timer_exercise=None, timer_test=None):
+    """Update a user's session_id and timer values"""
+    user = User.query.get(user_id)
+    if not user:
+        return None
+        
+    user.session_id = session_id
+    
+    # Only update timers if values are provided
+    if timer_exercise is not None:
+        user.timer_exercise = timer_exercise
+    if timer_test is not None:
+        user.timer_test = timer_test
+        
+    db.session.commit()
+    return user
+
+def get_or_create_chat_for_session(user_id, session_id, first_message=None, topic=None, user_intent=""):
+    """Get the ongoing chat for a user with the specified session_id, or create a new one"""
+    
+    # Try to find an ongoing chat with the matching session_id
+    chat = Chat.query.filter_by(
+        user_id=user_id,
+        status="ongoing",
+        session_id=session_id
+    ).order_by(Chat.created_at.desc()).first()
+    
+    if chat:
+        # Use the existing ongoing chat
+        return chat
+    
+    # No ongoing chat found for this session, create a new one
+    chat_history = []
+    
+    # Add first message if provided
+    if first_message:
+        chat_history.append({
+            'role': 'user',
+            'content': first_message,
+            'timestamp': datetime.datetime.utcnow().isoformat()
+        })
+    
+    # Create new chat with the specified session_id
+    chat = Chat(
+        user_id=user_id,
+        created_at=datetime.datetime.utcnow(),
+        topic=topic,
+        status="ongoing",
+        user_intent=user_intent,
+        chat_history=chat_history,
+        session_id=session_id
     )
     
     db.session.add(chat)

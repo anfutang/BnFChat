@@ -18,7 +18,6 @@ const SessionHeader = ({ currentSession, sessionTimer, sessionData, intentData }
         )}
       </ConversationHeader.Content>
       <ConversationHeader.Actions>
-        {sessionData?.devMode && <span className="dev-badge">DEV MODE</span>}
         {(currentSession === 2 || currentSession === 3) && sessionTimer && (
           <span className="session-timer-badge">{sessionTimer}</span>
         )}
