@@ -17,7 +17,7 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
   const messageListRef = useRef(null);
   const eventSourceRef = useRef(null);
   const [processingResultEvent, setProcessingResultEvent] = useState(false);
-  const [requestInProgress, setRequestInProgress] = useState(false); // Add this to track ongoing requests
+  const [requestInProgress, setRequestInProgress] = useState(false); // Track ongoing requests
 
   // Load chat history if it exists
   const loadChatHistory = async (specificSessionId) => {
@@ -253,9 +253,10 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
         const useSessionId = sessionId || currentSession || 1;
         
         // Create new EventSource connection with chat ID and session ID
-        console.log(`Creating EventSource connection to /api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${useSessionId}&chatId=${chatId}`);
+        // REMOVED first parameter since backend computes this now
+        console.log(`Creating EventSource connection to /api/stream/input?query=${encodeURIComponent(message)}&session=${useSessionId}&chatId=${chatId}`);
         
-        const eventSource = new EventSource(`/api/stream/input?query=${encodeURIComponent(message)}&first=${isFirstInput}&session=${useSessionId}&chatId=${chatId}`);
+        const eventSource = new EventSource(`/api/stream/input?query=${encodeURIComponent(message)}&session=${useSessionId}&chatId=${chatId}`);
         eventSourceRef.current = eventSource;
 
       // Handle different event types
@@ -285,7 +286,17 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
             case 'typing':
               // Could show typing indicator or update processing message
               break;
-            
+            case 'chat_id':
+              console.log('Received chat ID from server:', data.content);
+              // Always update the chat ID when the server provides it
+              setCurrentResponse(prev => ({
+                ...prev,
+                metadata: {
+                  ...((prev && prev.metadata) || {}),
+                  chatId: data.content
+                }
+              }));
+              break;
             case 'response':
               // Process response normally
               const botResponse = {
@@ -442,6 +453,12 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
   // Handle annotation submission  
   const handleAnnotationSubmit = async (annotationData) => {
     try {
+      // Include the current chat ID if available
+      const chatId = currentResponse?.metadata?.chatId || currentChatId;
+      if (chatId) {
+        annotationData.chatId = chatId;
+      }
+      
       await axios.post('/api/dev/user-annotation', annotationData);
       
       setNeedsAnnotation(false);
@@ -461,16 +478,30 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
   // Restart the chat
   const handleRestartChat = async () => {
     try {
-      await axios.post('/api/dev/restart-chat');
+      const useSessionId = currentSession || 1;
       
-      // Reset the conversation state
+      const response = await axios.post('/api/dev/restart-chat', {
+        sessionId: useSessionId
+      });
+      
+      // Add this to update the current chat ID
+      if (response.data && response.data.chatId) {
+        setCurrentResponse(prev => ({
+          ...prev,
+          metadata: {
+            ...((prev && prev.metadata) || {}),
+            chatId: response.data.chatId
+          }
+        }));
+      }
+      
+      // Existing code...
       setChatHistory([]);
       setIsFirstInput(true);
       setThoughtProcess([]);
       setTimingData({});
       setNeedsAnnotation(false);
       
-      // Add system message indicating restart
       setChatHistory([{
         sender: 'system',
         message: 'New conversation started.',
@@ -491,24 +522,40 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
     }
     
     try {
-      await axios.post('/api/dev/abandon-chat');
+      // Get current chat ID and session
+      const chatId = currentResponse?.metadata?.chatId || currentChatId;
+      const useSessionId = currentSession || 1;
       
+      // Create endpoint for abandon-chat
+      const response = await axios.post('/api/dev/abandon-chat', {
+        sessionId: useSessionId,
+        chatId: chatId
+      });
+      
+      // Update the chat ID if a new one is returned
+      if (response.data && response.data.chatId) {
+        setCurrentResponse(prev => ({
+          ...prev,
+          metadata: {
+            ...((prev && prev.metadata) || {}),
+            chatId: response.data.chatId
+          }
+        }));
+      }
+      
+      // Existing code...
       setChatHistory(prev => [
         ...prev,
         {
           sender: 'system',
           message: 'Conversation abandoned. You can start a new conversation.',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOFormat()
         }
       ]);
       
-      // Disable input to force user to restart
-      setIsLoading(true);
-      
-      setTimeout(() => {
-        setIsLoading(false);
-        setIsFirstInput(true);
-      }, 2000);
+      // Reset state to allow for a new chat
+      setIsLoading(false);
+      setIsFirstInput(true);
       
       return true;
     } catch (error) {

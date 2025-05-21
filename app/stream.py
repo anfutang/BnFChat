@@ -35,19 +35,43 @@ logger.addHandler(handler)
 
 
 
+# In app/stream.py
 @bp.route("/input", methods=['GET'])
 def user_input():
     """Process user input and generate response"""
     # Get parameters from query string
     user_input = request.args.get('query', '')
-    first_input = request.args.get('first', 'false').lower() == 'true'
     session_id = request.args.get('session', '')
     chat_id = request.args.get('chatId', '')
     
-    session["chat_mode"] = "respond"
+    # Compute first_input in the backend instead of trusting frontend
     user_id = session.get("user_id")
+    first_input = False
     
-    logger.info(f"Received input request: query='{user_input}', first={first_input}, session={session_id}, chatId={chat_id}")
+    if user_id and user_id != 123:
+        # If a chat_id is provided, check if it exists and has history
+        if chat_id:
+            chat = Chat.query.filter_by(id=chat_id, user_id=user_id).first()
+            first_input = not chat or not chat.chat_history or len(chat.chat_history) == 0
+        else:
+            # Otherwise check if an ongoing chat exists for this session
+            user = User.query.get(user_id)
+            session_id_to_check = int(session_id) if session_id else (user.session_id if user else 1)
+            
+            chat = Chat.query.filter_by(
+                user_id=user_id,
+                status="ongoing",
+                session_id=session_id_to_check
+            ).order_by(Chat.created_at.desc()).first()
+            
+            first_input = not chat or not chat.chat_history or len(chat.chat_history) == 0
+    else:
+        # For anonymous users, check session chat history
+        first_input = not session.get("chat_history") or len(session.get("chat_history", [])) == 0
+    
+    session["chat_mode"] = "respond"
+    
+    logger.info(f"Received input request: query='{user_input}', computed first={first_input}, session={session_id}, chatId={chat_id}")
 
     # Set proper headers for Server-Sent Events
     headers = {
@@ -71,9 +95,11 @@ def process_user_input_stream(user_input, first_input, session_id, user_id, chat
         user_id, first_input, user_input, chat_id
     )
     
-    # Use the chat_id from initialize_chat_context
-    if not chat_id and current_chat_id:
-        chat_id = current_chat_id
+    # IMPORTANT: Always use the chat_id returned from initialize_chat_context
+    chat_id = current_chat_id
+    
+    # Log the chat ID we're using
+    logger.info(f"Using chat ID: {chat_id} for user {user_id}")
     
     # Update session chat history for compatibility
     if isinstance(prev_chat_history, list) and all(isinstance(item, dict) for item in prev_chat_history):
@@ -89,6 +115,10 @@ def process_user_input_stream(user_input, first_input, session_id, user_id, chat
     # Yield initial connection and typing indicators
     yield event_data('connection', 'Connected')
     yield event_data('typing', 'Traitement en cours...')
+    
+    # IMPORTANT: Add this to inform frontend of the current chat ID
+    yield event_data('chat_id', chat_id)
+    
     
     # If we have a last user intent, emit it immediately
     if last_user_intent:
@@ -206,47 +236,66 @@ def initialize_chat_context(user_id, first_input, user_input, chat_id=''):
     """Initialize chat context, ensuring only one active chat per user per session"""
     if user_id and user_id != 123:  # Real authenticated user
         user = User.query.get(user_id)
-        session_id = user.session_id if user else session.get("session_id", 2)  # Default to exercise
+        session_id = user.session_id if user else session.get("session_id", 2)
         
-        if first_input:
+        # Critical check: Count ongoing chats for this user/session
+        ongoing_count = Chat.query.filter_by(
+            user_id=user_id, 
+            status="ongoing",
+            session_id=session_id
+        ).count()
+        
+        # If multiple ongoing chats exist, end ALL of them first
+        if ongoing_count > 1:
+            logger.warning(f"Found {ongoing_count} ongoing chats for user {user_id}, session {session_id}. Cleaning up...")
+            end_ongoing_chats(user_id, "terminated_by_system_cleanup", session_id)
+            
+            # Create a fresh chat if this isn't the first input
+            if not first_input:
+                chat = create_chat(user_id, None, session_id=session_id)
+                logger.info(f"Created new chat {chat.id} after cleanup")
+                return [], user_input, "", chat.id
+        
+        # Try to find the specific chat if ID is provided
+        chat = None
+        if chat_id:
+            chat = Chat.query.filter_by(id=chat_id, user_id=user_id).first()
+            # Strict validation: must be ongoing AND match session
+            if not chat or chat.status != "ongoing" or chat.session_id != session_id:
+                chat = None
+                logger.info(f"Chat {chat_id} ignored: not valid for current session/status")
+        
+        # If no valid specific chat found, get the SINGLE ongoing chat for this session
+        if not chat:
+            chat = Chat.query.filter_by(
+                user_id=user_id, 
+                status="ongoing",
+                session_id=session_id
+            ).order_by(Chat.created_at.desc()).first()
+        
+        if first_input or not chat:
             # End any existing ongoing chats before creating a new one
-            end_ongoing_chats(user_id, "terminated_by_new_session")
+            end_ongoing_chats(user_id, "terminated_by_new_chat", session_id)
             
             # Create new chat with correct session_id
-            chat = create_chat(user_id, user_input, session_id=session_id)
-            prev_chat_history = []
-            last_user_intent = ""
-            return prev_chat_history, user_input, last_user_intent, chat.id
+            chat = create_chat(user_id, user_input if first_input else None, session_id=session_id)
+            if not chat:
+                logger.error(f"Failed to create chat for user {user_id}")
+                return [], user_input, "", ""
+                
+            logger.info(f"Created new chat {chat.id} for first input")
+            return [], user_input, "", chat.id
         else:
-            # Try to find the specific chat if ID is provided
-            chat = None
-            if chat_id:
-                chat = Chat.query.filter_by(id=chat_id, user_id=user_id).first()
-            
-            # If no specific chat found, get the ongoing chat for this session
-            if not chat:
-                chat = Chat.query.filter_by(
-                    user_id=user_id, 
-                    status="ongoing",
-                    session_id=session_id
-                ).order_by(Chat.created_at.desc()).first()
-            
-            # If still no chat, create one with correct session_id
-            if not chat:
-                chat = create_chat(user_id, session_id=session_id)
-                prev_chat_history = []
-                last_user_intent = ""
-                return prev_chat_history, user_input, last_user_intent, chat.id
-            
-            # Get chat history and continue with existing functionality
+            # Get chat history and continue
             prev_chat_history = chat.chat_history if chat.chat_history else []
             last_user_intent = chat.user_intent or ""
             
             # Get the first user message
             first_user_query = prev_chat_history[0]['content'] if prev_chat_history and prev_chat_history[0]['role'] == 'user' else user_input
+            logger.info(f"Using existing chat {chat.id}")
             return prev_chat_history, first_user_query, last_user_intent, chat.id
     
-    # Fallback to session-based history for anonymous users (existing code)
+    # Fallback to session-based history for anonymous users
     if "chat_history" in session:
         prev_chat_history = session["chat_history"]
     else:

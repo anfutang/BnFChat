@@ -172,37 +172,56 @@ def get_chat_content(user_id, chat_id):
 
 def create_chat(user_id, first_message=None, status="ongoing", user_intent="", topic=None, session_id=None):
     """Create a new chat for a user"""
-    # Use session_id from parameter or from user's current session
-    if session_id is None:
-        user = User.query.get(user_id)
-        session_id = user.session_id if user else 2  # Default to exercise session
-    
-    # Initialize with empty chat history
-    chat_history = []
-    
-    # Add first message if provided
-    if first_message:
-        chat_history.append({
-            'role': 'user',
-            'content': first_message,
-            'timestamp': datetime.datetime.utcnow().isoformat()
-        })
-    
-    # Create new chat with the correct session_id
-    chat = Chat(
-        user_id=user_id,
-        created_at=datetime.datetime.utcnow(),
-        topic=topic,
-        status=status,
-        user_intent=user_intent,
-        chat_history=chat_history,
-        session_id=session_id
-    )
-    
-    db.session.add(chat)
-    db.session.commit()
-    
-    return chat
+    try:
+        # Use session_id from parameter or from user's current session
+        if session_id is None:
+            user = User.query.get(user_id)
+            session_id = user.session_id if user else 2  # Default to exercise session
+        
+        # Start transaction
+        db.session.begin_nested()
+        
+        # CRITICAL: End any existing ongoing chats for this session FIRST
+        ongoing_chats = Chat.query.filter_by(
+            user_id=user_id,
+            status="ongoing",
+            session_id=session_id
+        ).with_for_update().all()  # Lock rows
+        
+        for chat in ongoing_chats:
+            chat.status = "terminated_by_new_chat"
+        
+        # Flush to ensure the ongoing chats are updated before creating new one
+        db.session.flush()
+        
+        # Create the new chat
+        chat_history = []
+        
+        if first_message:
+            chat_history.append({
+                'role': 'user',
+                'content': first_message,
+                'timestamp': datetime.datetime.utcnow().isoformat()
+            })
+        
+        chat = Chat(
+            user_id=user_id,
+            created_at=datetime.datetime.utcnow(),
+            topic=topic,
+            status=status,
+            user_intent=user_intent,
+            chat_history=chat_history,
+            session_id=session_id
+        )
+        
+        db.session.add(chat)
+        db.session.commit()
+        
+        return chat
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in create_chat: {str(e)}")
+        return None
 
 def add_message_to_chat(chat_id, role, content):
     """Add a message to an existing chat identified by chat_id"""
@@ -265,7 +284,10 @@ def add_message_to_latest_chat(user_id, role, content):
     return message
 
 def save_conv(user_id, first_input, chat_history, status="ongoing", user_intent="", topic=None, chat_id=None):
-    """Save conversation to database, using chat_id if provided"""
+    # Get user's current session_id
+    user = User.query.get(user_id)
+    session_id = user.session_id if user else 2
+    
     # Only proceed if we have chat history and a real user
     if not (isinstance(chat_history, list) and len(chat_history) > 0 and user_id and user_id != 123):
         return
@@ -288,7 +310,8 @@ def save_conv(user_id, first_input, chat_history, status="ongoing", user_intent=
     # Try to find the chat by ID if provided
     chat = None
     if chat_id:
-        chat = Chat.query.filter_by(id=chat_id, user_id=user_id).first()
+        # Always check that the chat belongs to the user and matches their current session
+        chat = Chat.query.filter_by(id=chat_id, user_id=user_id, session_id=session_id).first()
     
     # If we found the chat, update it
     if chat:
@@ -309,8 +332,8 @@ def save_conv(user_id, first_input, chat_history, status="ongoing", user_intent=
     
     # If chat not found by ID or first_input is True, handle accordingly
     if first_input:
-        # End any existing ongoing chats
-        end_ongoing_chats(user_id, "terminated_by_new_session")
+        # End any existing ongoing chats for this specific session
+        end_ongoing_chats(user_id, "terminated_by_new_session", session_id)
         
         # Create a new chat with current timestamp
         new_chat = Chat(
@@ -319,14 +342,19 @@ def save_conv(user_id, first_input, chat_history, status="ongoing", user_intent=
             topic=topic,
             status=status,
             user_intent=user_intent,
-            chat_history=formatted_chat_history
+            chat_history=formatted_chat_history,
+            session_id=session_id
         )
         db.session.add(new_chat)
         db.session.commit()
         return new_chat
     else:
-        # Try to get ongoing chat
-        chat = get_ongoing_chat(user_id)
+        # Try to get ongoing chat for this specific session
+        chat = Chat.query.filter_by(
+            user_id=user_id,
+            status="ongoing",
+            session_id=session_id
+        ).order_by(Chat.created_at.desc()).first()
         
         if chat:
             # Update chat fields
@@ -344,14 +372,15 @@ def save_conv(user_id, first_input, chat_history, status="ongoing", user_intent=
             db.session.commit()
             return chat
         else:
-            # If no ongoing chat exists (unusual case), create one
+            # If no ongoing chat exists for this session (unusual case), create one
             new_chat = Chat(
                 user_id=user_id,
                 created_at=datetime.datetime.utcnow(),
                 topic=topic,
                 status=status,
                 user_intent=user_intent,
-                chat_history=formatted_chat_history
+                chat_history=formatted_chat_history,
+                session_id=session_id
             )
             db.session.add(new_chat)
             db.session.commit()
@@ -376,18 +405,28 @@ def get_chat_by_id(chat_id, user_id=None):
         query = query.filter_by(user_id=user_id)
     return query.first()
 
-def end_ongoing_chats(user_id, new_status="terminated"):
-    """Mark all ongoing chats for a user as ended with the specified status"""
-    ongoing_chats = Chat.query.filter_by(
-        user_id=user_id,
-        status="ongoing"
-    ).all()
-    
-    for chat in ongoing_chats:
-        chat.status = new_status
-    
-    db.session.commit()
-    return len(ongoing_chats)
+def end_ongoing_chats(user_id, new_status="terminated", session_id=None):
+    """Mark all ongoing chats for a user as ended with the specified status, optionally filtering by session_id"""
+    try:
+        # Create specific query based on parameters
+        query = Chat.query.filter_by(
+            user_id=user_id,
+            status="ongoing"
+        )
+        
+        # If session_id is provided, only end chats for that session
+        if session_id is not None:
+            query = query.filter_by(session_id=session_id)
+        
+        # Execute update as a single SQL statement for atomicity
+        result = query.update({"status": new_status}, synchronize_session=False)
+        
+        db.session.commit()
+        return result  # Return number of chats updated
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in end_ongoing_chats: {str(e)}")
+        return 0
 
 def get_or_create_chat(user_id, first_message=None, topic=None, user_intent="", session_id=2):
     """Get the ongoing chat for a user, or create a new one if none exists"""

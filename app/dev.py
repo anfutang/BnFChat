@@ -157,13 +157,24 @@ def restart_chat():
     """Reset the chat session"""
     user_id = session.get("user_id")
     
-    # If we have a real user, create a new chat for them
+    new_chat_id = None
+    
+    # If we have a real user, end ongoing chats and create a new one
     if user_id and user_id != 123:
-        create_chat(user_id)
+        # End any existing ongoing chats
+        end_ongoing_chats(user_id, "terminated_by_restart")
+        
+        # Get user's current session_id
+        user = User.query.get(user_id)
+        session_id = user.session_id if user else session.get("session_id", 1)
+        
+        # Create a new chat with the correct session_id
+        chat = create_chat(user_id, session_id=session_id)
+        new_chat_id = chat.id if chat else None
     
     # Clear session chat history
     session["chat_history"] = []
-    return jsonify({"success": True})
+    return jsonify({"success": True, "chatId": new_chat_id})
 
 
 
@@ -396,4 +407,38 @@ def update_timer():
         "success": True,
         "sessionId": session_id,
         "timerValue": timer_value
+    })
+
+
+@bp.route('/abandon-chat', methods=['POST'])
+@login_required
+def abandon_chat():
+    """Abandon the current chat and create a new one"""
+    user_id = session.get("user_id")
+    data = request.json
+    chat_id = data.get('chatId')
+    
+    if not user_id or user_id == 123:
+        return jsonify({"error": "No authenticated user"}), 401
+    
+    # Get user's session
+    user = User.query.get(user_id)
+    session_id = data.get('sessionId') or (user.session_id if user else 1)
+    
+    # End the specific chat if chat_id provided
+    if chat_id:
+        chat = Chat.query.filter_by(id=chat_id, user_id=user_id).first()
+        if chat:
+            chat.status = "abandoned"
+            db.session.commit()
+    else:
+        # Otherwise end all ongoing chats for this session
+        end_ongoing_chats(user_id, "abandoned", session_id)
+    
+    # Create a new chat for this session
+    new_chat = create_chat(user_id, session_id=session_id)
+    
+    return jsonify({
+        "success": True,
+        "chatId": new_chat.id if new_chat else None
     })
