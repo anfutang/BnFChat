@@ -25,39 +25,103 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
       // Use either specified session ID, current session from props, or default
       const sessionId = specificSessionId || currentSession || 1;
       
-      // Include session ID in request
-      const historyResponse = await axios.get(`/api/dev/chat-history?sessionId=${sessionId}`);
+      console.log(`Loading chat history for session ID: ${sessionId}`);
       
-      if (historyResponse.data && historyResponse.data.messages && historyResponse.data.messages.length > 0) {
-        // Replace instead of append to avoid duplication
-        setChatHistory(historyResponse.data.messages);
-        
-        // Store the chat ID if it exists
-        if (historyResponse.data.chatId) {
-          setCurrentResponse(prev => ({
-            ...prev,
-            metadata: {
-              ...((prev && prev.metadata) || {}),
-              chatId: historyResponse.data.chatId
-            }
-          }));
-        }
-        
-        setIsFirstInput(false);
-        setShowSessionMessage(false);
-      } else {
-        // If no messages, ensure chat history is empty
+      // For session 1 (tutorial), don't attempt to load history
+      if (sessionId === 1) {
+        console.log("Tutorial session detected, skipping history load");
         setChatHistory([]);
+        setIsFirstInput(true);
+        return;
+      }
+      
+      try {
+        // Include session ID in request
+        const historyResponse = await axios.get(`/api/dev/chat-history?sessionId=${sessionId}`);
+        
+        if (historyResponse.data && historyResponse.data.messages && historyResponse.data.messages.length > 0) {
+          // Validate message format before setting
+          const validatedMessages = historyResponse.data.messages.map(msg => {
+            // Ensure each message has the correct format
+            if (typeof msg === 'string') {
+              // If it's a string, convert to object
+              return {
+                sender: 'system',
+                message: msg,
+                timestamp: new Date().toISOString()
+              };
+            } else if (typeof msg === 'object') {
+              // Ensure all needed properties exist
+              return {
+                sender: msg.sender || (msg.role === 'user' ? 'user' : msg.role === 'assistant' ? 'bot' : 'system'),
+                message: msg.message || msg.content || String(msg),
+                timestamp: msg.timestamp || new Date().toISOString(),
+                metadata: msg.metadata || {}
+              };
+            } else {
+              // Fallback for unexpected types
+              return {
+                sender: 'system',
+                message: String(msg),
+                timestamp: new Date().toISOString()
+              };
+            }
+          });
+          
+          // Replace instead of append to avoid duplication
+          setChatHistory(validatedMessages);
+          
+          // Store the chat ID if it exists
+          if (historyResponse.data.chatId) {
+            setCurrentResponse(prev => ({
+              ...prev,
+              metadata: {
+                ...((prev && prev.metadata) || {}),
+                chatId: historyResponse.data.chatId
+              }
+            }));
+          }
+          
+          setIsFirstInput(false);
+          setShowSessionMessage(false);
+        } else {
+          // If no messages, ensure chat history is empty
+          console.log("No chat history found, setting empty chat");
+          setChatHistory([]);
+          setIsFirstInput(true);
+        }
+      } catch (historyError) {
+        console.error('Error loading chat history:', historyError);
+        // Handle 500 error gracefully
+        console.log("Setting empty chat due to history load error");
+        setChatHistory([]);
+        setIsFirstInput(true);
+        
+        // Add a system message indicating the error
+        setTimeout(() => {
+          setChatHistory([{
+            sender: 'system',
+            message: 'Unable to load previous conversation. Starting a new conversation.',
+            timestamp: new Date().toISOString()
+          }]);
+        }, 100);
       }
     } catch (error) {
-      console.error('Failed to load chat history:', error);
+      console.error('Outer error in loadChatHistory:', error);
+      setChatHistory([]);
+      setIsFirstInput(true);
     }
   };
 
   // Effect to reload chat history when session changes
   useEffect(() => {
     if (currentSession) {
-      loadChatHistory(currentSession);
+      console.log(`Session changed to ${currentSession}, loading chat history`);
+      try {
+        loadChatHistory(currentSession);
+      } catch (error) {
+        console.error("Error in session change effect:", error);
+      }
     }
   }, [currentSession]);
 
