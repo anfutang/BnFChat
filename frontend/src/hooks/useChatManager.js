@@ -17,6 +17,7 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
   const messageListRef = useRef(null);
   const eventSourceRef = useRef(null);
   const [processingResultEvent, setProcessingResultEvent] = useState(false);
+  const [requestInProgress, setRequestInProgress] = useState(false); // Add this to track ongoing requests
 
   // Load chat history if it exists
   const loadChatHistory = async (specificSessionId) => {
@@ -28,6 +29,7 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
       const historyResponse = await axios.get(`/api/dev/chat-history?sessionId=${sessionId}`);
       
       if (historyResponse.data && historyResponse.data.messages && historyResponse.data.messages.length > 0) {
+        // Replace instead of append to avoid duplication
         setChatHistory(historyResponse.data.messages);
         
         // Store the chat ID if it exists
@@ -43,6 +45,9 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
         
         setIsFirstInput(false);
         setShowSessionMessage(false);
+      } else {
+        // If no messages, ensure chat history is empty
+        setChatHistory([]);
       }
     } catch (error) {
       console.error('Failed to load chat history:', error);
@@ -76,6 +81,7 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
       eventSourceRef.current.close();
       eventSourceRef.current = null;
       setIsLoading(false);
+      setRequestInProgress(false); // Reset request in progress flag
     }
   };
 
@@ -144,7 +150,10 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
 
   // Handle message submission
   const handleSubmit = async (message, sessionId) => {
-    if (!message.trim() || isLoading) return;
+    if (!message.trim() || isLoading || requestInProgress) return;
+    
+    // Set request in progress to prevent multiple submissions
+    setRequestInProgress(true);
     
     // Hide intro message after first user input
     setShowSessionMessage(false);
@@ -163,6 +172,7 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
         timestamp: new Date().toISOString()
     };
     
+    // Use a function form to ensure we're working with the latest state
     setChatHistory(prev => [...prev, newUserMessage]);
     
     try {
@@ -221,7 +231,21 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
                 timestamp: new Date().toISOString()
               };
               
-              setChatHistory(prev => [...prev, botResponse]);
+              // Use functional update to ensure we're working with the latest state
+              setChatHistory(prev => {
+                // Check if this is a new conversation or not
+                if (prev.length === 0) {
+                  return [newUserMessage, botResponse];
+                } else if (prev.length === 1 && prev[0].sender === 'user' && prev[0].message === message) {
+                  // If we only have one message and it's the user message we just added,
+                  // ensure we don't create duplicate entries
+                  return [prev[0], botResponse];
+                } else {
+                  // Normal case: append the bot response
+                  return [...prev, botResponse];
+                }
+              });
+              
               setCurrentResponse(botResponse);
               
               if (data.content.needsAnnotation) {
@@ -341,6 +365,7 @@ const useChatManager = (setShowSessionMessage, currentSession, currentChatId) =>
         }
       ]);
       setIsLoading(false);
+      setRequestInProgress(false); // Reset request in progress flag
     }
   };
 

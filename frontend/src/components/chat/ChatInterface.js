@@ -29,6 +29,7 @@ const ChatInterface = () => {
   const [sessionData, setSessionData] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialSteps, setTutorialSteps] = useState([]);
+  const [isTransitioningSession, setIsTransitioningSession] = useState(false);
   
   // Use session manager hook
   const {
@@ -82,21 +83,7 @@ const ChatInterface = () => {
   const memoizedCloseHandler = useCallback(() => {
     handleCloseResultModal();
   }, [handleCloseResultModal]);
-  // Add this in the ChatInterface.js component
-useEffect(() => {
-  // Save timer when component unmounts or page is refreshed/closed
-  const handleBeforeUnload = () => {
-    if (currentSession === 2 || currentSession === 3) {
-      cleanupSessionTimer();
-    }
-  };
   
-  window.addEventListener('beforeunload', handleBeforeUnload);
-  
-  return () => {
-    window.removeEventListener('beforeunload', handleBeforeUnload);
-  };
-}, [currentSession, cleanupSessionTimer]);
   // Load session data and chat history
   useEffect(() => {
     const loadInitialData = async () => {
@@ -107,6 +94,9 @@ useEffect(() => {
         // Load chat history if not in tutorial mode
         if (sessionResponse.data.sessionId !== 1) {
           await loadChatHistory(sessionResponse.data.sessionId);
+        } else {
+          // Clear chat history if in tutorial mode
+          setChatHistory([]);
         }
       } catch (error) {
         console.error('Failed to load initial data:', error);
@@ -118,7 +108,7 @@ useEffect(() => {
   
   // Effect to handle session changes
   useEffect(() => {
-    if (currentSession && sessionData && sessionData.sessionId !== currentSession) {
+    if (currentSession && sessionData && sessionData.sessionId !== currentSession && !isTransitioningSession) {
       // Update session data in state
       setSessionData(prev => ({
         ...prev,
@@ -128,7 +118,7 @@ useEffect(() => {
       // Load the chat history for this session
       loadChatHistory(currentSession);
     }
-  }, [currentSession]);
+  }, [currentSession, sessionData]);
   
   // Clean up resources on close
   useEffect(() => {
@@ -164,19 +154,31 @@ useEffect(() => {
   
   // Handle session transition
   const handleSessionTransition = async () => {
-    const result = await handleNextSession();
+    setIsTransitioningSession(true);
     
-    if (result.resetChat) {
-      // Clear chat history 
-      setChatHistory([]);
-      setIsFirstInput(true);
+    try {
+      const result = await handleNextSession();
       
-      // If a new chat ID was returned, load that chat
-      if (result.chatId) {
-        setTimeout(() => {
-          loadChatHistory(currentSession + 1);
-        }, 500);
+      if (result.resetChat) {
+        // Clear chat history completely before moving to next session
+        setChatHistory([]);
+        setIsFirstInput(true);
+        
+        // If a new chat ID was returned, load that chat after a small delay
+        if (result.chatId) {
+          setTimeout(() => {
+            loadChatHistory(currentSession + 1);
+            setIsTransitioningSession(false);
+          }, 500);
+        } else {
+          setIsTransitioningSession(false);
+        }
+      } else {
+        setIsTransitioningSession(false);
       }
+    } catch (error) {
+      console.error("Error during session transition:", error);
+      setIsTransitioningSession(false);
     }
   };
   
@@ -239,6 +241,7 @@ useEffect(() => {
               onRestartTutorial={handleRestartTutorial}
               onConfirmTutorial={handleConfirmTutorial}
               onExitTutorial={handleExitTutorial}
+              isTransitioning={isTransitioningSession}
             />
             <button onClick={handleLogout} className="logout-btn">Log out</button>
           </div>
@@ -256,7 +259,7 @@ useEffect(() => {
               // Message props
               messageListRef={messageListRef}
               chatHistory={chatHistory}
-              isLoading={isLoading}
+              isLoading={isLoading || isTransitioningSession}
               showSessionMessage={showSessionMessage}
               sessionEndAlert={sessionEndAlert}
               showGuides={showGuides}
