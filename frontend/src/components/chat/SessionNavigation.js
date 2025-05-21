@@ -21,13 +21,6 @@ const SessionNavigation = ({
             <button onClick={onRestartChat} className="restart-btn">
               Recommencer
             </button>
-            
-              {/* <button onClick={onAbandonChat} className="abandon-btn">
-                Abandonner
-              </button>
-              <button onClick={onConfirmChat} className="confirm-btn">
-                Confirmer
-              </button> */}
 
       </div>
       
@@ -35,7 +28,7 @@ const SessionNavigation = ({
       <div className="next-session-container">
         {currentSession === 1 && (
           <button onClick={onNextSession} className="next-session-btn">
-            Passer à la session libre
+            Passer à la session exercice
           </button>
         )}
         

@@ -65,9 +65,6 @@ def get_session_data():
         "username": session.get("username", "Utilisateur Test"),
         "userId": user_id,
         "avatarSeed": session.get("avatar-seed", "default") if not user else user.avatar_seed,
-        "sessionId": session.get("session_id", 1),
-        "freeTest": session.get("free_test", True),
-        "chatMode": session.get("chat_mode", "respond"),
         "devMode": session.get("dev_mode", True)
     }
     return jsonify(session_data)
@@ -164,68 +161,7 @@ def restart_chat():
     session["chat_history"] = []
     return jsonify({"success": True})
 
-@bp.route('/abandon-chat', methods=['POST'])
-@login_required
-def abandon_chat():
-    """Abandon the current chat"""
-    user_id = session.get("user_id")
-    
-    # If we have a real user, mark their latest chat as abandoned
-    if user_id and user_id != 123:
-        latest_chat = Chat.query.filter_by(user_id=user_id).order_by(Chat.updated_at.desc()).first()
-        if latest_chat:
-            latest_chat.status = "abandoned"
-            db.session.commit()
-    
-    # Clear session chat history
-    session["chat_history"] = []
-    return jsonify({"success": True})
 
-@bp.route('/confirm-chat', methods=['POST'])
-@login_required
-def confirm_chat():
-    """Confirm the current chat as satisfactory"""
-    user_id = session.get("user_id")
-    
-    # If we have a real user, mark their latest chat as confirmed
-    if user_id and user_id != 123:
-        latest_chat = Chat.query.filter_by(user_id=user_id).order_by(Chat.updated_at.desc()).first()
-        if latest_chat:
-            latest_chat.status = "confirmed"
-            db.session.commit()
-    
-    return jsonify({"success": True})
-
-@bp.route('/change-session', methods=['POST'])
-@login_required
-def change_session():
-    """Change the current session settings"""
-    data = request.json
-    session["session_id"] = data.get('sessionId', 1)
-    session["free_test"] = data.get('isFreeTest', True)
-    session["chat_mode"] = "respond"
-    
-    # Reset chat history in session
-    session["chat_history"] = []
-    
-    # If we have a real user, create a new chat for them with the new session settings
-    user_id = session.get("user_id")
-    if user_id and user_id != 123:
-        create_chat(user_id)
-    
-    return jsonify({"success": True})
-
-@bp.route('/tutorial-texts', methods=['GET'])
-@login_required
-def get_tutorial_texts():
-    """Get tutorial texts data"""
-    tutorial_texts = {
-        "step1": "Bienvenue dans le tutoriel BNF Chat. Ceci est l'étape 1.",
-        "step2": "Apprenez à rechercher des références. Ceci est l'étape 2.",
-        "step3": "Utilisez des filtres pour affiner vos résultats. Ceci est l'étape 3.",
-        "step4": "Évaluez la pertinence des résultats. Ceci est l'étape 4."
-    }
-    return jsonify(tutorial_texts)
 
 @bp.route("/manage-result", methods=['POST'])
 @login_required

@@ -5,7 +5,7 @@ const SessionHeader = ({ currentSession, sessionTimer, sessionData, intentData }
   return (
     <ConversationHeader>
       <ConversationHeader.Content>
-        {currentSession === 3 ? (
+        {currentSession >= 2 ? (
           typeof intentData === 'string' && intentData.trim() !== '' && (
             <div className="test-session-title">
               💡 {intentData}
@@ -13,7 +13,7 @@ const SessionHeader = ({ currentSession, sessionTimer, sessionData, intentData }
           )
         ) : (
           <div>
-            BNF Chat {currentSession === 1 ? '- Tutoriel' : currentSession === 2 ? '- Session libre' : ''}
+            BNF Chat {currentSession === 1 ? '- Tutoriel' : currentSession === 2 ? '- Session exercice' : ''}
           </div>
         )}
       </ConversationHeader.Content>

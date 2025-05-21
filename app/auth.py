@@ -114,8 +114,6 @@ def login():
     session["user_id"] = user.id
     session["username"] = username
     session["avatar-seed"] = user.avatar_seed
-    session["session_id"] = 1
-    session["free_test"] = True
     session["first_input"] = True
     session["annotation_submitted"] = True
     session["chat_mode"] = "respond"

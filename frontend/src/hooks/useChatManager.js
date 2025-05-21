@@ -405,53 +405,6 @@ const loadChatHistory = async () => {
     }
   };
 
-  // Confirm chat as satisfactory
-  const handleConfirmChat = async () => {
-    if (chatHistory.length <= 1) {
-      alert('Aucune conversation à confirmer. Posez d\'abord une question.');
-      return false;
-    }
-    
-    try {
-      await axios.post('/api/dev/confirm-chat');
-      
-      setChatHistory(prev => [
-        ...prev,
-        {
-          sender: 'system',
-          message: 'Conversation confirmée. Cette conversation sera enregistrée comme référence positive.',
-          timestamp: new Date().toISOString()
-        }
-      ]);
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to confirm conversation:', error);
-      return false;
-    }
-  };
-  
-  // Add a system message
-  const addSystemMessage = (message) => {
-    setChatHistory(prev => [
-      ...prev,
-      {
-        sender: 'system',
-        message,
-        timestamp: new Date().toISOString()
-      }
-    ]);
-  };
-
-  // Reset chat (for session change)
-  const resetChat = () => {
-    setChatHistory([]);
-    setIsFirstInput(true);
-    setThoughtProcess([]);
-    setTimingData({});
-    setNeedsAnnotation(false);
-  };
-
   return {
     chatHistory,
     setChatHistory,
@@ -478,9 +431,6 @@ const loadChatHistory = async () => {
     handleAnnotationSubmit,
     handleRestartChat,
     handleAbandonChat,
-    handleConfirmChat,
-    addSystemMessage,
-    resetChat,
     stopStreaming,
     handleCloseResultModal
   };

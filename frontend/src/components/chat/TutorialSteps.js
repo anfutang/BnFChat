@@ -28,7 +28,7 @@ const TutorialSteps = ({ currentStep, onNextStep, onComplete }) => {
     {
       id: 5,
       content: "Pendant votre session, vous pouvez utiliser ces boutons :<br/><br/><strong>Recommencer</strong> : Pour effacer la conversation actuelle et démarrer une nouvelle recherche.<br/><strong>Confirmer</strong> : Pour indiquer que la réponse vous a été utile.",
-      action: "Cliquez sur 'Terminer le tutoriel' pour passer à la session libre."
+      action: "Cliquez sur 'Terminer le tutoriel' pour passer à la session exercice."
     }
   ];
 

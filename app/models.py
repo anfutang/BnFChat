@@ -16,7 +16,6 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)
     
     # User profile data
-    raw_password = db.Column(db.String(200), nullable=True)  # For development/testing
     age = db.Column(db.String(10), nullable=True)
     diploma = db.Column(db.String(100), nullable=True)
     situation = db.Column(db.String(50), nullable=True)
@@ -31,12 +30,11 @@ class User(db.Model):
     profile_created = db.Column(db.Boolean, nullable=False, default=False)
 
     session_step = db.Column(db.String(20), nullable=False, default="tutoriel")
-    timer_libre = db.Column(db.Integer, nullable=False, default=300)
+    timer_exercise = db.Column(db.Integer, nullable=False, default=300)
     timer_test = db.Column(db.Integer, nullable=False, default=2100)
 
     def __init__(self, username, password, **kwargs):
         self.username = username
-        self.raw_password = password  # Store plaintext password temporarily 
         self.set_password(password)   # Hash the password
         
         # Process other kwargs
@@ -105,12 +103,13 @@ class Chat(db.Model):
     # Other columns remain the same
     topic = db.Column(db.String(100), nullable=True)
     status = db.Column(db.String(20), nullable=False, default="ongoing")
-    session_step = db.Column(db.String(20), nullable=False, default="session_libre")
+    session_step = db.Column(db.String(20), nullable=False, default="tutoriel")
     updated_at = db.Column(db.DateTime, nullable=False, 
                          default=db.func.current_timestamp(),
                          onupdate=db.func.current_timestamp())
     user_intent = db.Column(db.Text, nullable=True)
     chat_history = db.Column(db.JSON, nullable=False, default=list)
+    feedback_value1 = db.Column(db.Text, nullable=True)
     user = db.relationship('User', backref='chats')
     
     def to_dict(self):
@@ -171,7 +170,7 @@ def get_chat_content(user_id, chat_id):
         return None
     return chat.to_dict()
 
-def create_chat(user_id, first_message=None, status="ongoing", user_intent="", topic=None, session_step="session_libre"):
+def create_chat(user_id, first_message=None, status="ongoing", user_intent="", topic=None, session_step="session_exercise"):
     """Create a new chat for a user"""
     # Initialize with empty chat history
     chat_history = []
@@ -386,7 +385,7 @@ def end_ongoing_chats(user_id, new_status="terminated"):
     db.session.commit()
     return len(ongoing_chats)
 
-def get_or_create_chat(user_id, first_message=None, topic=None, user_intent="", session_step="session_libre"):
+def get_or_create_chat(user_id, first_message=None, topic=None, user_intent="", session_step="session_exercise"):
     """Get the ongoing chat for a user, or create a new one if none exists"""
     
     # Try to find an ongoing chat

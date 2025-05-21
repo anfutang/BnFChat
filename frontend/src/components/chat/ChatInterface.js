@@ -72,9 +72,6 @@ const ChatInterface = () => {
     handleAnnotationSubmit,
     handleRestartChat,
     handleAbandonChat,
-    handleConfirmChat,
-    addSystemMessage,
-    resetChat,
     handleCloseResultModal,
     setShowResultModal,
     setResultModalData,
@@ -92,7 +89,7 @@ const ChatInterface = () => {
         setSessionData(sessionResponse.data);
         
         // Load chat history if not in tutorial mode
-        if (sessionResponse.data.sessionId > 1) {
+        if (sessionResponse.data.sessionStep !== "tutoriel") {
           await loadChatHistory();
         }
       } catch (error) {

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatTime } from '../utils/formatUtils';
 
 const useSessionManager = () => {
-  const [currentSession, setCurrentSession] = useState(1); // Commence par le tutoriel
+  const [currentSession, setCurrentSession] = useState("tutoriel"); // Commence par le tutoriel
   const [sessionTimer, setSessionTimer] = useState(null);
   const [showSessionMessage, setShowSessionMessage] = useState(true);
   const [sessionEndAlert, setSessionEndAlert] = useState(false);
@@ -21,10 +21,10 @@ const useSessionManager = () => {
         const sessionResponse = await axios.get('/api/dev/session-data');
         
         // Définir la session actuelle basée sur les données du serveur
-        setCurrentSession(sessionResponse.data.sessionId || 1);
+        setCurrentSession(sessionResponse.data.sessionStep || "tutoriel");
         
         // Si on est dans la session tutoriel, activer le mode tutoriel
-        if (sessionResponse.data.sessionId === 1) {
+        if (sessionResponse.data.sessionStep === "tutoriel") {
           setTutorialMode(true);
           setTutorialStep(1);
         } else {
@@ -41,13 +41,13 @@ const useSessionManager = () => {
   // Effet pour démarrer le minuteur pour la session appropriée
   useEffect(() => {
     if (currentSession === 2) {
-      return startSessionTimer(5 * 60); // 5 minutes pour la session libre
+      return startSessionTimer(5 * 60); // 5 minutes pour la session exercice
     } else if (currentSession === 3) {
       return startSessionTimer(35 * 60); // 35 minutes pour la session test
     }
   }, [currentSession]);
 
-  // Gérer la fin de la session libre
+  // Gérer la fin de la session exercice
   useEffect(() => {
     if (sessionEndAlert) {
       const alertTimeout = setTimeout(() => {
@@ -120,8 +120,7 @@ const useSessionManager = () => {
         
         // Appel API pour changer de session
         await axios.post('/api/dev/change-session', { 
-          sessionId: currentSession + 1, 
-          isFreeTest: currentSession === 1 // Session libre = session 2
+          sessionStep: currentSession + 1, 
         });
         
         // Mise à jour de la session
@@ -161,7 +160,7 @@ const useSessionManager = () => {
     // Enregistrer que le tutoriel est terminé
     try {
       await axios.post('/api/dev/complete-tutorial');
-      // Préparer le passage à la session libre
+      // Préparer le passage à la session exercice
       return handleNextSession();
     } catch (error) {
       console.error('Failed to complete tutorial:', error);
@@ -173,7 +172,7 @@ const useSessionManager = () => {
   const handleConfirmTutorial = () => {
     return { 
       type: 'systemMessage', 
-      message: 'Tutoriel confirmé. Vous pouvez maintenant passer à la session libre.' 
+      message: 'Tutoriel confirmé. Vous pouvez maintenant passer à la session exercice.' 
     };
   };
 

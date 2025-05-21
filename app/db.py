@@ -46,24 +46,26 @@ def create_default_users():
     # Define default users with username/password
     # TODO: Add your users
     default_users = [
-        {'username': 'racousin', 'password': 'qwe'},
-        {'username': 'user1', 'password': 'password1'},
-        {'username': 'user2', 'password': 'password2'},
-        {'username': 'researcher', 'password': 'research123'},
-        {'username': 'student', 'password': 'student123'},
-        {'username': 'librarian', 'password': 'library123'},
-        {'username': 'guest', 'password': 'guest123'}
+        {'username': 'dev', 'password': '123456', 'profile_created': True},
+        {'username': 'racousin', 'password': 'qwe', 'profile_created': True},
+        {'username': 'user1', 'password': 'password1', 'profile_created': False},
+        {'username': 'user2', 'password': 'password2', 'profile_created': False},
+        {'username': 'researcher', 'password': 'research123', 'profile_created': False},
+        {'username': 'student', 'password': 'student123', 'profile_created': False},
+        {'username': 'librarian', 'password': 'library123', 'profile_created': False},
+        {'username': 'guest', 'password': 'guest123', 'profile_created': False}
     ]
     
     # Create users
     for user_data in default_users:
         username = user_data.get('username')
         password = user_data.get('password')
-        
+        profile_created = user_data.get('profile_created', False)
         # Create user with appropriate permissions
         new_user = User(
             username=username, 
             password=password,
+            profile_created=profile_created
         )
         db.session.add(new_user)
     

@@ -16,7 +16,7 @@ const TutorialSteps = ({ currentStep, onNextStep, onComplete }) => {
     },
     {
       title: "Navigation entre sessions",
-      content: "À la fin du tutoriel, vous passerez à une session libre de 5 minutes, puis à la session guidée de 35 minutes."
+      content: "À la fin du tutoriel, vous passerez à une session exercice de 5 minutes, puis à la session guidée de 35 minutes."
     }
   ];
 

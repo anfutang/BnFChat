@@ -5,7 +5,7 @@ const SessionSelector = ({ currentSession, totalTime }) => {
   // Les sessions en séquence
   const sessions = [
     { id: 1, name: 'Tutoriel', description: 'Comment utiliser l\'outil' },
-    { id: 2, name: 'Session libre', description: '5 minutes d\'essai libre' },
+    { id: 2, name: 'Session exercice', description: '5 minutes d\'exercice' },
     { id: 3, name: 'Session test', description: 'Session guidée (35 minutes)' }
   ];
 
@@ -33,13 +33,6 @@ const SessionSelector = ({ currentSession, totalTime }) => {
         ))}
       </div>
       
-      {/* Afficher le chronomètre pour les sessions 2 et 3 */}
-      {(currentSession === 2 || currentSession === 3) && totalTime && (
-        <div className="session-timer">
-          <div className="timer-label">Temps restant:</div>
-          <div className="timer-value">{totalTime}</div>
-        </div>
-      )}
     </div>
   );
 };
