@@ -1,25 +1,95 @@
 from .few_shot_examples.module import conv_summarization_fs_examples
 
-examples = """
-Query: Je cherche un biographie de Flaubert.
+examples_fr = """
+Requête: biographie de Flaubert.
 
-#Reason: The user query focuses on biographies of Flaubert, the author is therefore not necessarily Flaubert himself, so dc.creator should not be used. The keyword "Flaubert" should appear in both dc.title and dc.subject. The document type corresponding to a biography should be "monographie".
+#Analyse : La requête cible un document de type biographie sur Flaubert. L’utilisateur ne cherche pas un ouvrage écrit par Flaubert, donc dc.creator n’est pas pertinent ici. Le nom "Flaubert" est probablement dans le titre ou dans les sujets traités, donc on utilise dc.title et dc.subject. Les biographies sont généralement des livres, donc le type documentaire le plus probable est monographie.
+#Champ : 
+- dc.title pour capturer les titres contenant "Flaubert".
+- dc.subject pour les documents traitant de Flaubert.
+- dc.type pour préciser qu’il s’agit d’une monographie.
+#Expressions SRU :
+- dc.title adj flaubert
+- dc.subject adj flaubert
+- dc.type all monographie
+#Raisonnement : Les deux premiers champs (dc.title, dc.subject) permettent de cibler des documents qui parlent de Flaubert. L’ajout de dc.type garantit qu’on limite la recherche à des monographies, c’est-à-dire des livres ou biographies. Toutes ces conditions doivent être remplies : on les relie donc avec and.
+#SRU : dc.title adj flaubert and (dc.subject adj flaubert) and (dc.type all monographie)
+
+Requête : peintures de Jongkind.
+
+#Analyse : L’utilisateur veut voir des œuvres picturales créées par Jongkind. Le champ pertinent est donc dc.creator. Le type documentaire associé à des peintures est image.
+#Champs :
+- dc.creator
+- dc.type
+#Expressions SRU :
+- dc.creator adj jongkind
+- dc.type all image
+#Raisonnement : L’auteur de l’image est essentiel ici, et l’utilisateur ne demande pas une œuvre à propos de Jongkind, mais de Jongkind. On combine donc les deux conditions avec and.
+#SRU : dc.creator adj jongkind and (dc.type all image)
+
+Requête : Le Figaro avant l’année 1900.
+
+#Analyse : "Le Figaro" est un titre de publication, donc dc.title. Comme il s’agit d’un journal, le type fascicule est approprié. La contrainte temporelle "avant 1900" doit être appliquée via gallicapublication_date.
+#Champs :
+- dc.title
+- dc.type
+- gallicapublication_date
+#Expressions SRU :
+- dc.title adj "le figaro"
+- dc.type all fascicule
+- gallicapublication_date < "1900"
+#Raisonnement : L’intention est de trouver un journal spécifique (titre exact), d’un type spécifique (journal), dans une période donnée. Les trois conditions sont indispensables, on les relie donc avec and.
+#SRU : dc.title adj "le figaro" and (dc.type all "fascicule") and (gallicapublication_date <= "1900")
+"""
+
+nl2sru_fr = """Tâche : Convertir la requête en langage naturel français ci-dessous en une requête SRU.
+
+Format :
+- Champs Dublin Core autorisés : dc.title, dc.creator, dc.contributor, dc.date, dc.type, dc.subject, text (pour les correspondances exactes), et gallicapublication_date (pour les conditions sur les dates).
+- Valeurs autorisées pour dc.type : monographie, manuscrit, carte, image, fascicule, sonore, partition, objet, video.
+
+Règles :
+- Pour les entités (ex. noms, titres), utiliser l’opérateur adj avec des guillemets, par exemple : dc.creator adj "Flaubert", dc.title adj "Le Figaro". 
+- Pour dc.type, toujours utiliser l’opérateur all au lieu de adj.
+- Pour les contraintes sur les dates (typiquement des années), utiliser gallicapublication_date, par exemple : gallicapublication_date < "1900". Toujours entourer les dates de guillemets.
+- Pour les requêtes liées à un sujet ou thème, utiliser les suggestions de requêtes SRU fournies comme référence. Choisir celles qui sont cohérentes avec votre interprétation.
+- N’utiliser dc.type et dc.date que si la requête de l’utilisateur inclut explicitement une condition sur le type ou la date.
+- La requête SRU finale doit être claire et lisible, même pour une personne sans connaissance préalable des documents.
+
+Étapes :
+#Analyse : Analyser la requête utilisateur — déterminer si elle doit être traitée à travers les champs Dublin Core ou comme une requête thématique. Identifier les mots-clés principaux et les entités nommées (ex. auteurs, titres, sujets).
+#Champs : Associer chaque élément identifié au champ Dublin Core approprié.
+#Expressions SRU : Rédiger des expressions compatibles avec SRU sans connecteurs logiques. Utiliser les suggestions SRU comme guide, et les adapter si nécessaire.
+#Raisonnement : Expliquer comment relier les différentes expressions SRU pour construire une requête finale qui reflète le plus fidèlement possible le sens de la requête initiale. Justifier le choix des opérateurs logiques (and, or) et la structure globale.
+#SRU : Combiner les expressions précédentes avec des opérateurs logiques (and, or) pour construire la requête SRU finale.
+
+Utilisez les exemples fournis pour comprendre le raisonnement à suivre à chaque étape du processus de conversion :
+{examples}
+"""
+
+examples = """
+Query: biographie de Flaubert.
+
+#Analysis: The user query focuses on biographies of Flaubert, the author is therefore not necessarily Flaubert himself, so dc.creator should not be used. For a biography, it is very possible that the keyword "Flaubert" appears in both dc.title and dc.subject. The document type corresponding to a biography should be "monographie".
 #Field: dc.title, dc.subject, dc.type.
 #SRU-like: dc.title adj flaubert, dc.subject adj flaubert, dc.type all monographie
+#Reasoning: "dc.type all monographie" is mandantory. "dc.title all flaubert" only is okay, but adding "dc.subject all flaubert" is more accurate. All conditions must be satisfied. 
 #SRU: dc.title adj flaubert and (dc.subject adj flaubert) and (dc.type all monographie)
 
-Query: Je veux des peintures de Jongkind.
+Query: estampes de Watteau.
 
-#Reason: The user query focus on paintings of Jongkind, the author should therefore be Jongkind and the target document type should be "image". Other fields like dc.subject and dc.date are not involved.
-#Field: dc.creator, dc.type.
-#SRU-like: dc.creator adj jongkind, dc.type all image
-#SRU: dc.creator adj jongkind and dc.type all image
+#Reason: The user query focuses on engraving prints of Watteau, the author should therefore be Jongkind. Since engraving prints are often visual works, the most appropriate document type keyword from the provided list is "image". The subject field is not involved, since the query does not involve specific subjects. Searching the keyword "estampe" in title is acceptable, which may help precise the search.
+#Field: dc.creator, dc.type, dc.title.
+#SRU-like: dc.creator adj jongkind, dc.type all image, dc.title all estampe
+#Reasoning: the two conditions should both be satisfied, therefore using and.
+#SRU: dc.creator adj watteau and (dc.type all image) and (dc.title all estampe) 
 
-Query: Je cherche Le Figaro avant l'année 1900.
+Query: Le Figaro avant l'année 1900.
 
-#Reason: Since Le Figaro is a newspaper, therefore dc.type should be "fascicule", and "le figaro" must appear in dc.title. Before the year of 1900 sets a time period of searching, gallicapublication_date should be used.
+#Reason: Since Le Figaro is a newspaper, therefore the most appropriate dc.type from the provided list should be "fascicule", and "le figaro" must appear in dc.title. Before the year of 1900 sets a time period of searching, gallicapublication_date should be used.
 #Field: dc.title, dc.type, gallicapublication_date.
 #SRU-like: dc.title adj "le figaro" and (dc.type all fascicule) and (gallicapublication_date <= "1900")
+#Reasoning: all conditions must be satisfied.
 #SRU: dc.title adj "le figaro" and (dc.type all "fascicule") and (gallicapublication_date <= "1900")
 """
 
@@ -27,10 +97,10 @@ nl2sru = f"""Task: Convert the following French natural language query into an S
 
 Format:
 - Allowed Dublin Core fields: dc.title, dc.creator, dc.contributor, dc.date, dc.type, dc.subject, text (for exact text matches), and gallicapublication_date (for specifying date conditions).
-- Allowed values for dc.type: monographie, manuscrit, carte, image, fascicule, sonore, partition, objet, video.
+- Allowed values for dc.type: monographie, manuscrit, carte, image, fascicule, sonore, partition, objet, video. Be careful to choose only keywords from the list for dc.type. Any other keyword that is not in the list will raise error.
 
 Rules:
-- For entities (e.g., names, titles), use the adj operator with quotation marks, e.g., dc.creator adj "Flaubert", dc.title adj "Le Figaro".
+- For entities (e.g., names, titles), use the adj operator with quotation marks, e.g., dc.creator adj "Flaubert", dc.title adj "Le Figaro". In other cases, use 'all' (e.g. for topic-related keywords).
 - For dc.type, always use the all operator instead of adj.
 - For date constraints (typically years), use gallicapublication_date, e.g., gallicapublication_date < "1900". Always enclose the date in quotation marks.
 - For topic-related queries, use the provided SRU queries hint as a reference. Choose SRU queries that are coherent with your reasoning as suggestions. 
@@ -38,9 +108,10 @@ Rules:
 - Ensure the generated SRU query is clear and human-readable, even for people without prior knowledge of the documents.
 
 Steps:
-#Reason: Analyze the user query - whether it requires operation directly on Dublin Core fields or topic-related. Then identify main keywords and named entities (e.g., authors, titles, topics).
+#Analysis: Analyze the user query - whether it requires operation directly on Dublin Core fields or topic-related. Then identify main keywords and named entities (e.g., authors, titles, topics).
 #Field: Assign appropriate Dublin Core fields to each identified term.
 #SRU-like: Write individual SRU-compatible statements without logical connectors. Use SRU query hint as reference and revise it if necessary.
+#Reasoning: How to connect the SRU statements using logical connectors (and, or) to most accurately reflect the input query in natural language.
 #SRU: Combine the above statements using logical operators (and, or) to form the final query.
 
 Use the provided examples to learn how to reason through each step of the conversion process.
@@ -111,8 +182,8 @@ conv_intent_detection = """I will provide a dialogue between a user and a virtua
 Your task is to infer the user's current intent based on their latest response. There are three possible outcomes:
 1. If the user is engaging normally with the assistant, output "continue".
 2. If the user wants to end the conversation, output "abandon".
-3. If the user ignores a clarifying question and explicitly wants to search immediately with the last detected intent, output "search". 
-4. If the user responds to the previously asked clarifying question then explicitly instructs to search, output "respond_and_search".
+3. If the user simply expresses an instruction to search such as "cherche maintenant" or similar, without providing any query input or responding to a previous clarifying question, output "search".
+4. If the user provides the first user query or responds to a previously asked clarifying question, and at the same time explicitly instructs to search, output "input_and_search". For example, "biographie de hugo; cherche" ou "litterature et c'est tout."
 
 Be careful to output "search" or "respond_and_search" only when the user clearly indicates to search, such as "cherche maintenant", "... et c'est tout", "ne clarifie plus".
 

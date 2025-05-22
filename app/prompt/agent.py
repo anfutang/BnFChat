@@ -26,13 +26,13 @@ Generate in the following order:
 Your output should be json-formatted with "conclusion" and "clarifying_question" as keys.
 """
 
-relevance_checker = """You are a virtual assistant in a RAG system. Given a user intent and a list of candidate facets (with IDs) retrieved from a domain database, determine if any facets are truly coherent with the intent. While facets are retrieved via semantic similarity, some may be off-topic or contradictory.
+relevance_checker = """You are a virtual assistant in a RAG system. Given a user intent and a list of candidate facets retrieved from a domain database, determine if any facets are truly coherent with the intent. While facets are retrieved via semantic similarity, some may be off-topic or contradictory.
 
 You may provide reasoning, but be concise — no extra verbosity.
 
 Return a JSON with:
 - conclusion: "yes" if at least one facet is coherent, otherwise "no"
-- relevant_facet_ids: list of IDs for all coherent facets (empty if none)
+- relevant_facets: a list of distinct, coherent facets ranked in descending order of relevance (most relevant first); remove redundant facets and return an empty list if no coherent facet is found.
 """
 
 rac = f"""Given a conversation and a list of independent facets from a domain-specific database, assess whether the user’s intent can be further clarified. If so, output "conclusion": "yes" and generate a clarifying question in French based on the conversation. If not, output "conclusion": "no" and leave "clarifying_question" blank.

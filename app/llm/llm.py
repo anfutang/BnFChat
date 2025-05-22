@@ -116,7 +116,7 @@ def call_relevance_checker(user_intent: str, facets: list):
             temperature=0.0
         )
     parsed_result = completion.choices[0].message.parsed
-    return getattr(parsed_result,"conclusion"), getattr(parsed_result,"relevant_facet_ids") 
+    return getattr(parsed_result,"conclusion"), getattr(parsed_result,"relevant_facets") 
 
 @safe_func
 def call_rac(chat_history: list, facets: list):
@@ -141,7 +141,11 @@ def call_embedding(query: str):
 
 @safe_func
 def call_nl2sru(query,sru_hint,stream_response=False):
-    messages = prompt_formatting(nl2sru,['\n'.join([f"Query: {query}",f"Hint: {sru_hint}"])])
+    # if sru_hint:
+    if False:
+        messages = prompt_formatting(nl2sru,['\n'.join([f"Query : {query}",f"Hint : {sru_hint}"])])
+    else:
+        messages = prompt_formatting(nl2sru,[f"Query : {query}",f"Hint : {sru_hint}"]) 
     # messages = prompt_formatting(nl2sru,[query])
     # print(messages)
 

@@ -18,7 +18,7 @@ class convSummarization(BaseModel):
 
 class relevanceChecker(BaseModel):
     conclusion: str
-    relevant_facet_ids: List[int]
+    relevant_facets: List[str]
 
 class RAC(BaseModel):
     conclusion: str

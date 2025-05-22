@@ -174,10 +174,10 @@ def process_user_input_stream(user_input, first_input, session_id, user_id, chat
     # Emit the updated user intent
     yield event_data('intent', current_user_intent)
     
-    # Handle respond_and_search intent
-    if conv_intent == "respond_and_search":
-        logger.info(f"Connection closing: respond_and_search intent detected for session {session_id}")
-        yield from handle_respond_search_intent(current_user_intent, first_user_query, 
+    # Handle input_and_search intent
+    if conv_intent == "input_and_search":
+        logger.info(f"Connection closing: input_and_search intent detected for session {session_id}")
+        yield from handle_input_search_intent(current_user_intent, first_user_query, 
                                               time_count, thought_process, chat_id)
         return
     
@@ -193,7 +193,7 @@ def process_user_input_stream(user_input, first_input, session_id, user_id, chat
     topics, sru_hints = retrieval_result
     
     # Check relevance of retrieved topics
-    relevant_topics, relevant_hints = check_topic_relevance(current_user_intent, topics, sru_hints, 
+    relevant_topics = check_topic_relevance(current_user_intent, topics, sru_hints, 
                                                            time_count, thought_process)
     if not relevant_topics:
         logger.info(f"Connection closing: No relevant facets for session {session_id}")
@@ -203,8 +203,8 @@ def process_user_input_stream(user_input, first_input, session_id, user_id, chat
         return
     
     # Display relevant topics
-    thought_process.append("Sujets pertinents identifiés:")
-    for ix, topic in enumerate(relevant_topics):
+    thought_process.append("Sujets les plus pertinents identifiés:")
+    for ix, topic in enumerate(relevant_topics[:5]):
         thought_process.append(f"{ix+1}. {topic}")
     yield event_data('info', thought_process)
     
@@ -356,17 +356,13 @@ def check_topic_relevance(current_user_intent, topics, sru_hints, time_count, th
         return None, None
     
     time_count["relevance_check"] = result[0]
-    conclusion, facet_ids = result[1]
+    conclusion, relevant_facets = result[1]
     
     if conclusion == "no":
         thought_process.append("Aucun sujet jugé pertinent")
         return None, None
     
-    # Filter topics based on facet IDs
-    filtered_topics = [topics[ix-1] for ix in facet_ids]
-    filtered_hints = [sru_hints[ix-1] for ix in facet_ids]
-    
-    return filtered_topics, filtered_hints
+    return relevant_facets
 
 
 def check_clarification_needed(prev_chat_history, user_input, topics, time_count, thought_process):
@@ -380,7 +376,8 @@ def check_clarification_needed(prev_chat_history, user_input, topics, time_count
     time_count["rac"] = result[0]
     conclusion, clarification_question = result[1]
     
-    if False: #conclusion == "yes" # TODO: for a reason is always returning yes
+    # if False: #conclusion == "yes" # TODO: for a reason is always returning yes
+    if conclusion == "yes":
         thought_process.append("Demande de clarification nécessaire")
         return True, clarification_question
     else:
@@ -405,6 +402,7 @@ def convert_to_sru(user_intent, first_user_query, time_count, thought_process):
     if isinstance(nl2sru_result, Exception):
         return f"Erreur lors de l'analyse NL2SRU: {fetch_error(nl2sru_result)}", None
     
+    first_user_query = first_user_query.split(';')[0]
     original_sru_query = f"gallica all {first_user_query}"
     return nl2sru_result, original_sru_query
 
@@ -514,8 +512,8 @@ def handle_entity_disambiguation(user_id, first_input, prev_chat_history, user_i
     return False
 
 
-def handle_respond_search_intent(current_user_intent, first_user_query, time_count, thought_process, chat_id=''):
-    """Handle the 'respond_and_search' conversation intent"""
+def handle_input_search_intent(current_user_intent, first_user_query, time_count, thought_process, chat_id=''):
+    """Handle the 'input_and_search' conversation intent"""
     # We've already emitted the user intent earlier, no need to do it again
     
     thought_process.append("Préparation de la recherche...")
@@ -523,7 +521,7 @@ def handle_respond_search_intent(current_user_intent, first_user_query, time_cou
     
     nl2sru_result, original_sru_query = convert_to_sru(current_user_intent, first_user_query, time_count, thought_process)
     if nl2sru_result.startswith("Error:") or nl2sru_result.startswith("Erreur"):
-        logger.info(f"Connection not closing: Error in NL2SRU conversion for respond_search_intent: {nl2sru_result}")
+        logger.info(f"Connection not closing: Error in NL2SRU conversion for input_search_intent: {nl2sru_result}")
         yield event_data('error', nl2sru_result)
         return
     
@@ -531,7 +529,7 @@ def handle_respond_search_intent(current_user_intent, first_user_query, time_cou
     
     response_data = {'type': 'result', 'content': f"{nl2sru_result}###{original_sru_query}"}
     yield f"data: {json.dumps(response_data)}\n\n"
-    logger.info(f"Connection closing: Completed respond_and_search intent")
+    logger.info(f"Connection closing: Completed input_and_search intent")
     yield event_data('close_connection', '')
 
 

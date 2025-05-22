@@ -176,8 +176,6 @@ def restart_chat():
     session["chat_history"] = []
     return jsonify({"success": True, "chatId": new_chat_id})
 
-
-
 @bp.route('/change-session', methods=['POST'])
 @login_required
 def change_session():
