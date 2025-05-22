@@ -6,6 +6,10 @@ from . import auth, dev, stream
 from flask_cors import CORS
 
 from .utils.rag_db_utils import close_rag_db
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)

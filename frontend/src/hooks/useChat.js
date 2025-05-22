@@ -1,4 +1,4 @@
-// hooks/useChat.js - Single source of truth for chat state
+// hooks/useChat.js - Fixed version with message deduplication and proper abandon handling
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import io from 'socket.io-client';
@@ -31,7 +31,9 @@ const useChat = (currentSession, onResultReceived) => {
   const socketRef = useRef(null);
   const messageListRef = useRef(null);
   const currentMessageRef = useRef('');
+  const pendingUserMessages = useRef(new Set()); // Track pending user messages
   const [needsChatStateLoad, setNeedsChatStateLoad] = useState(false);
+
   // Initialize socket connection
   useEffect(() => {
     initializeSocket();
@@ -56,6 +58,7 @@ const useChat = (currentSession, onResultReceived) => {
         detectedIntent: null,
         isFirstMessage: true
       });
+      pendingUserMessages.current.clear(); // Clear pending messages
     }
   }, [currentSession]);
 
@@ -74,12 +77,22 @@ const useChat = (currentSession, onResultReceived) => {
         detectedIntent: null,
         isFirstMessage: true
       });
+      pendingUserMessages.current.clear();
       setNeedsChatStateLoad(false);
     } else if (currentSession > 1 && !socketRef.current?.connected) {
       // Mark that we need to load chat state once connected
       setNeedsChatStateLoad(true);
     }
   }, [currentSession, socketRef.current?.connected]);
+
+  // Message deduplication helper
+  const isDuplicateMessage = useCallback((newMessage, existingMessages) => {
+    return existingMessages.some(msg => 
+      msg.content === newMessage.content && 
+      msg.role === newMessage.role &&
+      Math.abs(new Date(msg.timestamp) - new Date(newMessage.timestamp)) < 5000 // 5 second window
+    );
+  }, []);
 
   const initializeSocket = async () => {
     try {
@@ -108,10 +121,10 @@ const useChat = (currentSession, onResultReceived) => {
         console.log('Socket connected');
         setConnectionState(prev => ({ ...prev, isConnected: true, error: null }));
         
-        // ✅ Load chat state immediately if needed (for page refresh scenario)
+        // Load chat state immediately if needed (for page refresh scenario)
         if (currentSession > 1 || needsChatStateLoad) {
           console.log(`Socket connected - requesting chat state for session ${currentSession}`);
-          setTimeout(() => requestChatState(), 100); // Small delay to ensure socket is fully ready
+          setTimeout(() => requestChatState(), 100);
         }
       });
 
@@ -137,6 +150,7 @@ const useChat = (currentSession, onResultReceived) => {
       // Chat action events
       socket.on('conversation_abandoned', handleConversationAction);
       socket.on('conversation_restarted', handleConversationAction);
+      socket.on('results_window_requested', handleConversationAction); // Add this
       socket.on('result_data', handleResultData);
       
       // Error events
@@ -153,7 +167,7 @@ const useChat = (currentSession, onResultReceived) => {
     console.log('Chat state received:', data);
     
     const formattedMessages = data.messages?.map(msg => ({
-      id: Date.now() + Math.random(),
+      id: `${msg.timestamp}-${msg.sender}-${msg.message.slice(0, 10)}`, // Better ID generation
       content: msg.message,
       role: msg.sender === 'user' ? 'user' : 'assistant',
       timestamp: msg.timestamp,
@@ -168,6 +182,9 @@ const useChat = (currentSession, onResultReceived) => {
       detectedIntent: null,
       isFirstMessage: formattedMessages.length === 0
     });
+    
+    // Clear pending messages since we got fresh state
+    pendingUserMessages.current.clear();
   }, []);
 
   const handleChatStateUpdate = useCallback((data) => {
@@ -181,6 +198,11 @@ const useChat = (currentSession, onResultReceived) => {
 
   const handleMessageReceived = useCallback((data) => {
     console.log('Message received confirmation:', data);
+    
+    // Remove from pending messages
+    if (data.message) {
+      pendingUserMessages.current.delete(data.message);
+    }
     
     // Update chat ID if provided
     if (data.chat_id && data.chat_id !== chatState.chatId) {
@@ -233,23 +255,29 @@ const useChat = (currentSession, onResultReceived) => {
     setConnectionState(prev => ({ ...prev, isLoading: false }));
     setStreamState(prev => ({ ...prev, isStreaming: false }));
     
-    // Add complete message to chat
+    // Add complete message to chat (with deduplication)
     if (data.final_response) {
       const newMessage = {
-        id: Date.now() + Math.random(),
+        id: `${Date.now()}-assistant-${Math.random()}`,
         content: data.final_response,
         role: 'assistant',
         timestamp: new Date().toISOString(),
         isSystem: false
       };
 
-      setChatState(prev => ({
-        ...prev,
-        messages: [...prev.messages, newMessage],
-        isFirstMessage: false,
-        currentTopic: data.detected_topic || prev.currentTopic,
-        detectedIntent: data.detected_intent || prev.detectedIntent
-      }));
+      setChatState(prev => {
+        // Check for duplicates before adding
+        if (!isDuplicateMessage(newMessage, prev.messages)) {
+          return {
+            ...prev,
+            messages: [...prev.messages, newMessage],
+            isFirstMessage: false,
+            currentTopic: data.detected_topic || prev.currentTopic,
+            detectedIntent: data.detected_intent || prev.detectedIntent
+          };
+        }
+        return prev; // Don't add duplicate
+      });
     }
     
     // Clear streaming state
@@ -262,7 +290,7 @@ const useChat = (currentSession, onResultReceived) => {
     
     // Auto-scroll
     setTimeout(scrollToBottom, 100);
-  }, []);
+  }, [isDuplicateMessage]);
 
   const handleStreamError = useCallback((data) => {
     console.error('Stream error:', data);
@@ -282,31 +310,42 @@ const useChat = (currentSession, onResultReceived) => {
   const handleConversationAction = useCallback((data) => {
     console.log('Conversation action:', data);
     
-    // Update chat ID
-    if (data.new_chat_id) {
+    // Determine if this is an abandon action by checking the message content
+    const isAbandon = data.message && data.message.includes('abandonner');
+    const isRestart = data.new_chat_id || (data.message && data.message.includes('redémarrée'));
+    const isResults = data.message && data.message.includes('évaluation');
+    
+    // Handle different action types
+    if (isAbandon || isRestart) {
+      // Clear messages for abandon and restart
       setChatState(prev => ({
         ...prev,
-        chatId: data.new_chat_id,
-        messages: [],
+        chatId: data.new_chat_id || null,
+        messages: [], // Always clear messages for abandon/restart
         isFirstMessage: true,
         currentTopic: null,
         detectedIntent: null
       }));
+      
+      // Clear pending messages
+      pendingUserMessages.current.clear();
     }
     
-    // Add system message
-    const systemMessage = {
-      id: Date.now() + Math.random(),
-      content: data.message,
-      role: 'system',
-      timestamp: new Date().toISOString(),
-      isSystem: true
-    };
-    
-    setChatState(prev => ({
-      ...prev,
-      messages: [...prev.messages, systemMessage]
-    }));
+    // Add system message if there's content
+    if (data.message) {
+      const systemMessage = {
+        id: `${Date.now()}-system-${Math.random()}`,
+        content: data.message,
+        role: 'system',
+        timestamp: new Date().toISOString(),
+        isSystem: true
+      };
+      
+      setChatState(prev => ({
+        ...prev,
+        messages: [...prev.messages, systemMessage]
+      }));
+    }
     
     setTimeout(scrollToBottom, 100);
   }, []);
@@ -316,7 +355,7 @@ const useChat = (currentSession, onResultReceived) => {
     
     // Add system message about results
     const systemMessage = {
-      id: Date.now() + Math.random(),
+      id: `${Date.now()}-system-result-${Math.random()}`,
       content: 'Résultats de recherche disponibles',
       role: 'system',
       timestamp: new Date().toISOString(),
@@ -355,43 +394,60 @@ const useChat = (currentSession, onResultReceived) => {
     }
   }, [currentSession]);
 
-
   const sendMessage = useCallback((message) => {
     if (!message?.trim() || !connectionState.isConnected) {
       return false;
     }
 
-    // Add user message immediately
+    const messageContent = message.trim();
+    
+    // Check if this message is already pending (prevent spam)
+    if (pendingUserMessages.current.has(messageContent)) {
+      console.log('Message already pending, ignoring duplicate');
+      return false;
+    }
+
+    // Add to pending messages
+    pendingUserMessages.current.add(messageContent);
+
+    // Add user message immediately (optimistic update)
     const userMessage = {
-      id: Date.now() + Math.random(),
-      content: message.trim(),
+      id: `${Date.now()}-user-${Math.random()}`,
+      content: messageContent,
       role: 'user',
       timestamp: new Date().toISOString(),
       isSystem: false
     };
 
-    setChatState(prev => ({
-      ...prev,
-      messages: [...prev.messages, userMessage],
-      userInput: '',
-      isFirstMessage: false
-    }));
+    setChatState(prev => {
+      // Check for duplicates before adding
+      if (!isDuplicateMessage(userMessage, prev.messages)) {
+        return {
+          ...prev,
+          messages: [...prev.messages, userMessage],
+          userInput: '',
+          isFirstMessage: false
+        };
+      }
+      return { ...prev, userInput: '' }; // Clear input even if duplicate
+    });
 
     // Send to server
     socketRef.current.emit('send_message', {
-      message: message.trim(),
+      message: messageContent,
       chat_id: chatState.chatId,
       session_id: currentSession
     });
 
     setTimeout(scrollToBottom, 100);
     return true;
-  }, [connectionState.isConnected, chatState.chatId, currentSession]);
+  }, [connectionState.isConnected, chatState.chatId, currentSession, isDuplicateMessage]);
 
   const abandonConversation = useCallback(() => {
     if (!connectionState.isConnected || !chatState.chatId) return false;
     
-    socketRef.current.emit('abandon', {
+    socketRef.current.emit('send_message', {
+      message: 'abandon',
       chat_id: chatState.chatId,
       session_id: currentSession
     });
@@ -401,7 +457,8 @@ const useChat = (currentSession, onResultReceived) => {
   const restartConversation = useCallback(() => {
     if (!connectionState.isConnected) return false;
     
-    socketRef.current.emit('recommencer', {
+    socketRef.current.emit('send_message', {
+      message: 'recommencer',
       chat_id: chatState.chatId,
       session_id: currentSession
     });
@@ -411,9 +468,9 @@ const useChat = (currentSession, onResultReceived) => {
   const requestResults = useCallback((queryData) => {
     if (!connectionState.isConnected || !chatState.chatId) return false;
     
-    socketRef.current.emit('resultat', {
+    socketRef.current.emit('send_message', {
+      message: 'résultat',
       chat_id: chatState.chatId,
-      query_data: queryData,
       session_id: currentSession
     });
     return true;
