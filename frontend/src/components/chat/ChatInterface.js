@@ -1,12 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import Joyride, { STATUS } from 'react-joyride';
-import { 
-  MainContainer,
-  Avatar
-} from '@chatscope/chat-ui-kit-react';
+import { MainContainer, Avatar } from '@chatscope/chat-ui-kit-react';
 
+import './ChatInterface.css';
 // Context
 import { useAuth } from '../../context/AuthContext';
 
@@ -25,266 +21,193 @@ const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   
-  // Session data
-  const [sessionData, setSessionData] = useState(null);
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [tutorialSteps, setTutorialSteps] = useState([]);
-  const [isTransitioningSession, setIsTransitioningSession] = useState(false);
-  
-  // Use session manager hook
+  // Session management
   const {
     currentSession,
-    sessionTimer,
-    showSessionMessage,
-    setShowSessionMessage,
-    sessionEndAlert,
-    tutorialMode,
-    tutorialStep,
-    showGuides,
-    currentChatId, // Get current chat ID from session manager
-    handleNextSession,
-    handleNextTutorialStep,
-    handleRestartTutorial,
-    handleExitTutorial,
-    handleCompleteTutorial,
-    handleConfirmTutorial,
-    cleanupSessionTimer
+    formattedTime,
+    currentChatId,
+    isTransitioning,
+    transitionToNextSession,
+    saveTimerToServer
   } = useSessionManager();
   
-  // Use chat manager hook with session context
+  // Chat management with SocketIO support
   const {
-    chatHistory,
-    setChatHistory,
+    messages,
     userInput,
     setUserInput,
-    isLoading,
-    isFirstInput,
-    setIsFirstInput,
-    needsAnnotation,
-    currentResponse,
-    messageListRef,
-    thoughtProcess,
-    timingData,
-    intentData,
+    isFirstMessage,
+    currentTopic,
+    detectedIntent,
     showResultModal,
-    resultModalData,
-    processingResult,
-    loadChatHistory,
-    handleSubmit,
-    handleRestartChat,
-    handleAbandonChat,
-    handleCloseResultModal,
-    setShowResultModal,
-    setResultModalData,
-    setProcessingResult
-  } = useChatManager(setShowSessionMessage, currentSession, currentChatId);
+    resultData,
+    isProcessingResult,
+    isConnected,
+    isLoading,
+    thoughtProcess,
+    socketError,
+    currentStreamingMessage,
+    messageListRef,
+    sendMessage,
+    handleRestart,
+    handleAbandon,
+    handleRequestResults,
+    closeResultModal,
+    reportError,
+    clearError
+  } = useChatManager(currentSession, currentChatId);
 
-  const memoizedCloseHandler = useCallback(() => {
-    handleCloseResultModal();
-  }, [handleCloseResultModal]);
-  
-  // Load session data and chat history
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const sessionResponse = await axios.get('/api/dev/session-data');
-        setSessionData(sessionResponse.data);
-        
-        // Load chat history if not in tutorial mode
-        if (sessionResponse.data.sessionId !== 1) {
-          await loadChatHistory(sessionResponse.data.sessionId);
-        } else {
-          // Clear chat history if in tutorial mode
-          setChatHistory([]);
-        }
-      } catch (error) {
-        console.error('Failed to load initial data:', error);
-      }
-    };
-    
-    loadInitialData();
-  }, []);
-  
-  // Effect to handle session changes
-  useEffect(() => {
-    if (currentSession && sessionData && sessionData.sessionId !== currentSession && !isTransitioningSession) {
-      // Update session data in state
-      setSessionData(prev => ({
-        ...prev,
-        sessionId: currentSession
-      }));
-      
-      // Load the chat history for this session
-      loadChatHistory(currentSession);
-    }
-  }, [currentSession, sessionData]);
-  
-  // Clean up resources on close
-  useEffect(() => {
-    return () => {
-      cleanupSessionTimer();
-    };
-  }, []);
+  // UI state
+  const [selectedTopic, setSelectedTopic] = useState(null);
 
-  // Handle Joyride tutorial callback
-  const handleTutorialCallback = (data) => {
-    const { status } = data;
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
-      setShowTutorial(false);
-    }
-  };
-  
-  // Handle message submission
-  const handleSendMessage = (message) => {
-    handleSubmit(message, currentSession);
-  };
-  
-  // Handle guide selection
-  const handleSelectGuide = (sampleQuery) => {
-    setUserInput(sampleQuery);
-    // Focus on message input
-    setTimeout(() => {
-      const inputElement = document.querySelector('.cs-message-input__content-editor');
-      if (inputElement) {
-        inputElement.focus();
-      }
-    }, 100);
-  };
-  
   // Handle session transition
-  const handleSessionTransition = async () => {
-    setIsTransitioningSession(true);
-    
+  const handleSessionTransition = useCallback(async () => {
     try {
-      const result = await handleNextSession();
+      const result = await transitionToNextSession();
       
-      if (result.resetChat) {
-        // Clear chat history completely before moving to next session
-        setChatHistory([]);
-        setIsFirstInput(true);
-        
-        // If a new chat ID was returned, load that chat after a small delay
-        if (result.chatId) {
-          setTimeout(() => {
-            loadChatHistory(currentSession + 1);
-            setIsTransitioningSession(false);
-          }, 500);
-        } else {
-          setIsTransitioningSession(false);
-        }
-      } else {
-        setIsTransitioningSession(false);
+      if (result.error) {
+        reportError?.('session_transition_error', 'Failed to transition between sessions');
       }
     } catch (error) {
-      console.error("Error during session transition:", error);
-      setIsTransitioningSession(false);
+      console.error("Session transition error:", error);
+      reportError?.('session_transition_error', 'Failed to transition between sessions');
     }
-  };
-  
-  // Handle logout
-  const handleLogout = async () => {
+  }, [transitionToNextSession, reportError]);
+
+  // Handle message sending with validation
+  const handleSendMessage = useCallback((message) => {
+    if (!isConnected) {
+      reportError?.('connection_error', 'No connection to server');
+      return;
+    }
+    
+    if (!message?.trim()) {
+      return;
+    }
+    
+    clearError?.();
+    sendMessage(message);
+  }, [isConnected, sendMessage, reportError, clearError]);
+
+  // Handle topic selection from navigator
+  const handleTopicChange = useCallback((topic) => {
+    // Only handle topic changes for exercise and test sessions
+    if (currentSession > 1) {
+      setSelectedTopic(topic);
+      
+      // Auto-fill message input with topic suggestion
+      if (topic) {
+        const suggestion = `Je recherche des informations sur ${topic.name}`;
+        setUserInput(suggestion);
+      }
+    }
+  }, [currentSession, setUserInput]);
+
+  // Handle logout with cleanup
+  const handleLogout = useCallback(async () => {
     try {
-      cleanupSessionTimer();
+      await saveTimerToServer();
       await logout();
       navigate('/login');
     } catch (error) {
-      console.error('Failed to logout:', error);
+      console.error('Logout error:', error);
+      navigate('/login'); // Force navigation even on error
     }
-  };
+  }, [saveTimerToServer, logout, navigate]);
+
+  // Enhanced chat actions with error handling
+  const handleEnhancedRestart = useCallback(async () => {
+    try {
+      await handleRestart();
+      clearError?.();
+    } catch (error) {
+      reportError?.('restart_error', 'Failed to restart conversation');
+    }
+  }, [handleRestart, clearError, reportError]);
+
+  const handleEnhancedAbandon = useCallback(async () => {
+    try {
+      await handleAbandon();
+      clearError?.();
+    } catch (error) {
+      reportError?.('abandon_error', 'Failed to abandon conversation');
+    }
+  }, [handleAbandon, clearError, reportError]);
 
   return (
     <div className="chat-page">
-      {/* Tutorial */}
-      {showTutorial && !tutorialMode && (
-        <Joyride
-          steps={tutorialSteps}
-          run={showTutorial}
-          continuous
-          showProgress
-          showSkipButton
-          callback={handleTutorialCallback}
-          styles={{
-            options: {
-              zIndex: 10000,
-            },
-          }}
-        />
-      )}
-
-      {/* Main interface */}
       <div className="chat-layout">
+        
+        {/* Sidebar */}
         <div className="sidebar">
           <div className="sidebar-header">
             <div className="user-info">
               <Avatar 
-                src={`https://api.dicebear.com/7.x/micah/svg?seed=${sessionData?.avatarSeed || 'default'}`} 
+                src={`https://api.dicebear.com/7.x/micah/svg?seed=${currentUser?.username || 'default'}`} 
                 name={currentUser?.username} 
-                status="available" 
+                status={isConnected ? "available" : "away"} 
               />
               <span>{currentUser?.username}</span>
+              <div className={`connection-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
             </div>
           </div>
           
           <SessionSelector 
             currentSession={currentSession}
-            totalTime={sessionTimer}
+            formattedTime={formattedTime}
+            currentTopic={currentTopic}
+            detectedIntent={detectedIntent}
+            onTopicChange={handleTopicChange}
           />
           
           <div className="sidebar-footer">
             <SessionNavigation 
               currentSession={currentSession}
+              isTransitioning={isTransitioning}
+              isConnected={isConnected}
               onNextSession={handleSessionTransition}
-              onRestartChat={handleRestartChat}
-              onAbandonChat={handleAbandonChat}
-              tutorialMode={tutorialMode && currentSession === 1}
-              onRestartTutorial={handleRestartTutorial}
-              onConfirmTutorial={handleConfirmTutorial}
-              onExitTutorial={handleExitTutorial}
-              isTransitioning={isTransitioningSession}
+              onRestartChat={handleEnhancedRestart}
+              onAbandonChat={handleEnhancedAbandon}
             />
-            <button onClick={handleLogout} className="logout-btn">Log out</button>
+            
+            <button 
+              onClick={handleLogout} 
+              className="logout-btn"
+              disabled={isTransitioning}
+            >
+              Déconnexion
+            </button>
           </div>
         </div>
         
+        {/* Main Chat Area */}
         <div className="chat-container">
           <MainContainer>
             <ChatArea 
-              // Header props
               currentSession={currentSession}
-              sessionTimer={sessionTimer}
-              sessionData={sessionData}
-              intentData={intentData}
-              
-              // Message props
-              messageListRef={messageListRef}
-              chatHistory={chatHistory}
-              isLoading={isLoading || isTransitioningSession}
-              showSessionMessage={showSessionMessage}
-              sessionEndAlert={sessionEndAlert}
-              showGuides={showGuides}
-              tutorialMode={tutorialMode}
-              tutorialStep={tutorialStep}
-              onSelectGuide={handleSelectGuide}
-              onNextTutorialStep={handleNextTutorialStep}
-              onCompleteTutorial={handleCompleteTutorial}
-              
-              // Input props
-              needsAnnotation={needsAnnotation}
+              formattedTime={formattedTime}
+              messages={messages}
               userInput={userInput}
               setUserInput={setUserInput}
-              onSend={handleSendMessage}
-              currentResponse={currentResponse}
-
-              // Process props
-              thoughtProcess={thoughtProcess}
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
+              isConnected={isConnected}
+              currentStreamingMessage={currentStreamingMessage}
+              messageListRef={messageListRef}
+              selectedTopic={selectedTopic}
+              detectedIntent={detectedIntent}
+              onRequestResults={handleRequestResults}
             />
           </MainContainer>
         </div>
         
+        {/* Info Panel */}
         <div className="info-panel">
           <ThoughtProcess 
-            process={thoughtProcess} 
-            timing={timingData} 
+            thoughtProcess={thoughtProcess}
+            isConnected={isConnected}
+            socketError={socketError}
+            isLoading={isLoading}
           />
         </div>
       </div>
@@ -292,10 +215,27 @@ const ChatInterface = () => {
       {/* Result Modal */}
       <ResultModal
         isOpen={showResultModal}
-        onClose={memoizedCloseHandler}
-        resultData={resultModalData}
-        isLoading={processingResult}
+        onClose={closeResultModal}
+        resultData={resultData}
+        isLoading={isProcessingResult}
       />
+
+      {/* Global Error Toast */}
+      {socketError && (
+        <div className="error-toast">
+          <div className="error-content">
+            <strong>⚠️ Erreur:</strong> {socketError}
+            <button onClick={clearError} className="error-close">×</button>
+          </div>
+        </div>
+      )}
+
+      {/* Connection Status Indicator */}
+      {!isConnected && (
+        <div className="connection-status-indicator">
+          🔴 Connexion interrompue - Reconnexion en cours...
+        </div>
+      )}
     </div>
   );
 };

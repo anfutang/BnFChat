@@ -9,11 +9,11 @@ from app import create_app
 app, socketio = create_app()
 
 if __name__ == '__main__':
-    # Run with SocketIO
+    # Run with SocketIO - only runtime options here
     socketio.run(
         app, 
         debug=True, 
         host='0.0.0.0', 
-        port=5000,
+        port=5001,
         allow_unsafe_werkzeug=True
     )

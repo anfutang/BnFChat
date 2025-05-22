@@ -10,12 +10,38 @@ const useSocketChat = (currentSession, currentChatId, onNewMessage) => {
   const socketRef = useRef(null);
   const currentMessageRef = useRef('');
 
+  // Get auth token function
+  const getAuthToken = async () => {
+    try {
+      const response = await fetch('/api/dev/session-data', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      return data.userId;
+    } catch (error) {
+      console.error('Failed to get auth token:', error);
+      return null;
+    }
+  };
+
   // Initialize socket connection
   useEffect(() => {
-    const initSocket = () => {
-      socketRef.current = io('http://localhost:5000', {
+    const initSocket = async () => {
+      const userId = await getAuthToken();
+      
+      if (!userId) {
+        setError('Impossible de récupérer les données d\'authentification');
+        return;
+      }
+
+      socketRef.current = io('http://127.0.0.1:5001', {
         transports: ['websocket', 'polling'],
-        autoConnect: true
+        autoConnect: true,
+        withCredentials: true,
+        forceNew: true,
+        auth: {
+          userId: userId  // Send user ID in auth
+        }
       });
 
       const socket = socketRef.current;
@@ -34,6 +60,9 @@ const useSocketChat = (currentSession, currentChatId, onNewMessage) => {
 
       socket.on('connected', (data) => {
         console.log('Server connection confirmed:', data);
+        if (data.status === 'connected_anonymous') {
+          setError('Connexion non authentifiée');
+        }
       });
 
       // Message handling events
@@ -78,7 +107,9 @@ const useSocketChat = (currentSession, currentChatId, onNewMessage) => {
             sender: 'bot',
             message: data.final_response,
             timestamp: new Date().toISOString(),
-            messageId: data.message_id
+            messageId: data.message_id,
+            detectedTopic: data.detected_topic,
+            detectedIntent: data.detected_intent
           });
         }
         
@@ -103,7 +134,8 @@ const useSocketChat = (currentSession, currentChatId, onNewMessage) => {
             sender: 'system',
             message: data.message,
             timestamp: new Date().toISOString(),
-            isSystemMessage: true
+            isSystemMessage: true,
+            newChatId: data.new_chat_id
           });
         }
       });
@@ -116,14 +148,14 @@ const useSocketChat = (currentSession, currentChatId, onNewMessage) => {
             message: data.message,
             timestamp: new Date().toISOString(),
             isSystemMessage: true,
-            clearHistory: true
+            clearHistory: true,
+            newChatId: data.new_chat_id
           });
         }
       });
 
       socket.on('result_data', (data) => {
         console.log('Result data received:', data);
-        // Handle result modal opening
         if (onNewMessage) {
           onNewMessage({
             sender: 'system',
@@ -150,24 +182,15 @@ const useSocketChat = (currentSession, currentChatId, onNewMessage) => {
       return socket;
     };
 
-    const socket = initSocket();
+    initSocket();
 
     // Cleanup on unmount
     return () => {
-      if (socket) {
-        socket.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
       }
     };
   }, [onNewMessage]);
-
-  // Join session room when session changes
-  useEffect(() => {
-    if (socketRef.current && isConnected && currentSession) {
-      socketRef.current.emit('join_session', {
-        session_id: currentSession
-      });
-    }
-  }, [currentSession, isConnected]);
 
   // Send message function
   const sendMessage = useCallback((message) => {

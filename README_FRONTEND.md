@@ -63,7 +63,7 @@ This will:
 
 ### Running the Backend
 
-Ensure your Flask backend is running on port 5000 (or whichever port you configured in the proxy setting):
+Ensure your Flask backend is running on port 5001 (or whichever port you configured in the proxy setting):
 
 ```bash
 # In a separate terminal
@@ -127,7 +127,7 @@ For different environments, create `.env` files:
 
 **.env.development**:
 ```
-REACT_APP_API_URL=http://localhost:5000/api
+REACT_APP_API_URL=http://localhost:5001/api
 ```
 
 **.env.production**:

@@ -22,7 +22,7 @@ flask --app v2 run --debug
     flask --app main clear-db (if necessary; will clear all existing data)
     flask --app main init-db (if necessary; will initialize the SQLAlchemy database)
     flask --app main run --debug
-    (url: http://127.0.0.1:5000/auth/login)
+    (url: http://127.0.0.1:5001/auth/login)
 
 ### About the Application
 1. 1st RAG:

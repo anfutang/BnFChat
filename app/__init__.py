@@ -43,7 +43,8 @@ def create_app(test_config=None):
         cors_allowed_origins="*", 
         async_mode='threading',
         logger=True,
-        engineio_logger=True
+        engineio_logger=True,
+        manage_session=True
     )
 
     # Register blueprints

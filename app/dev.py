@@ -3,76 +3,34 @@ import logging
 from datetime import datetime
 
 from .db import db
-from .models import User, Chat, end_ongoing_chats, create_chat, update_user_session, get_or_create_chat_for_session
+from .models import User, Chat, end_ongoing_chats, create_chat, get_or_create_chat_for_session
 from .auth import login_required
 
 bp = Blueprint('dev', __name__, url_prefix="/api/dev")
 
 logger = logging.getLogger(__name__)
 
+# Session Management Routes
 @bp.route('/session-data', methods=['GET'])
 @login_required
 def get_session_data():
     """Get current session data for client"""
-    user_id = session.get("user_id", 123)
-    user = User.query.get(user_id) if user_id != 123 else None
+    user_id = session.get("user_id")
+    user = User.query.get(user_id) if user_id else None
+    
+    if not user:
+        return jsonify({"error": "User not found"}), 404
     
     session_data = {
-        "username": session.get("username", "Test User"),
+        "username": user.username,
         "userId": user_id,
-        "sessionId": user.session_id if user else session.get("session_id", 1),
-        "timerExercise": user.timer_exercise if user else session.get("timer_exercise", 300),
-        "timerTest": user.timer_test if user else session.get("timer_test", 2100),
-        "avatarSeed": user.avatar_seed if user else session.get("avatar-seed", "default"),
+        "sessionId": user.session_id,
+        "timerExercise": user.timer_exercise,
+        "timerTest": user.timer_test,
+        "avatarSeed": user.avatar_seed,
+        "permissionLevel": getattr(user, 'permission_level', 0)
     }
     return jsonify(session_data)
-
-@bp.route('/chat-history', methods=['GET'])
-@login_required
-def get_chat_history():
-    """Get current chat history for the specified session"""
-    user_id = session.get("user_id")
-    
-    # Get session ID from query parameter or from user's current session
-    session_id = request.args.get('sessionId')
-    if session_id:
-        try:
-            session_id = int(session_id)
-        except (ValueError, TypeError):
-            session_id = None
-    else:
-        user = User.query.get(user_id) if user_id and user_id != 123 else None
-        session_id = user.session_id if user else session.get("session_id", 1)
-    
-    # If we have a real user ID, try to get their latest chat
-    if user_id and user_id != 123:
-        query = Chat.query.filter_by(user_id=user_id)
-        
-        if session_id:
-            query = query.filter_by(session_id=session_id)
-        
-        latest_chat = query.order_by(Chat.updated_at.desc()).first()
-        
-        if latest_chat and latest_chat.chat_history:
-            formatted_messages = []
-            for msg in latest_chat.chat_history:
-                formatted_messages.append({
-                    'sender': 'user' if msg.get('role') == 'user' else 'bot' if msg.get('role') == 'assistant' else 'system',
-                    'message': msg.get('content', ''),
-                    'timestamp': msg.get('timestamp', datetime.now().isoformat())
-                })
-                
-            return jsonify({
-                "messages": formatted_messages,
-                "chatId": latest_chat.id,
-                "sessionId": latest_chat.session_id
-            })
-    
-    return jsonify({
-        "messages": [],
-        "chatId": None,
-        "sessionId": session_id
-    })
 
 @bp.route('/change-session', methods=['POST'])
 @login_required
@@ -81,7 +39,7 @@ def change_session():
     data = request.json
     user_id = session.get("user_id")
     
-    if not user_id or user_id == 123:
+    if not user_id:
         return jsonify({"error": "No authenticated user"}), 401
     
     session_id = data.get('sessionId')
@@ -113,34 +71,13 @@ def change_session():
         "timerTest": user.timer_test
     })
 
-@bp.route('/complete-tutorial', methods=['POST'])
-@login_required
-def complete_tutorial():
-    """Mark the tutorial as completed for the user"""
-    user_id = session.get("user_id")
-    
-    if not user_id or user_id == 123:
-        return jsonify({"error": "No authenticated user"}), 401
-    
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    
-    # End tutorial chats
-    end_ongoing_chats(user_id, "tutorial_completed")
-    
-    return jsonify({
-        "success": True,
-        "message": "Tutorial completed"
-    })
-
 @bp.route('/update-timer', methods=['POST'])
 @login_required
 def update_timer():
     """Update timer values for a session"""
     user_id = session.get("user_id")
     
-    if not user_id or user_id == 123:
+    if not user_id:
         return jsonify({"error": "No authenticated user"}), 401
     
     data = request.json
@@ -165,6 +102,56 @@ def update_timer():
         "timerValue": timer_value
     })
 
+# Chat Management Routes
+@bp.route('/chat-history', methods=['GET'])
+@login_required
+def get_chat_history():
+    """Get current chat history for the specified session"""
+    user_id = session.get("user_id")
+    
+    # Get session ID from query parameter or from user's current session
+    session_id = request.args.get('sessionId')
+    if session_id:
+        try:
+            session_id = int(session_id)
+        except (ValueError, TypeError):
+            session_id = None
+    else:
+        user = User.query.get(user_id) if user_id else None
+        session_id = user.session_id if user else session.get("session_id", 1)
+    
+    # Get user's latest chat for this session
+    if user_id:
+        query = Chat.query.filter_by(user_id=user_id)
+        
+        if session_id:
+            query = query.filter_by(session_id=session_id)
+        
+        latest_chat = query.order_by(Chat.updated_at.desc()).first()
+        
+        if latest_chat and latest_chat.chat_history:
+            formatted_messages = []
+            for msg in latest_chat.chat_history:
+                formatted_messages.append({
+                    'sender': 'user' if msg.get('role') == 'user' else 'bot' if msg.get('role') == 'assistant' else 'system',
+                    'message': msg.get('content', ''),
+                    'timestamp': msg.get('timestamp', datetime.now().isoformat())
+                })
+                
+            return jsonify({
+                "messages": formatted_messages,
+                "chatId": latest_chat.id,
+                "sessionId": latest_chat.session_id,
+                "topic": latest_chat.topic
+            })
+    
+    return jsonify({
+        "messages": [],
+        "chatId": None,
+        "sessionId": session_id,
+        "topic": None
+    })
+
 @bp.route('/current-chat', methods=['GET'])
 @login_required
 def get_current_chat():
@@ -172,7 +159,7 @@ def get_current_chat():
     user_id = session.get("user_id")
     session_id = session.get("session_id", 1)
     
-    if not user_id or user_id == 123:
+    if not user_id:
         return jsonify({"error": "No authenticated user"}), 401
     
     chat = Chat.query.filter_by(
@@ -188,57 +175,124 @@ def get_current_chat():
         "chatId": chat.id,
         "sessionId": session_id,
         "status": chat.status,
+        "topic": chat.topic,
         "created": chat.created_at.isoformat() if chat.created_at else None,
         "updated": chat.updated_at.isoformat() if chat.updated_at else None,
         "messageCount": len(chat.chat_history) if chat.chat_history else 0
     })
 
-# Legacy HTTP endpoints for backward compatibility
-@bp.route('/restart-chat', methods=['POST'])
+@bp.route('/create-chat', methods=['POST'])
 @login_required
-def restart_chat():
-    """Reset the chat session (HTTP fallback)"""
+def create_new_chat():
+    """Create a new chat for the current session"""
     user_id = session.get("user_id")
     
-    new_chat_id = None
-    
-    if user_id and user_id != 123:
-        end_ongoing_chats(user_id, "terminated_by_restart")
-        
-        user = User.query.get(user_id)
-        session_id = user.session_id if user else session.get("session_id", 1)
-        
-        chat = create_chat(user_id, session_id=session_id)
-        new_chat_id = chat.id if chat else None
-    
-    session["chat_history"] = []
-    return jsonify({"success": True, "chatId": new_chat_id})
-
-@bp.route('/abandon-chat', methods=['POST'])
-@login_required
-def abandon_chat():
-    """Abandon the current chat and create a new one (HTTP fallback)"""
-    user_id = session.get("user_id")
-    data = request.json
-    chat_id = data.get('chatId')
-    
-    if not user_id or user_id == 123:
+    if not user_id:
         return jsonify({"error": "No authenticated user"}), 401
     
+    data = request.json
+    session_id = data.get('sessionId')
+    first_message = data.get('firstMessage')
+    
     user = User.query.get(user_id)
-    session_id = data.get('sessionId') or (user.session_id if user else 1)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
     
-    if chat_id:
-        chat = Chat.query.filter_by(id=chat_id, user_id=user_id).first()
-        if chat:
-            chat.status = "abandoned"
-            db.session.commit()
-    else:
-        end_ongoing_chats(user_id, "abandoned", session_id)
+    # Use user's current session if not specified
+    if not session_id:
+        session_id = user.session_id
     
-    new_chat = create_chat(user_id, session_id=session_id)
+    # End any existing ongoing chats for this session
+    end_ongoing_chats(user_id, "terminated_by_new_chat", session_id)
+    
+    # Create new chat
+    chat = create_chat(user_id, first_message=first_message, session_id=session_id)
     
     return jsonify({
         "success": True,
-        "chatId": new_chat.id if new_chat else None
+        "chatId": chat.id,
+        "sessionId": session_id,
+        "status": chat.status
+    })
+
+# Topic and Result Management Routes
+@bp.route('/chat-topics', methods=['GET'])
+@login_required
+def get_chat_topics():
+    """Get available topics for current session"""
+    session_id = request.args.get('sessionId', type=int)
+    
+    # Define topics based on session
+    if session_id == 2:  # Exercise
+        topics = [
+            {"id": 1, "name": "Voltaire", "description": "Philosophe et écrivain des Lumières"},
+            {"id": 2, "name": "Napoléon III", "description": "Empereur des Français"},
+            {"id": 3, "name": "Watteau", "description": "Peintre rococo"},
+            {"id": 4, "name": "Michel Foucault", "description": "Philosophe contemporain"}
+        ]
+    elif session_id == 3:  # Test
+        topics = [
+            {"id": 5, "name": "Mozart", "description": "Compositeur classique"},
+            {"id": 6, "name": "Frédéric Chopin", "description": "Compositeur et pianiste"},
+            {"id": 7, "name": "Victor Hugo", "description": "Écrivain romantique"},
+            {"id": 8, "name": "Rembrandt", "description": "Peintre hollandais"},
+            {"id": 9, "name": "Marguerite Duras", "description": "Écrivaine contemporaine"}
+        ]
+    else:  # Tutorial
+        topics = []
+    
+    return jsonify({"topics": topics})
+
+@bp.route('/result-metadata', methods=['GET'])
+@login_required
+def get_result_metadata():
+    """Get metadata for search results"""
+    chat_id = request.args.get('chatId')
+    
+    if not chat_id:
+        return jsonify({"error": "Chat ID required"}), 400
+    
+    user_id = session.get("user_id")
+    chat = Chat.query.filter_by(id=chat_id, user_id=user_id).first()
+    
+    if not chat:
+        return jsonify({"error": "Chat not found"}), 404
+    
+    # Mock metadata - replace with actual implementation
+    metadata = {
+        "chatId": chat.id,
+        "topic": chat.topic,
+        "totalQueries": len(chat.chat_history) // 2 if chat.chat_history else 0,
+        "collections": ["Manuscrits", "Livres imprimés", "Cartes et plans"],
+        "searchTime": "0.45s",
+        "lastUpdate": chat.updated_at.isoformat() if chat.updated_at else None
+    }
+    
+    return jsonify(metadata)
+
+# Tutorial and Session Completion Routes
+@bp.route('/complete-tutorial', methods=['POST'])
+@login_required
+def complete_tutorial():
+    """Mark the tutorial as completed for the user"""
+    user_id = session.get("user_id")
+    
+    if not user_id:
+        return jsonify({"error": "No authenticated user"}), 401
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    # End tutorial chats
+    end_ongoing_chats(user_id, "tutorial_completed")
+    
+    # Move to exercise session
+    user.session_id = 2
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "Tutorial completed",
+        "nextSession": 2
     })
