@@ -1,4 +1,4 @@
-// hooks/useChat.js - Fixed version with message deduplication and proper abandon handling
+// hooks/useChat.js - Updated version with better session synchronization
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import io from 'socket.io-client';
@@ -11,7 +11,8 @@ const useChat = (currentSession, onResultReceived) => {
     userInput: '',
     currentTopic: null,
     detectedIntent: null,
-    isFirstMessage: true
+    isFirstMessage: true,
+    actualSessionId: null  // Track the actual session from server
   });
   
   // Connection and UI state
@@ -32,7 +33,7 @@ const useChat = (currentSession, onResultReceived) => {
   const messageListRef = useRef(null);
   const currentMessageRef = useRef('');
   const pendingUserMessages = useRef(new Set()); // Track pending user messages
-  const [needsChatStateLoad, setNeedsChatStateLoad] = useState(false);
+  const lastLoadedSession = useRef(null); // Track last loaded session
 
   // Initialize socket connection
   useEffect(() => {
@@ -44,46 +45,40 @@ const useChat = (currentSession, onResultReceived) => {
     };
   }, []);
 
-  // Load chat state when session changes
+  // Load chat state when session changes or connection is established
   useEffect(() => {
-    if (currentSession > 1 && socketRef.current?.connected) {
-      requestChatState();
+    if (currentSession > 0 && socketRef.current?.connected) {
+      // Only request chat state if session actually changed
+      if (lastLoadedSession.current !== currentSession) {
+        console.log(`Session changed from ${lastLoadedSession.current} to ${currentSession} - loading chat state`);
+        lastLoadedSession.current = currentSession;
+        requestChatState();
+      }
     } else if (currentSession === 1) {
-      // Tutorial - clear everything
-      setChatState({
-        chatId: null,
-        messages: [],
-        userInput: '',
-        currentTopic: null,
-        detectedIntent: null,
-        isFirstMessage: true
-      });
-      pendingUserMessages.current.clear(); // Clear pending messages
-    }
-  }, [currentSession]);
-
-  useEffect(() => {
-    if (currentSession > 1 && socketRef.current?.connected) {
-      console.log(`Loading chat state for session ${currentSession}`);
-      requestChatState();
-      setNeedsChatStateLoad(false);
-    } else if (currentSession === 1) {
-      // Tutorial - clear everything
-      setChatState({
-        chatId: null,
-        messages: [],
-        userInput: '',
-        currentTopic: null,
-        detectedIntent: null,
-        isFirstMessage: true
-      });
-      pendingUserMessages.current.clear();
-      setNeedsChatStateLoad(false);
-    } else if (currentSession > 1 && !socketRef.current?.connected) {
-      // Mark that we need to load chat state once connected
-      setNeedsChatStateLoad(true);
+      // Tutorial - clear everything immediately
+      clearChatState();
+      lastLoadedSession.current = 1;
     }
   }, [currentSession, socketRef.current?.connected]);
+
+  // Clear chat state helper
+  const clearChatState = useCallback(() => {
+    setChatState({
+      chatId: null,
+      messages: [],
+      userInput: '',
+      currentTopic: null,
+      detectedIntent: null,
+      isFirstMessage: true,
+      actualSessionId: null
+    });
+    pendingUserMessages.current.clear();
+    setStreamState({
+      thoughtProcess: [],
+      currentStreamingMessage: '',
+      isStreaming: false
+    });
+  }, []);
 
   // Message deduplication helper
   const isDuplicateMessage = useCallback((newMessage, existingMessages) => {
@@ -121,9 +116,8 @@ const useChat = (currentSession, onResultReceived) => {
         console.log('Socket connected');
         setConnectionState(prev => ({ ...prev, isConnected: true, error: null }));
         
-        // Load chat state immediately if needed (for page refresh scenario)
-        if (currentSession > 1 || needsChatStateLoad) {
-          console.log(`Socket connected - requesting chat state for session ${currentSession}`);
+        // Load chat state for current session
+        if (currentSession > 0) {
           setTimeout(() => requestChatState(), 100);
         }
       });
@@ -150,8 +144,13 @@ const useChat = (currentSession, onResultReceived) => {
       // Chat action events
       socket.on('conversation_abandoned', handleConversationAction);
       socket.on('conversation_restarted', handleConversationAction);
-      socket.on('results_window_requested', handleConversationAction); // Add this
+      socket.on('results_window_requested', handleConversationAction);
       socket.on('result_data', handleResultData);
+      
+      // Session change events
+      socket.on('ongoing_chats_terminated', handleOngoingChatsTerminated);
+      socket.on('session_change_success', handleSessionChangeSuccess);
+      socket.on('session_change_error', handleSessionChangeError);
       
       // Error events
       socket.on('error', handleSocketError);
@@ -162,12 +161,44 @@ const useChat = (currentSession, onResultReceived) => {
     }
   };
 
+  // Session change event handlers
+  const handleOngoingChatsTerminated = useCallback((data) => {
+    console.log('Ongoing chats terminated:', data);
+    // Clear current chat state immediately
+    clearChatState();
+  }, [clearChatState]);
+
+  const handleSessionChangeSuccess = useCallback((data) => {
+    console.log('Session change successful:', data);
+    
+    // Update local session tracking
+    lastLoadedSession.current = data.session_id;
+    
+    // Clear and request fresh chat state
+    clearChatState();
+    
+    // Small delay then request new chat state
+    setTimeout(() => {
+      if (socketRef.current?.connected) {
+        requestChatState();
+      }
+    }, 200);
+  }, [clearChatState]);
+
+  const handleSessionChangeError = useCallback((data) => {
+    console.error('Session change error:', data);
+    setConnectionState(prev => ({ 
+      ...prev, 
+      error: `Session change failed: ${data.error}` 
+    }));
+  }, []);
+
   // Event handlers
   const handleChatStateResponse = useCallback((data) => {
     console.log('Chat state received:', data);
     
     const formattedMessages = data.messages?.map(msg => ({
-      id: `${msg.timestamp}-${msg.sender}-${msg.message.slice(0, 10)}`, // Better ID generation
+      id: `${msg.timestamp}-${msg.sender}-${msg.message.slice(0, 10)}`,
       content: msg.message,
       role: msg.sender === 'user' ? 'user' : 'assistant',
       timestamp: msg.timestamp,
@@ -180,11 +211,17 @@ const useChat = (currentSession, onResultReceived) => {
       userInput: '',
       currentTopic: data.topic,
       detectedIntent: null,
-      isFirstMessage: formattedMessages.length === 0
+      isFirstMessage: formattedMessages.length === 0,
+      actualSessionId: data.session_id  // Track actual session from server
     });
     
     // Clear pending messages since we got fresh state
     pendingUserMessages.current.clear();
+    
+    // Update last loaded session
+    if (data.session_id) {
+      lastLoadedSession.current = data.session_id;
+    }
   }, []);
 
   const handleChatStateUpdate = useCallback((data) => {
@@ -204,9 +241,20 @@ const useChat = (currentSession, onResultReceived) => {
       pendingUserMessages.current.delete(data.message);
     }
     
-    // Update chat ID if provided
+    // Update chat ID if provided (especially important for first messages that create chats)
     if (data.chat_id && data.chat_id !== chatState.chatId) {
+      console.log(`Updating chat ID from ${chatState.chatId} to ${data.chat_id}`);
       setChatState(prev => ({ ...prev, chatId: data.chat_id }));
+    }
+    
+    // Update session tracking if provided
+    if (data.session_id) {
+      setChatState(prev => ({ ...prev, actualSessionId: data.session_id }));
+    }
+    
+    // Log if chat was just created
+    if (data.chat_created) {
+      console.log('New chat created on first message');
     }
   }, [chatState.chatId]);
 
@@ -386,7 +434,7 @@ const useChat = (currentSession, onResultReceived) => {
 
   // Actions
   const requestChatState = useCallback(() => {
-    if (socketRef.current?.connected && currentSession > 0) {
+    if (socketRef.current?.connected) {
       console.log(`Requesting chat state for session ${currentSession}`);
       socketRef.current.emit('get_chat_state', { session_id: currentSession });
     } else {
@@ -432,16 +480,17 @@ const useChat = (currentSession, onResultReceived) => {
       return { ...prev, userInput: '' }; // Clear input even if duplicate
     });
 
-    // Send to server
+    // Send to server - let server determine session_id from user table
+    // Note: chat_id can be null for first message - server will create chat
     socketRef.current.emit('send_message', {
       message: messageContent,
-      chat_id: chatState.chatId,
-      session_id: currentSession
+      chat_id: chatState.chatId,  // Can be null - server will handle
+      // Don't send session_id - let server get it from user table
     });
 
     setTimeout(scrollToBottom, 100);
     return true;
-  }, [connectionState.isConnected, chatState.chatId, currentSession, isDuplicateMessage]);
+  }, [connectionState.isConnected, chatState.chatId, isDuplicateMessage]);
 
   const abandonConversation = useCallback(() => {
     if (!connectionState.isConnected || !chatState.chatId) return false;
@@ -449,10 +498,10 @@ const useChat = (currentSession, onResultReceived) => {
     socketRef.current.emit('send_message', {
       message: 'abandon',
       chat_id: chatState.chatId,
-      session_id: currentSession
+      // Don't send session_id - let server get it from user table
     });
     return true;
-  }, [connectionState.isConnected, chatState.chatId, currentSession]);
+  }, [connectionState.isConnected, chatState.chatId]);
 
   const restartConversation = useCallback(() => {
     if (!connectionState.isConnected) return false;
@@ -460,10 +509,10 @@ const useChat = (currentSession, onResultReceived) => {
     socketRef.current.emit('send_message', {
       message: 'recommencer',
       chat_id: chatState.chatId,
-      session_id: currentSession
+      // Don't send session_id - let server get it from user table
     });
     return true;
-  }, [connectionState.isConnected, chatState.chatId, currentSession]);
+  }, [connectionState.isConnected, chatState.chatId]);
 
   const requestResults = useCallback((queryData) => {
     if (!connectionState.isConnected || !chatState.chatId) return false;
@@ -471,10 +520,10 @@ const useChat = (currentSession, onResultReceived) => {
     socketRef.current.emit('send_message', {
       message: 'résultat',
       chat_id: chatState.chatId,
-      session_id: currentSession
+      // Don't send session_id - let server get it from user table
     });
     return true;
-  }, [connectionState.isConnected, chatState.chatId, currentSession]);
+  }, [connectionState.isConnected, chatState.chatId]);
 
   const scrollToBottom = useCallback(() => {
     if (messageListRef.current) {
@@ -495,6 +544,7 @@ const useChat = (currentSession, onResultReceived) => {
     isFirstMessage: chatState.isFirstMessage,
     currentTopic: chatState.currentTopic,
     detectedIntent: chatState.detectedIntent,
+    actualSessionId: chatState.actualSessionId, // Expose actual session from server
     
     // Connection state
     isConnected: connectionState.isConnected,
@@ -508,6 +558,7 @@ const useChat = (currentSession, onResultReceived) => {
     
     // Refs
     messageListRef,
+    socketRef,
     
     // Actions
     sendMessage,

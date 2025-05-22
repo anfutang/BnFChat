@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainContainer, Avatar } from '@chatscope/chat-ui-kit-react';
 
@@ -21,17 +21,7 @@ const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   
-  // Session management
-  const {
-    currentSession,
-    formattedTime,
-    currentChatId: sessionChatId, // Rename to avoid conflicts
-    isTransitioning,
-    transitionToNextSession,
-    saveTimerToServer
-  } = useSessionManager();
-  
-  // Unified chat management with SocketIO support
+  // Get socket reference from useChat first
   const {
     // Chat state
     chatId,
@@ -54,6 +44,7 @@ const ChatInterface = () => {
     
     // Refs
     messageListRef,
+    socketRef, // Get socket ref from useChat
     
     // Actions
     sendMessage,
@@ -62,7 +53,17 @@ const ChatInterface = () => {
     requestResults,
     requestChatState,
     clearError
-  } = useChat(currentSession);
+  } = useChat();
+
+  // Session management with socket reference
+  const {
+    currentSession,
+    formattedTime,
+    currentChatId: sessionChatId,
+    isTransitioning,
+    transitionToNextSession,
+    saveTimerToServer
+  } = useSessionManager(socketRef); // Pass socket ref
 
   // UI state for result modal
   const [uiState, setUiState] = useState({
@@ -73,6 +74,33 @@ const ChatInterface = () => {
 
   // UI state
   const [selectedTopic, setSelectedTopic] = useState(null);
+
+  // Handle session changes from SocketIO
+  useEffect(() => {
+    if (socketRef?.current) {
+      const socket = socketRef.current;
+
+      const handleSessionChangeSuccess = (data) => {
+        console.log('Session changed successfully via SocketIO:', data);
+        // Request fresh chat state after session change
+        setTimeout(() => requestChatState(), 500);
+      };
+
+      const handleOngoingChatsTerminated = (data) => {
+        console.log('Ongoing chats terminated:', data);
+        // Clear current chat state immediately
+        // This will be handled by useChat's session change logic
+      };
+
+      socket.on('session_change_success', handleSessionChangeSuccess);
+      socket.on('ongoing_chats_terminated', handleOngoingChatsTerminated);
+
+      return () => {
+        socket.off('session_change_success', handleSessionChangeSuccess);
+        socket.off('ongoing_chats_terminated', handleOngoingChatsTerminated);
+      };
+    }
+  }, [socketRef?.current, requestChatState]);
 
   // Sync session chat ID changes
   useEffect(() => {
@@ -90,8 +118,11 @@ const ChatInterface = () => {
       if (result.error) {
         console.error('Session transition error');
       } else if (result.success) {
-        // Request fresh chat state after transition
-        setTimeout(() => requestChatState(), 500);
+        // If using HTTP fallback, request fresh chat state
+        if (result.method === 'http') {
+          setTimeout(() => requestChatState(), 500);
+        }
+        // SocketIO method will be handled by the event listeners above
       }
     } catch (error) {
       console.error("Session transition error:", error);
@@ -179,11 +210,12 @@ const ChatInterface = () => {
     }));
   }, []);
 
-  // Listen for result data from unified chat hook
-  useEffect(() => {
-    // This would be handled through the socket events in useChat
-    // We can add a callback prop to useChat if needed for result handling
-  }, []);
+  // Stop processing handler
+  const handleStopProcessing = useCallback(() => {
+    if (socketRef?.current?.connected && chatId) {
+      socketRef.current.emit('stop_processing', { chat_id: chatId });
+    }
+  }, [socketRef, chatId]);
 
   return (
     <div className="chat-page">
@@ -220,6 +252,17 @@ const ChatInterface = () => {
               onRestartChat={handleEnhancedRestart}
               onAbandonChat={handleEnhancedAbandon}
             />
+            
+            {/* Stop processing button when loading */}
+            {(isLoading || isStreaming) && (
+              <button 
+                onClick={handleStopProcessing}
+                className="stop-processing-btn"
+                title="Arrêter le traitement en cours"
+              >
+                ⏹️ Arrêter
+              </button>
+            )}
             
             <button 
               onClick={handleLogout} 
@@ -289,13 +332,21 @@ const ChatInterface = () => {
         </div>
       )}
 
+      {/* Session Transition Indicator */}
+      {isTransitioning && (
+        <div className="session-transition-indicator">
+          🔄 Changement de session en cours...
+        </div>
+      )}
+
       {/* Chat ID Debug Info (remove in production) */}
       {process.env.NODE_ENV === 'development' && (
         <div className="debug-info">
           <small>
             Session: {currentSession} | 
             Chat ID: {chatId || 'none'} | 
-            Messages: {messages.length}
+            Messages: {messages.length} |
+            Socket: {isConnected ? '🟢' : '🔴'}
           </small>
         </div>
       )}

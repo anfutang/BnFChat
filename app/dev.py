@@ -37,32 +37,73 @@ from .chat_manager import ChatManager
 @bp.route('/change-session', methods=['POST'])
 @login_required
 def change_session():
-    """Change session using ChatManager"""
+    """Change session using HTTP - fallback method (no empty chats)"""
     data = request.json
     user_id = session.get("user_id")
     
     if not user_id:
         return jsonify({"error": "No authenticated user"}), 401
     
-    session_id = data.get('sessionId')
-    if not session_id or session_id not in [1, 2, 3]:
+    new_session_id = data.get('sessionId')
+    if not new_session_id or new_session_id not in [1, 2, 3]:
         return jsonify({"error": "Invalid session ID"}), 400
     
-    # Use ChatManager for atomic transition
-    new_chat, error = ChatManager.transition_session(user_id, session_id)
-    
-    if error:
-        return jsonify({"error": error}), 500
-    
-    # Update Flask session
-    session["session_id"] = session_id
-    
-    return jsonify({
-        "success": True,
-        "sessionId": session_id,
-        "chatId": new_chat.id if new_chat else None,
-        "message": f"Session changed to {session_id}"
-    })
+    try:
+        # STEP 1: Update user's session_id in database FIRST
+        db.session.rollback()
+        db.session.close()
+        
+        # Lock and update user session atomically
+        user = db.session.query(User).filter_by(id=user_id).with_for_update().first()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        old_session_id = user.session_id
+        
+        # Don't do anything if already in requested session
+        if old_session_id == new_session_id:
+            return jsonify({
+                "success": True,
+                "sessionId": new_session_id,
+                "chatId": None,
+                "message": f"Already in session {new_session_id}",
+                "no_change": True
+            })
+        
+        # Update user session
+        user.session_id = new_session_id
+        
+        # STEP 2: Only terminate existing ongoing chats (don't create empty ones)
+        existing_ongoing_chats = db.session.query(Chat).filter_by(
+            user_id=user_id,
+            status="ongoing"
+        ).all()
+        
+        terminated_count = 0
+        for chat in existing_ongoing_chats:
+            chat.status = "terminated_by_session_change"
+            chat.updated_at = datetime.utcnow()
+            terminated_count += 1
+        
+        db.session.commit()
+        logger.info(f"HTTP Session change: User {user_id} from {old_session_id} to {new_session_id}, terminated {terminated_count} existing chats")
+        
+        # Update Flask session
+        session["session_id"] = new_session_id
+        
+        # STEP 3: Return success - NO AUTO-CHAT CREATION
+        return jsonify({
+            "success": True,
+            "sessionId": new_session_id,
+            "chatId": None,  # No chat created yet - will be created on first message
+            "message": f"Session changed to {new_session_id} via HTTP",
+            "terminated_count": terminated_count
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in HTTP change_session: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @bp.route('/chat-history', methods=['GET'])
 @login_required
@@ -70,16 +111,12 @@ def get_chat_history():
     """Get chat history using ChatManager"""
     user_id = session.get("user_id")
     
-    # Get session ID from query or user's current session
-    session_id = request.args.get('sessionId')
-    if session_id:
-        try:
-            session_id = int(session_id)
-        except (ValueError, TypeError):
-            session_id = None
-    else:
-        user = User.query.get(user_id) if user_id else None
-        session_id = user.session_id if user else session.get("session_id", 1)
+    # Get session ID from user's current session (not query parameter)
+    user = User.query.get(user_id) if user_id else None
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    session_id = user.session_id  # Use user's actual session
     
     if not user_id:
         return jsonify({"error": "No authenticated user"}), 401
@@ -94,7 +131,13 @@ def get_chat_history():
 def get_current_chat():
     """Get current chat using ChatManager"""
     user_id = session.get("user_id")
-    session_id = session.get("session_id", 1)
+    
+    # Get session_id from user's database record
+    user = User.query.get(user_id) if user_id else None
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    session_id = user.session_id
     
     if not user_id:
         return jsonify({"error": "No authenticated user"}), 401
@@ -122,16 +165,14 @@ def create_new_chat():
         return jsonify({"error": "No authenticated user"}), 401
     
     data = request.json
-    session_id = data.get('sessionId')
     first_message = data.get('firstMessage')
     
     user = User.query.get(user_id)
     if not user:
         return jsonify({"error": "User not found"}), 404
     
-    # Use user's current session if not specified
-    if not session_id:
-        session_id = user.session_id
+    # Use user's current session from database
+    session_id = user.session_id
     
     # Use ChatManager for atomic creation
     new_chat, error = ChatManager.get_or_create_ongoing_chat(
@@ -165,6 +206,11 @@ def update_timer():
     if not user:
         return jsonify({"error": "User not found"}), 404
     
+    # Verify session_id matches user's current session
+    if session_id != user.session_id:
+        logger.warning(f"Timer update session mismatch: user has {user.session_id}, request has {session_id}")
+        session_id = user.session_id  # Use user's actual session
+    
     # Update the appropriate timer based on session
     if session_id == 2:
         user.timer_exercise = timer_value
@@ -179,13 +225,17 @@ def update_timer():
         "timerValue": timer_value
     })
 
-
 # Topic and Result Management Routes
 @bp.route('/chat-topics', methods=['GET'])
 @login_required
 def get_chat_topics():
     """Get available topics for current session"""
-    session_id = request.args.get('sessionId', type=int)
+    user_id = session.get("user_id")
+    user = User.query.get(user_id) if user_id else None
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    session_id = user.session_id  # Use user's actual session
     
     # Define topics based on session
     if session_id == 2:  # Exercise
@@ -261,3 +311,20 @@ def complete_tutorial():
         "message": "Tutorial completed",
         "nextSession": 2
     })
+
+# Debug route to check user chats (remove in production)
+@bp.route('/debug-user-chats', methods=['GET'])
+@login_required
+def debug_user_chats():
+    """Debug endpoint to see user's chats"""
+    user_id = session.get("user_id")
+    
+    if not user_id:
+        return jsonify({"error": "No authenticated user"}), 401
+    
+    success, error = ChatManager.debug_user_chats(user_id)
+    
+    if success:
+        return jsonify({"success": True, "message": "Check server logs for debug info"})
+    else:
+        return jsonify({"error": error}), 500
