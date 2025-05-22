@@ -15,7 +15,7 @@ import ResultModal from '../feedback/ResultModal';
 
 // Custom hooks
 import useSessionManager from '../../hooks/useSessionManager';
-import useChatManager from '../../hooks/useChatManager';
+import useChat from '../../hooks/useChat';
 
 const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
@@ -25,40 +25,62 @@ const ChatInterface = () => {
   const {
     currentSession,
     formattedTime,
-    currentChatId,
+    currentChatId: sessionChatId, // Rename to avoid conflicts
     isTransitioning,
     transitionToNextSession,
     saveTimerToServer
   } = useSessionManager();
   
-  // Chat management with SocketIO support
+  // Unified chat management with SocketIO support
   const {
+    // Chat state
+    chatId,
     messages,
     userInput,
     setUserInput,
     isFirstMessage,
     currentTopic,
     detectedIntent,
-    showResultModal,
-    resultData,
-    isProcessingResult,
+    
+    // Connection state
     isConnected,
     isLoading,
+    error: socketError,
+    
+    // Streaming state
     thoughtProcess,
-    socketError,
     currentStreamingMessage,
+    isStreaming,
+    
+    // Refs
     messageListRef,
+    
+    // Actions
     sendMessage,
-    handleRestart,
-    handleAbandon,
-    handleRequestResults,
-    closeResultModal,
-    reportError,
+    abandonConversation,
+    restartConversation,
+    requestResults,
+    requestChatState,
     clearError
-  } = useChatManager(currentSession, currentChatId);
+  } = useChat(currentSession);
+
+  // UI state for result modal
+  const [uiState, setUiState] = useState({
+    showResultModal: false,
+    resultData: null,
+    isProcessingResult: false
+  });
 
   // UI state
   const [selectedTopic, setSelectedTopic] = useState(null);
+
+  // Sync session chat ID changes
+  useEffect(() => {
+    if (sessionChatId && sessionChatId !== chatId) {
+      // Session manager has updated chat ID, request fresh state
+      requestChatState();
+    }
+  }, [sessionChatId, chatId, requestChatState]);
 
   // Handle session transition
   const handleSessionTransition = useCallback(async () => {
@@ -66,18 +88,20 @@ const ChatInterface = () => {
       const result = await transitionToNextSession();
       
       if (result.error) {
-        reportError?.('session_transition_error', 'Failed to transition between sessions');
+        console.error('Session transition error');
+      } else if (result.success) {
+        // Request fresh chat state after transition
+        setTimeout(() => requestChatState(), 500);
       }
     } catch (error) {
       console.error("Session transition error:", error);
-      reportError?.('session_transition_error', 'Failed to transition between sessions');
     }
-  }, [transitionToNextSession, reportError]);
+  }, [transitionToNextSession, requestChatState]);
 
   // Handle message sending with validation
   const handleSendMessage = useCallback((message) => {
     if (!isConnected) {
-      reportError?.('connection_error', 'No connection to server');
+      console.error('No connection to server');
       return;
     }
     
@@ -87,7 +111,7 @@ const ChatInterface = () => {
     
     clearError?.();
     sendMessage(message);
-  }, [isConnected, sendMessage, reportError, clearError]);
+  }, [isConnected, sendMessage, clearError]);
 
   // Handle topic selection from navigator
   const handleTopicChange = useCallback((topic) => {
@@ -118,21 +142,48 @@ const ChatInterface = () => {
   // Enhanced chat actions with error handling
   const handleEnhancedRestart = useCallback(async () => {
     try {
-      await handleRestart();
+      await restartConversation();
       clearError?.();
     } catch (error) {
-      reportError?.('restart_error', 'Failed to restart conversation');
+      console.error('Failed to restart conversation:', error);
     }
-  }, [handleRestart, clearError, reportError]);
+  }, [restartConversation, clearError]);
 
   const handleEnhancedAbandon = useCallback(async () => {
     try {
-      await handleAbandon();
+      await abandonConversation();
       clearError?.();
     } catch (error) {
-      reportError?.('abandon_error', 'Failed to abandon conversation');
+      console.error('Failed to abandon conversation:', error);
     }
-  }, [handleAbandon, clearError, reportError]);
+  }, [abandonConversation, clearError]);
+
+  // Handle result requests
+  const handleRequestResults = useCallback((queryData) => {
+    setUiState(prev => ({ ...prev, isProcessingResult: true }));
+    
+    const success = requestResults(queryData);
+    
+    if (!success) {
+      setUiState(prev => ({ ...prev, isProcessingResult: false }));
+      console.error('Failed to request results');
+    }
+  }, [requestResults]);
+
+  const closeResultModal = useCallback(() => {
+    setUiState(prev => ({
+      ...prev,
+      showResultModal: false,
+      resultData: null,
+      isProcessingResult: false
+    }));
+  }, []);
+
+  // Listen for result data from unified chat hook
+  useEffect(() => {
+    // This would be handled through the socket events in useChat
+    // We can add a callback prop to useChat if needed for result handling
+  }, []);
 
   return (
     <div className="chat-page">
@@ -193,6 +244,7 @@ const ChatInterface = () => {
               isLoading={isLoading}
               isConnected={isConnected}
               currentStreamingMessage={currentStreamingMessage}
+              isStreaming={isStreaming}
               messageListRef={messageListRef}
               selectedTopic={selectedTopic}
               detectedIntent={detectedIntent}
@@ -214,10 +266,10 @@ const ChatInterface = () => {
 
       {/* Result Modal */}
       <ResultModal
-        isOpen={showResultModal}
+        isOpen={uiState.showResultModal}
         onClose={closeResultModal}
-        resultData={resultData}
-        isLoading={isProcessingResult}
+        resultData={uiState.resultData}
+        isLoading={uiState.isProcessingResult}
       />
 
       {/* Global Error Toast */}
@@ -234,6 +286,17 @@ const ChatInterface = () => {
       {!isConnected && (
         <div className="connection-status-indicator">
           🔴 Connexion interrompue - Reconnexion en cours...
+        </div>
+      )}
+
+      {/* Chat ID Debug Info (remove in production) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="debug-info">
+          <small>
+            Session: {currentSession} | 
+            Chat ID: {chatId || 'none'} | 
+            Messages: {messages.length}
+          </small>
         </div>
       )}
     </div>

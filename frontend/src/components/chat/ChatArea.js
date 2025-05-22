@@ -26,7 +26,11 @@ const ChatArea = ({
   isLoading,
   isConnected,
   currentStreamingMessage,
+  isStreaming,
   thoughtProcess,
+  
+  // UI props
+  selectedTopic,
   
   // Actions
   onRequestResults
@@ -44,7 +48,7 @@ const ChatArea = ({
   }));
 
   // Add streaming message if active
-  if (currentStreamingMessage && isLoading) {
+  if (currentStreamingMessage && isStreaming) {
     processedMessages.push({
       message: currentStreamingMessage,
       sentTime: new Date().toLocaleTimeString(),
@@ -94,7 +98,7 @@ const ChatArea = ({
     if (!isConnected) {
       return { icon: '🔴', text: 'Déconnecté', color: '#dc3545' };
     }
-    if (isLoading) {
+    if (isLoading || isStreaming) {
       return { icon: '🟡', text: 'En cours...', color: '#ffc107' };
     }
     return { icon: '🟢', text: 'Connecté', color: '#28a745' };
@@ -116,6 +120,13 @@ const ChatArea = ({
               {detectedIntent && currentSession > 1 && (
                 <div className="context-info">
                   <span className="intent-badge">🎯 {detectedIntent}</span>
+                </div>
+              )}
+              
+              {/* Show selected topic if available */}
+              {selectedTopic && currentSession > 1 && (
+                <div className="context-info">
+                  <span className="topic-badge">📚 {selectedTopic.name}</span>
                 </div>
               )}
             </div>
@@ -158,7 +169,39 @@ const ChatArea = ({
         autoScrollToBottomOnMount={true}
       >
         
-        {/* Guide message for test session only */}
+        {/* Welcome message for tutorial */}
+        {currentSession === 1 && messages.length === 0 && (
+          <Message model={{
+            message: "👋 Bienvenue dans le tutoriel de l'assistant BNF ! Je vais vous aider à vous familiariser avec la recherche dans nos collections. N'hésitez pas à me poser des questions.",
+            sentTime: new Date().toLocaleTimeString(),
+            sender: "assistant",
+            direction: "incoming",
+            position: "normal"
+          }}>
+            <Avatar
+              src="https://ui-avatars.com/api/?name=BNF&background=007bff&color=fff"
+              name="Assistant BNF"
+            />
+          </Message>
+        )}
+        
+        {/* Guide message for exercise session */}
+        {currentSession === 2 && messages.length === 0 && (
+          <Message model={{
+            message: "🎯 Session d'exercice commencée ! Vous avez 5 minutes pour vous familiariser avec l'assistant. Essayez différents types de questions ou utilisez les sujets suggérés.",
+            sentTime: new Date().toLocaleTimeString(),
+            sender: "system",
+            direction: "incoming",
+            position: "normal"
+          }}>
+            <Avatar
+              src="https://ui-avatars.com/api/?name=Guide&background=17a2b8&color=fff"
+              name="Guide BNF"
+            />
+          </Message>
+        )}
+        
+        {/* Guide message for test session */}
         {currentSession === 3 && messages.length === 0 && (
           <Message model={{
             message: "💡 Session de test commencée ! Utilisez des termes spécifiques pour des recherches précises dans nos collections. Exemples : 'manuscrits médiévaux', 'cartes de Paris 19ème siècle', 'correspondance de Voltaire'.",
@@ -168,8 +211,8 @@ const ChatArea = ({
             position: "normal"
           }}>
             <Avatar
-              src="https://ui-avatars.com/api/?name=Guide&background=17a2b8&color=fff"
-              name="Guide BNF"
+              src="https://ui-avatars.com/api/?name=Test&background=28a745&color=fff"
+              name="Session Test"
             />
           </Message>
         )}
@@ -199,11 +242,12 @@ const ChatArea = ({
               </div>
             )}
             
-            {/* Result request button for certain messages */}
+            {/* Result request button for assistant messages in test session */}
             {msgModel.direction === "incoming" && 
              !msgModel.isSystemMessage && 
              !msgModel.isStreaming && 
-             currentSession === 3 && (
+             currentSession === 3 && 
+             msgModel.sender === 'assistant' && (
               <div className="message-actions">
                 <button 
                   onClick={() => onRequestResults?.({ query: msgModel.message })}
@@ -218,7 +262,7 @@ const ChatArea = ({
         ))}
         
         {/* Typing indicator */}
-        {isLoading && (
+        {(isLoading || isStreaming) && (
           <TypingIndicator 
             content={getCurrentStatus()}
             avatar={
@@ -229,17 +273,6 @@ const ChatArea = ({
             }
           />
         )}
-        
-        {/* Empty state for exercise session only */}
-        {messages.length === 0 && currentSession === 2 && (
-          <div className="empty-chat-state">
-            <div className="empty-message">
-              <h4>🎯 Session d'exercice</h4>
-              <p>Vous avez 5 minutes pour vous familiariser avec l'assistant BNF.</p>
-              <p>Posez une question sur les collections ou utilisez un sujet suggéré.</p>
-            </div>
-          </div>
-        )}
       </MessageList>
       
       {/* Message Input */}
@@ -247,20 +280,24 @@ const ChatArea = ({
         placeholder={
           !isConnected 
             ? "⏳ Connexion en cours..." 
-            : isLoading 
+            : isLoading || isStreaming
               ? "⌛ BNF traite votre demande..." 
-              : "🔍 Posez votre question sur les collections BNF..."
+              : currentSession === 1
+                ? "💬 Posez une question pour commencer le tutoriel..."
+                : currentSession === 2
+                  ? "🎯 Essayez une recherche (session d'exercice)..."
+                  : "🔍 Posez votre question sur les collections BNF..."
         }
         value={userInput}
         onChange={setUserInput}
         onSend={handleSend}
-        disabled={isLoading || !isConnected}
+        disabled={isLoading || isStreaming || !isConnected}
         attachButton={false}
-        autoFocus={isConnected && !isLoading}
+        autoFocus={isConnected && !isLoading && !isStreaming}
       />
       
       {/* Workflow status overlay for active processing */}
-      {isLoading && thoughtProcess && thoughtProcess.length > 0 && (
+      {(isLoading || isStreaming) && thoughtProcess && thoughtProcess.length > 0 && (
         <div className="workflow-status-overlay">
           <div className="workflow-content">
             <div className="workflow-header">
@@ -271,7 +308,14 @@ const ChatArea = ({
               {getCurrentStatus()}
             </div>
             <div className="workflow-progress">
-              {thoughtProcess.length} étapes complétées
+              <div className="progress-info">
+                {thoughtProcess.length} étapes complétées
+              </div>
+              {isStreaming && (
+                <div className="streaming-info">
+                  ✍️ Génération de la réponse...
+                </div>
+              )}
             </div>
           </div>
         </div>
