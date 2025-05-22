@@ -1,7 +1,6 @@
-# app/__init__.py
-
 import os
 from flask import Flask, jsonify
+from flask_socketio import SocketIO
 from .db import init_app, ensure_database_exists
 from . import auth, dev, stream
 from flask_cors import CORS
@@ -38,13 +37,25 @@ def create_app(test_config=None):
     # Ensure the database file exists
     ensure_database_exists(app)
 
+    # Initialize SocketIO
+    socketio = SocketIO(
+        app, 
+        cors_allowed_origins="*", 
+        async_mode='threading',
+        logger=True,
+        engineio_logger=True
+    )
+
     # Register blueprints
     app.register_blueprint(auth.bp, url_prefix='/api/auth')
     app.register_blueprint(dev.bp, url_prefix='/api/dev')
+    
+    # Initialize stream blueprint with SocketIO
+    stream.init_socketio(socketio)
     app.register_blueprint(stream.bp, url_prefix='/api/stream')
     
     @app.route('/api/status')
     def status():
         return jsonify({"status": "ok"})
 
-    return app
+    return app, socketio

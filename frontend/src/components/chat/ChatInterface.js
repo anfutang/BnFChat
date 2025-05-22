@@ -71,7 +71,6 @@ const ChatInterface = () => {
     processingResult,
     loadChatHistory,
     handleSubmit,
-    handleAnnotationSubmit,
     handleRestartChat,
     handleAbandonChat,
     handleCloseResultModal,
@@ -274,7 +273,6 @@ const ChatInterface = () => {
               userInput={userInput}
               setUserInput={setUserInput}
               onSend={handleSendMessage}
-              onAnnotationSubmit={handleAnnotationSubmit}
               currentResponse={currentResponse}
 
               // Process props

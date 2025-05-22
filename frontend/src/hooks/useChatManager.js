@@ -1,598 +1,239 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import axios from 'axios';
+import useSocketChat from './useSocketChat';
 
 const useChatManager = (setShowSessionMessage, currentSession, currentChatId) => {
   const [chatHistory, setChatHistory] = useState([]);
   const [userInput, setUserInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isFirstInput, setIsFirstInput] = useState(true);
-  const [thoughtProcess, setThoughtProcess] = useState([]);
-  const [timingData, setTimingData] = useState({});
-  const [intentData, setIntentData] = useState({});
   const [needsAnnotation, setNeedsAnnotation] = useState(false);
-  const [currentResponse, setCurrentResponse] = useState(null);
+  const [currentResponse, setCurrentResponse] = useState('');
+  const [timingData, setTimingData] = useState({});
+  const [intentData, setIntentData] = useState(null);
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
   const [processingResult, setProcessingResult] = useState(false);
+  
   const messageListRef = useRef(null);
-  const eventSourceRef = useRef(null);
-  const [processingResultEvent, setProcessingResultEvent] = useState(false);
-  const [requestInProgress, setRequestInProgress] = useState(false); // Track ongoing requests
 
-  // Load chat history if it exists
-  const loadChatHistory = async (specificSessionId) => {
-    try {
-      // Use either specified session ID, current session from props, or default
-      const sessionId = specificSessionId || currentSession || 1;
-      
-      console.log(`Loading chat history for session ID: ${sessionId}`);
-      
-      // For session 1 (tutorial), don't attempt to load history
-      if (sessionId === 1) {
-        console.log("Tutorial session detected, skipping history load");
-        setChatHistory([]);
-        setIsFirstInput(true);
-        return;
+  // Handle new messages from SocketIO
+  const handleNewMessage = useCallback((messageData) => {
+    if (messageData.clearHistory) {
+      setChatHistory([]);
+      setIsFirstInput(true);
+      return;
+    }
+
+    if (messageData.resultData) {
+      setResultModalData(messageData.resultData);
+      setShowResultModal(true);
+      return;
+    }
+
+    setChatHistory(prev => [...prev, messageData]);
+
+    // Scroll to bottom
+    setTimeout(() => {
+      if (messageListRef.current) {
+        messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
       }
+    }, 100);
+  }, []);
+
+  // Initialize SocketIO chat
+  const {
+    isConnected,
+    isLoading: socketLoading,
+    thoughtProcess,
+    error: socketError,
+    currentStreamingMessage,
+    sendMessage: socketSendMessage,
+    abandonConversation,
+    restartConversation,
+    reportError,
+    requestResults,
+    clearError
+  } = useSocketChat(currentSession, currentChatId, handleNewMessage);
+
+  // Load chat history from server
+  const loadChatHistory = useCallback(async (sessionId) => {
+    try {
+      const response = await axios.get('/api/dev/chat-history', {
+        params: { sessionId }
+      });
       
-      try {
-        // Include session ID in request
-        const historyResponse = await axios.get(`/api/dev/chat-history?sessionId=${sessionId}`);
-        
-        if (historyResponse.data && historyResponse.data.messages && historyResponse.data.messages.length > 0) {
-          // Validate message format before setting
-          const validatedMessages = historyResponse.data.messages.map(msg => {
-            // Ensure each message has the correct format
-            if (typeof msg === 'string') {
-              // If it's a string, convert to object
-              return {
-                sender: 'system',
-                message: msg,
-                timestamp: new Date().toISOString()
-              };
-            } else if (typeof msg === 'object') {
-              // Ensure all needed properties exist
-              return {
-                sender: msg.sender || (msg.role === 'user' ? 'user' : msg.role === 'assistant' ? 'bot' : 'system'),
-                message: msg.message || msg.content || String(msg),
-                timestamp: msg.timestamp || new Date().toISOString(),
-                metadata: msg.metadata || {}
-              };
-            } else {
-              // Fallback for unexpected types
-              return {
-                sender: 'system',
-                message: String(msg),
-                timestamp: new Date().toISOString()
-              };
-            }
-          });
-          
-          // Replace instead of append to avoid duplication
-          setChatHistory(validatedMessages);
-          
-          // Store the chat ID if it exists
-          if (historyResponse.data.chatId) {
-            setCurrentResponse(prev => ({
-              ...prev,
-              metadata: {
-                ...((prev && prev.metadata) || {}),
-                chatId: historyResponse.data.chatId
-              }
-            }));
-          }
-          
-          setIsFirstInput(false);
-          setShowSessionMessage(false);
-        } else {
-          // If no messages, ensure chat history is empty
-          console.log("No chat history found, setting empty chat");
-          setChatHistory([]);
-          setIsFirstInput(true);
-        }
-      } catch (historyError) {
-        console.error('Error loading chat history:', historyError);
-        // Handle 500 error gracefully
-        console.log("Setting empty chat due to history load error");
+      if (response.data.messages && response.data.messages.length > 0) {
+        setChatHistory(response.data.messages);
+        setIsFirstInput(false);
+      } else {
         setChatHistory([]);
         setIsFirstInput(true);
-        
-        // Add a system message indicating the error
-        setTimeout(() => {
-          setChatHistory([{
-            sender: 'system',
-            message: 'Unable to load previous conversation. Starting a new conversation.',
-            timestamp: new Date().toISOString()
-          }]);
-        }, 100);
       }
     } catch (error) {
-      console.error('Outer error in loadChatHistory:', error);
+      console.error('Failed to load chat history:', error);
       setChatHistory([]);
       setIsFirstInput(true);
     }
-  };
-
-  // Effect to reload chat history when session changes
-  useEffect(() => {
-    if (currentSession) {
-      console.log(`Session changed to ${currentSession}, loading chat history`);
-      try {
-        loadChatHistory(currentSession);
-      } catch (error) {
-        console.error("Error in session change effect:", error);
-      }
-    }
-  }, [currentSession]);
-
-  // Effect to update the current chat ID when it changes from props
-  useEffect(() => {
-    if (currentChatId) {
-      setCurrentResponse(prev => ({
-        ...prev,
-        metadata: {
-          ...((prev && prev.metadata) || {}),
-          chatId: currentChatId
-        }
-      }));
-    }
-  }, [currentChatId]);
-
-  // Stop the SSE stream
-  const stopStreaming = () => {
-    if (eventSourceRef.current) {
-      console.log("Closing SSE connection");
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-      setIsLoading(false);
-      setRequestInProgress(false); // Reset request in progress flag
-    }
-  };
-
-  const processSearchResults = async (content) => {
-    console.log("⭐ Processing search results with content:", content);
-    
-    try {
-      // Process the content
-      let sruQuery, originalQuery;
-      
-      if (typeof content === 'string') {
-        // If it's a string, try to split with delimiter
-        if (content.includes('###')) {
-          [sruQuery, originalQuery] = content.split('###');
-        } else {
-          // If no delimiter, use all as SRU query
-          sruQuery = content;
-          originalQuery = "Original query not specified";
-        }
-      } else if (typeof content === 'object') {
-        // If it's an object, try to extract relevant properties
-        sruQuery = content.sruQuery || JSON.stringify(content);
-        originalQuery = content.originalQuery || "Structured query";
-      } else {
-        // Fallback for any other type
-        sruQuery = String(content);
-        originalQuery = "Unrecognized data type";
-      }
-      
-      console.log("⭐ Extracted queries:", { sruQuery, originalQuery });
-      
-      // Send request to backend
-      const response = await axios.post('/api/dev/manage-result', {
-        sruQuery,
-        originalQuery
-      });
-      
-      console.log("⭐ API response:", response.data);
-      
-      // Update result data, then update loading state
-      setResultModalData({
-        id: response.data.id,
-        sruQuery,
-        originalQuery,
-        wcResults: response.data.wcResults,
-        wocResults: response.data.wocResults
-      });
-      
-      // Use a small delay to ensure state updates are processed in sequence
-      setTimeout(() => {
-        setProcessingResult(false);
-      }, 50);
-      
-      console.log("⭐ Result modal data updated");
-    } catch (error) {
-      console.error('Failed to process search results:', error);
-      
-      // In case of error, display error message
-      setResultModalData({
-        error: true,
-        message: "An error occurred while processing results."
-      });
-      setProcessingResult(false);
-    }
-  };
+  }, []);
 
   // Handle message submission
-  const handleSubmit = async (message, sessionId) => {
-    if (!message.trim() || isLoading || requestInProgress) return;
-    
-    // Set request in progress to prevent multiple submissions
-    setRequestInProgress(true);
-    
-    // Hide intro message after first user input
-    setShowSessionMessage(false);
-    
-    setUserInput('');
-    setIsLoading(true);
-    setThoughtProcess([]);
-    setTimingData({});
-    setIntentData('');
-    setNeedsAnnotation(false);
-    
-    // Add user message to chat
-    const newUserMessage = {
-        sender: 'user',
-        message,
-        timestamp: new Date().toISOString()
-    };
-    
-    // Use a function form to ensure we're working with the latest state
-    setChatHistory(prev => [...prev, newUserMessage]);
-    
-    try {
-        // Close any existing EventSource connection
-        if (eventSourceRef.current) {
-            eventSourceRef.current.close();
-            eventSourceRef.current = null;
-        }
-        
-        // Get current chat ID from the last response or props
-        const chatId = currentResponse?.metadata?.chatId || currentChatId || '';
-        
-        // Make sure we're using the correct session ID
-        const useSessionId = sessionId || currentSession || 1;
-        
-        // Create new EventSource connection with chat ID and session ID
-        // REMOVED first parameter since backend computes this now
-        console.log(`Creating EventSource connection to /api/stream/input?query=${encodeURIComponent(message)}&session=${useSessionId}&chatId=${chatId}`);
-        
-        const eventSource = new EventSource(`/api/stream/input?query=${encodeURIComponent(message)}&session=${useSessionId}&chatId=${chatId}`);
-        eventSourceRef.current = eventSource;
-
-      // Handle different event types
-      eventSource.onmessage = (event) => {
-        console.log("Received SSE message:", event.data);
-        
-        try {
-          const data = JSON.parse(event.data);
-          
-          switch (data.type) {
-            case 'connection':
-              console.log('Connection established');
-              break;
-              
-            case 'info':
-              setThoughtProcess(data.content);
-              break;
-              
-            case 'time':
-              setTimingData(data.content);
-              break;
-
-            case 'intent':
-              setIntentData(data.content);
-              break;
-              
-            case 'typing':
-              // Could show typing indicator or update processing message
-              break;
-            case 'chat_id':
-              console.log('Received chat ID from server:', data.content);
-              // Always update the chat ID when the server provides it
-              setCurrentResponse(prev => ({
-                ...prev,
-                metadata: {
-                  ...((prev && prev.metadata) || {}),
-                  chatId: data.content
-                }
-              }));
-              break;
-            case 'response':
-              // Process response normally
-              const botResponse = {
-                sender: 'bot',
-                message: data.content.message || data.content,
-                metadata: data.content.metadata,
-                timestamp: new Date().toISOString()
-              };
-              
-              // Use functional update to ensure we're working with the latest state
-              setChatHistory(prev => {
-                // Check if this is a new conversation or not
-                if (prev.length === 0) {
-                  return [newUserMessage, botResponse];
-                } else if (prev.length === 1 && prev[0].sender === 'user' && prev[0].message === message) {
-                  // If we only have one message and it's the user message we just added,
-                  // ensure we don't create duplicate entries
-                  return [prev[0], botResponse];
-                } else {
-                  // Normal case: append the bot response
-                  return [...prev, botResponse];
-                }
-              });
-              
-              setCurrentResponse(botResponse);
-              
-              if (data.content.needsAnnotation) {
-                setNeedsAnnotation(true);
-              }
-              break;
-
-            case 'result':
-              console.log("⭐⭐⭐ RESULT EVENT RECEIVED ⭐⭐⭐");
-              console.log("Result content:", data.content);
-              
-              // Set flag to indicate we're processing a result
-              setProcessingResultEvent(true);
-              
-              // Process the result
-              setProcessingResult(true);
-              setShowResultModal(true);
-              
-              // Process results and then clear the flag when done
-              processSearchResults(data.content)
-                .then(() => {
-                  console.log("Result processing completed");
-                  setProcessingResultEvent(false);
-                })
-                .catch(err => {
-                  console.error("Error processing results:", err);
-                  setProcessingResultEvent(false);
-                });
-              break;
-
-            case 'close_connection':
-              console.log("Server requested connection close");
-              
-              // Check if we're processing a result
-              if (processingResultEvent) {
-                console.log("Delaying connection close until result processing completes");
-                
-                // Poll until processingResultEvent is false
-                const checkInterval = setInterval(() => {
-                  if (!processingResultEvent) {
-                    clearInterval(checkInterval);
-                    stopStreaming();
-                  }
-                }, 100);
-              } else {
-                stopStreaming();
-              }
-              break;
-              
-            case 'error':
-              console.error('Error from server:', data.content);
-              
-              setChatHistory(prev => [
-                ...prev, 
-                {
-                  sender: 'system',
-                  message: `Error: ${data.content}`,
-                  timestamp: new Date().toISOString()
-                }
-              ]);
-              
-              // Add fallback response for certain errors
-              if (data.content.includes("ParseError") || data.content.includes("syntax error")) {
-                setChatHistory(prev => [
-                  ...prev, 
-                  {
-                    sender: 'bot',
-                    message: "I'm sorry, but I couldn't process your request correctly. There seems to be a problem with the search formulation. Could you try rephrasing your question more simply or with different terms?",
-                    timestamp: new Date().toISOString()
-                  }
-                ]);
-              }
-              
-              stopStreaming();
-              break;
-              
-            default:
-              console.warn('Unknown message type:', data.type);
-          }
-        } catch (e) {
-          console.error('Error processing message:', e, 'Data:', event.data);
-        }
-      };
-      
-      // Handle connection established
-      eventSource.onopen = () => {
-        console.log("SSE connection opened successfully");
-      };
-      
-      // Handle errors
-      eventSource.onerror = (error) => {
-        console.error("SSE connection error:", error);
-        setChatHistory(prev => [
-          ...prev,
-          {
-            sender: 'system',
-            message: "Server connection error. Please try again.",
-            timestamp: new Date().toISOString()
-          }
-        ]);
-        stopStreaming();
-      };
-      
-      // Mark as not being first input anymore
-      if (isFirstInput) {
-        setIsFirstInput(false);
-      }
-      
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setChatHistory(prev => [
-        ...prev, 
-        {
-          sender: 'system',
-          message: `Server communication error: ${error.message}`,
-          timestamp: new Date().toISOString()
-        }
-      ]);
-      setIsLoading(false);
-      setRequestInProgress(false); // Reset request in progress flag
+  const handleSubmit = useCallback((message, sessionId) => {
+    if (!message || !message.trim()) {
+      return;
     }
-  };
 
-  // Handle closing the result modal
-  const handleCloseResultModal = () => {
-    setShowResultModal(false);
-    setResultModalData(null);
-  };
+    // Clear any previous errors
+    clearError();
 
-  // Handle annotation submission  
-  const handleAnnotationSubmit = async (annotationData) => {
+    // Hide session message on first input
+    if (isFirstInput) {
+      setShowSessionMessage(false);
+      setIsFirstInput(false);
+    }
+
+    // Clear user input
+    setUserInput('');
+
+    // Send via SocketIO
+    const success = socketSendMessage(message.trim());
+    
+    if (!success) {
+      // Fallback to HTTP if socket fails
+      console.warn('Socket send failed, falling back to HTTP');
+      // You could implement HTTP fallback here if needed
+    }
+  }, [isFirstInput, setShowSessionMessage, socketSendMessage, clearError]);
+
+  // Handle annotation submission (legacy support)
+  const handleAnnotationSubmit = useCallback(async (annotation) => {
     try {
-      // Include the current chat ID if available
-      const chatId = currentResponse?.metadata?.chatId || currentChatId;
-      if (chatId) {
-        annotationData.chatId = chatId;
-      }
-      
-      await axios.post('/api/dev/user-annotation', annotationData);
-      
+      await axios.post('/api/dev/user-annotation', {
+        convLabel: annotation
+      });
       setNeedsAnnotation(false);
-      
-      // If conversation is finished, clear the chat
-      if (annotationData.convLabel) {
-        setChatHistory([]);
-        setIsFirstInput(true);
-        setShowSessionMessage(true);
-      }
-      
+      setCurrentResponse('');
     } catch (error) {
       console.error('Failed to submit annotation:', error);
+      reportError('annotation_error', 'Failed to submit annotation');
     }
-  };
+  }, [reportError]);
 
-  // Restart the chat
-  const handleRestartChat = async () => {
+  // Handle chat restart
+  const handleRestartChat = useCallback(async () => {
     try {
-      const useSessionId = currentSession || 1;
+      const success = restartConversation();
       
-      const response = await axios.post('/api/dev/restart-chat', {
-        sessionId: useSessionId
-      });
-      
-      // Add this to update the current chat ID
-      if (response.data && response.data.chatId) {
-        setCurrentResponse(prev => ({
-          ...prev,
-          metadata: {
-            ...((prev && prev.metadata) || {}),
-            chatId: response.data.chatId
-          }
-        }));
-      }
-      
-      // Existing code...
-      setChatHistory([]);
-      setIsFirstInput(true);
-      setThoughtProcess([]);
-      setTimingData({});
-      setNeedsAnnotation(false);
-      
-      setChatHistory([{
-        sender: 'system',
-        message: 'New conversation started.',
-        timestamp: new Date().toISOString()
-      }]);
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to restart conversation:', error);
-      return false;
-    }
-  };
-
-  // Abandon the chat
-  const handleAbandonChat = async () => {
-    if (chatHistory.length <= 1) {
-      return handleRestartChat();
-    }
-    
-    try {
-      // Get current chat ID and session
-      const chatId = currentResponse?.metadata?.chatId || currentChatId;
-      const useSessionId = currentSession || 1;
-      
-      // Create endpoint for abandon-chat
-      const response = await axios.post('/api/dev/abandon-chat', {
-        sessionId: useSessionId,
-        chatId: chatId
-      });
-      
-      // Update the chat ID if a new one is returned
-      if (response.data && response.data.chatId) {
-        setCurrentResponse(prev => ({
-          ...prev,
-          metadata: {
-            ...((prev && prev.metadata) || {}),
-            chatId: response.data.chatId
-          }
-        }));
-      }
-      
-      // Existing code...
-      setChatHistory(prev => [
-        ...prev,
-        {
-          sender: 'system',
-          message: 'Conversation abandoned. You can start a new conversation.',
-          timestamp: new Date().toISOFormat()
+      if (success) {
+        setChatHistory([]);
+        setIsFirstInput(true);
+        setUserInput('');
+        setNeedsAnnotation(false);
+        setCurrentResponse('');
+        setShowSessionMessage(true);
+      } else {
+        // Fallback to HTTP
+        const response = await axios.post('/api/dev/restart-chat');
+        if (response.data.success) {
+          setChatHistory([]);
+          setIsFirstInput(true);
+          setUserInput('');
+          setNeedsAnnotation(false);
+          setCurrentResponse('');
+          setShowSessionMessage(true);
         }
-      ]);
-      
-      // Reset state to allow for a new chat
-      setIsLoading(false);
-      setIsFirstInput(true);
-      
-      return true;
+      }
     } catch (error) {
-      console.error('Failed to abandon conversation:', error);
-      return false;
+      console.error('Failed to restart chat:', error);
+      reportError('restart_error', 'Failed to restart conversation');
     }
-  };
+  }, [restartConversation, setShowSessionMessage, reportError]);
+
+  // Handle chat abandonment
+  const handleAbandonChat = useCallback(async () => {
+    try {
+      const success = abandonConversation();
+      
+      if (success) {
+        setChatHistory([]);
+        setIsFirstInput(true);
+        setUserInput('');
+        setNeedsAnnotation(false);
+        setCurrentResponse('');
+        setShowSessionMessage(true);
+      } else {
+        // Fallback to HTTP
+        const response = await axios.post('/api/dev/abandon-chat', {
+          chatId: currentChatId,
+          sessionId: currentSession
+        });
+        if (response.data.success) {
+          setChatHistory([]);
+          setIsFirstInput(true);
+          setUserInput('');
+          setNeedsAnnotation(false);
+          setCurrentResponse('');
+          setShowSessionMessage(true);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to abandon chat:', error);
+      reportError('abandon_error', 'Failed to abandon conversation');
+    }
+  }, [abandonConversation, currentChatId, currentSession, setShowSessionMessage, reportError]);
+
+  // Handle result modal close
+  const handleCloseResultModal = useCallback(() => {
+    setShowResultModal(false);
+    setResultModalData(null);
+    setProcessingResult(false);
+  }, []);
+
+  // Request search results
+  const handleRequestResults = useCallback((queryData) => {
+    setProcessingResult(true);
+    const success = requestResults(queryData);
+    
+    if (!success) {
+      setProcessingResult(false);
+      reportError('result_request_error', 'Failed to request results');
+    }
+  }, [requestResults, reportError]);
 
   return {
+    // State
     chatHistory,
     setChatHistory,
     userInput,
     setUserInput,
-    isLoading,
+    isLoading: socketLoading,
     isFirstInput,
     setIsFirstInput,
-    thoughtProcess,
-    timingData,
-    intentData,
     needsAnnotation,
     currentResponse,
     messageListRef,
+    thoughtProcess,
+    timingData,
+    intentData,
     showResultModal,
     resultModalData,
     processingResult,
-    // Expose setters for modal
-    setShowResultModal,
-    setResultModalData,
-    setProcessingResult,
+    isConnected,
+    socketError,
+    currentStreamingMessage,
+
     // Functions
     loadChatHistory,
     handleSubmit,
     handleAnnotationSubmit,
     handleRestartChat,
     handleAbandonChat,
-    stopStreaming,
-    handleCloseResultModal
+    handleCloseResultModal,
+    handleRequestResults,
+    setShowResultModal,
+    setResultModalData,
+    setProcessingResult,
+    reportError,
+    clearError
   };
 };
 
