@@ -26,54 +26,51 @@ const TopicNavigator = ({ currentSession, onTopicChange }) => {
     }
   }, [currentSession]);
 
-  // In TopicNavigator.js - loadTopics function
-// TopicNavigator.js - Remove the "Aucun sujet" option and ensure topic is always selected
-
-const loadTopics = async () => {
-  setTopicState(prev => ({ ...prev, isLoading: true, error: null }));
-  
-  try {
-    const response = await axios.get('/api/dev/chat-topics');
-    const { topics, currentTopicId } = response.data;
+  const loadTopics = async () => {
+    setTopicState(prev => ({ ...prev, isLoading: true, error: null }));
     
-    // NO MORE "No topic" option - use topics directly
-    const availableTopics = topics;
-    
-    // If no topic selected, default to first available topic
-    let selectedTopicId = currentTopicId;
-    let currentIndex = availableTopics.findIndex(t => t.id === currentTopicId);
-    
-    if (currentIndex === -1 && availableTopics.length > 0) {
-      // Auto-select first topic if none selected
-      selectedTopicId = availableTopics[0].id;
-      currentIndex = 0;
-      // Immediately select this topic on backend
-      await axios.post('/api/dev/select-topic', { topicId: selectedTopicId });
+    try {
+      const response = await axios.get('/api/dev/chat-topics');
+      const { topics, currentTopicId } = response.data;
+      
+      // NO MORE "No topic" option - use topics directly
+      const availableTopics = topics;
+      
+      // If no topic selected, default to first available topic
+      let selectedTopicId = currentTopicId;
+      let currentIndex = availableTopics.findIndex(t => t.id === currentTopicId);
+      
+      if (currentIndex === -1 && availableTopics.length > 0) {
+        // Auto-select first topic if none selected
+        selectedTopicId = availableTopics[0].id;
+        currentIndex = 0;
+        // Immediately select this topic on backend
+        await axios.post('/api/dev/select-topic', { topicId: selectedTopicId });
+      }
+      
+      setTopicState({
+        topics: availableTopics,
+        currentTopicId: selectedTopicId,
+        currentTopicIndex: Math.max(0, currentIndex),
+        isLoading: false,
+        error: null
+      });
+      
+      // Notify parent of current topic
+      const currentTopic = availableTopics[Math.max(0, currentIndex)];
+      if (onTopicChange) {
+        onTopicChange(currentTopic);
+      }
+      
+    } catch (error) {
+      console.error('Failed to load topics:', error);
+      setTopicState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Erreur de chargement des sujets'
+      }));
     }
-    
-    setTopicState({
-      topics: availableTopics,
-      currentTopicId: selectedTopicId,
-      currentTopicIndex: Math.max(0, currentIndex),
-      isLoading: false,
-      error: null
-    });
-    
-    // Notify parent of current topic
-    const currentTopic = availableTopics[Math.max(0, currentIndex)];
-    if (onTopicChange) {
-      onTopicChange(currentTopic);
-    }
-    
-  } catch (error) {
-    console.error('Failed to load topics:', error);
-    setTopicState(prev => ({
-      ...prev,
-      isLoading: false,
-      error: 'Erreur de chargement des sujets'
-    }));
-  }
-};
+  };
 
   const navigateToTopic = useCallback((direction) => {
     const { topics, currentTopicIndex } = topicState;
@@ -115,17 +112,15 @@ const loadTopics = async () => {
       });
       
       if (response.data.success) {
-        // Topic selected successfully
         console.log('Topic selected:', response.data);
         
-        // Update the current topic ID to match backend
         setTopicState(prev => ({
           ...prev,
           currentTopicId: selectedTopic.id,
           isLoading: false
         }));
         
-        // Notify parent
+        // Notify parent about topic change (parent will handle chat refresh)
         if (onTopicChange) {
           onTopicChange(selectedTopic);
         }
@@ -203,7 +198,6 @@ const loadTopics = async () => {
           <h4>{currentTopic.name}</h4>
           <div className="topic-details">
             <span className="topic-category">{currentTopic.category}</span>
-            {/* <div className="topic-description">{currentTopic.description}</div> */}
           </div>
           <div className="topic-counter">
             {currentTopicIndex + 1} / {topics.length}
@@ -234,7 +228,6 @@ const loadTopics = async () => {
           →
         </button>
       </div>
-      
       
       {error && (
         <div className="topic-error-inline">

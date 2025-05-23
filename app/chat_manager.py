@@ -1,279 +1,194 @@
-# app/chat_manager.py - Updated with topic support
-
-from sqlalchemy import text
+# services/chat_manager.py
+from sqlalchemy.orm import Session
+from sqlalchemy import and_
+from models import Chat, Message, User
 from datetime import datetime
-from .db import db
-from .models import Chat, User
-import logging
-
-logger = logging.getLogger(__name__)
+from typing import Optional, Dict, Any
+import uuid
 
 class ChatManager:
-    """Centralized chat management with atomic operations"""
-    @staticmethod
-    def get_or_create_ongoing_chat(user_id, session_id, first_message=None, topic=None):
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def get_ongoing_chat(self, user_id: str, session_id: str) -> Optional[Chat]:
         """
-        Atomic operation: Get existing ongoing chat or create new one
-        Always links chat to user's selected topic
+        Get the single ongoing chat for this user/session combination.
+        Returns None if no ongoing chat exists.
         """
-        try:
-            # Close any existing transaction and start fresh
-            db.session.rollback()
-            
-            # Lock user row and verify session_id matches
-            user = db.session.query(User).filter_by(id=user_id).with_for_update().first()
-            if not user:
-                db.session.rollback()
-                return None, "User not found"
-            
-            # CRITICAL: Use the user's actual session_id from database
-            actual_session_id = user.session_id
-            if actual_session_id != session_id:
-                logger.warning(f"Session mismatch for user {user_id}: requested {session_id}, actual {actual_session_id}")
-                session_id = actual_session_id  # Use the actual session_id
-            
-            # Get user's selected topic for this session - MANDATORY
-            user_topic_id = None
-            if session_id == 2:
-                user_topic_id = user.exercise_topic_id
-            elif session_id == 3:
-                user_topic_id = user.test_topic_id
-            
-            # NO CHAT CREATION WITHOUT TOPIC (except tutorial)
-            if session_id > 1 and (user_topic_id is None or user_topic_id <= 0):
-                db.session.rollback()
-                return None, "No topic selected. Please select a topic first."
-            
-            # Get topic name for chat storage
-            topic_name = None
-            if user_topic_id and user_topic_id > 0:
-                from .dev import TOPICS  # Import topics
-                session_topics = TOPICS.get(session_id, [])
-                topic_info = next((t for t in session_topics if t["id"] == user_topic_id), None)
-                topic_name = topic_info["name"] if topic_info else f"Topic {user_topic_id}"
-            
-            # Check for existing ongoing chat with row lock for THIS session only
-            existing_chat = (db.session.query(Chat)
-                        .filter_by(user_id=user_id, session_id=session_id, status="ongoing")
-                        .with_for_update()
-                        .first())
-            
-            if existing_chat:
-                # Return existing chat
-                db.session.commit()
-                logger.info(f"Retrieved existing chat {existing_chat.id} for user {user_id} session {session_id}")
-                return existing_chat, None
-            
-            # No ongoing chat exists for this session, create new one
-            # First, safety check: end any other ongoing chats for this specific session
-            terminated_count = db.session.query(Chat).filter_by(
-                user_id=user_id, 
-                session_id=session_id, 
-                status="ongoing"
-            ).update({"status": "terminated_safety"})
-            
-            if terminated_count > 0:
-                logger.warning(f"Terminated {terminated_count} ongoing chats for user {user_id} session {session_id}")
-            
-            # Create new chat with user's selected topic
-            chat_history = []
-            if first_message:
-                chat_history.append({
-                    'role': 'user',
-                    'content': first_message,
-                    'timestamp': datetime.utcnow().isoformat()
-                })
-            
-            new_chat = Chat(
-                user_id=user_id,
-                session_id=session_id,
-                status="ongoing",
-                chat_history=chat_history,
-                topic=topic_name,  # Use user's selected topic
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+        return self.db.query(Chat).filter(
+            and_(
+                Chat.user_id == user_id,
+                Chat.session_id == session_id,
+                Chat.status == 'active'
             )
-            
-            db.session.add(new_chat)
-            db.session.flush() 
-            
-            db.session.commit()
-            logger.info(f"Created new chat {new_chat.id} for user {user_id} session {session_id} with topic '{topic_name}'")
-            return new_chat, None
-            
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error in get_or_create_ongoing_chat: {str(e)}")
-            return None, str(e)
+        ).first()
     
-    @staticmethod
-    def add_message_to_chat(chat_id, role, content):
-        """Add message to chat with atomic update"""
-        try:
-            # Close any existing transaction and start fresh
-            db.session.rollback()
-            
-            chat = db.session.query(Chat).filter_by(id=chat_id).with_for_update().first()
-            if not chat:
-                db.session.rollback()
-                return False, "Chat not found"
-            
-            if chat.status != "ongoing":
-                db.session.rollback()
-                return False, f"Chat is not ongoing (status: {chat.status})"
-            
-            # Add message
-            message = {
-                'role': role,
-                'content': content,
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-            if chat.chat_history is None:
-                chat.chat_history = []
-            
-            chat.chat_history = chat.chat_history + [message]  # Create new list for JSON update
+    def create_chat_with_first_message(
+        self, 
+        user_id: str, 
+        session_id: str, 
+        message_content: str
+    ) -> Chat:
+        """
+        Create new chat and add first user message.
+        Gets topic from user table - single source of truth.
+        """
+        # Get user to determine topic
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise ValueError(f"User {user_id} not found")
+        
+        # Determine topic based on session type
+        topic_id = None
+        if session_id.startswith('exercise_'):
+            topic_id = user.exercise_topic_id
+        elif session_id.startswith('test_'):
+            topic_id = user.test_topic_id
+        
+        # Create new chat
+        chat = Chat(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            session_id=session_id,
+            topic_id=topic_id,
+            status='active',
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        
+        self.db.add(chat)
+        self.db.flush()  # Get chat ID
+        
+        # Add first user message
+        self.add_message_to_chat(chat.id, 'user', message_content)
+        
+        self.db.commit()
+        return chat
+    
+    def add_message_to_chat(
+        self, 
+        chat_id: str, 
+        role: str, 
+        content: str
+    ) -> Message:
+        """
+        Add message to existing chat.
+        """
+        message = Message(
+            id=str(uuid.uuid4()),
+            chat_id=chat_id,
+            role=role,
+            content=content,
+            created_at=datetime.utcnow()
+        )
+        
+        self.db.add(message)
+        
+        # Update chat timestamp
+        chat = self.db.query(Chat).filter(Chat.id == chat_id).first()
+        if chat:
             chat.updated_at = datetime.utcnow()
-            
-            db.session.commit()
-            return True, None
-            
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error adding message to chat {chat_id}: {str(e)}")
-            return False, str(e)
+        
+        self.db.commit()
+        return message
     
-    @staticmethod
-    def end_chat(chat_id, new_status, user_id=None):
-        """End a specific chat with new status"""
-        try:
-            # Close any existing transaction and start fresh
-            db.session.rollback()
-            
-            query = db.session.query(Chat).filter_by(id=chat_id)
-            if user_id:
-                query = query.filter_by(user_id=user_id)
-            
-            chat = query.with_for_update().first()
-            if not chat:
-                db.session.rollback()
-                return False, "Chat not found"
-            
-            chat.status = new_status
+    def end_chat(self, chat_id: str, status: str = 'completed') -> bool:
+        """
+        End ongoing chat with given status.
+        Statuses: completed, abandoned, terminated
+        """
+        chat = self.db.query(Chat).filter(Chat.id == chat_id).first()
+        if not chat:
+            return False
+        
+        chat.status = status
+        chat.ended_at = datetime.utcnow()
+        chat.updated_at = datetime.utcnow()
+        
+        self.db.commit()
+        return True
+    
+    def terminate_ongoing_chats(self, user_id: str, session_id: str = None) -> int:
+        """
+        Terminate all ongoing chats for user.
+        If session_id provided, only terminate chats for that session.
+        Used when topic changes or session changes.
+        """
+        query = self.db.query(Chat).filter(
+            and_(
+                Chat.user_id == user_id,
+                Chat.status == 'active'
+            )
+        )
+        
+        if session_id:
+            query = query.filter(Chat.session_id == session_id)
+        
+        ongoing_chats = query.all()
+        count = len(ongoing_chats)
+        
+        for chat in ongoing_chats:
+            chat.status = 'terminated'
+            chat.ended_at = datetime.utcnow()
             chat.updated_at = datetime.utcnow()
-            
-            db.session.commit()
-            logger.info(f"Ended chat {chat_id} with status {new_status}")
-            return True, None
-            
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error ending chat {chat_id}: {str(e)}")
-            return False, str(e)
+        
+        self.db.commit()
+        return count
     
-    @staticmethod
-    def end_all_ongoing_chats_for_user(user_id, new_status="terminated_by_session_change"):
-        """End all ongoing chats for a user - useful for session changes"""
-        try:
-            db.session.rollback()
-            
-            updated_count = db.session.query(Chat).filter_by(
-                user_id=user_id,
-                status="ongoing"
-            ).update({"status": new_status, "updated_at": datetime.utcnow()})
-            
-            db.session.commit()
-            logger.info(f"Ended {updated_count} ongoing chats for user {user_id}")
-            return True, None
-            
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error ending ongoing chats for user {user_id}: {str(e)}")
-            return False, str(e)
-    
-    @staticmethod
-    def get_chat_state(user_id, session_id):
-        """Get current chat state for user session - uses user's actual session if mismatch"""
-        try:
-            user = db.session.query(User).filter_by(id=user_id).first()
-            if not user:
-                return {
-                    "chat_id": None,
-                    "messages": [],
-                    "topic": None,
-                    "session_id": session_id,
-                    "error": "User not found"
+    def get_chat_with_messages(self, chat_id: str) -> Optional[Dict[Any, Any]]:
+        """
+        Get chat with all messages for frontend state.
+        """
+        chat = self.db.query(Chat).filter(Chat.id == chat_id).first()
+        if not chat:
+            return None
+        
+        messages = self.db.query(Message).filter(
+            Message.chat_id == chat_id
+        ).order_by(Message.created_at).all()
+        
+        return {
+            'id': chat.id,
+            'user_id': chat.user_id,
+            'session_id': chat.session_id,
+            'topic_id': chat.topic_id,
+            'status': chat.status,
+            'created_at': chat.created_at.isoformat(),
+            'messages': [
+                {
+                    'id': msg.id,
+                    'role': msg.role,
+                    'content': msg.content,
+                    'timestamp': msg.created_at.isoformat()
                 }
-            
-            # Use user's actual session_id
-            actual_session_id = user.session_id
-            if actual_session_id != session_id:
-                logger.warning(f"Session mismatch for user {user_id}: requested {session_id}, actual {actual_session_id}")
-                session_id = actual_session_id
-            
-            chat = (db.session.query(Chat)
-                   .filter_by(user_id=user_id, session_id=session_id, status="ongoing")
-                   .first())
-            
-            if not chat:
-                return {
-                    "chat_id": None,
-                    "messages": [],
-                    "topic": None,
-                    "session_id": session_id
-                }
-            
-            # Format messages for frontend
-            formatted_messages = []
-            if chat.chat_history:
-                for msg in chat.chat_history:
-                    formatted_messages.append({
-                        'sender': 'user' if msg.get('role') == 'user' else 'bot',
-                        'message': msg.get('content', ''),
-                        'timestamp': msg.get('timestamp', datetime.now().isoformat())
-                    })
-            
-            return {
-                "chat_id": chat.id,
-                "messages": formatted_messages,
-                "topic": chat.topic,
-                "session_id": session_id,
-                "status": chat.status
-            }
-            
-        except Exception as e:
-            logger.error(f"Error getting chat state: {str(e)}")
-            return {
-                "chat_id": None,
-                "messages": [],
-                "topic": None,
-                "session_id": session_id,
-                "error": str(e)
-            }
+                for msg in messages
+            ]
+        }
     
-    @staticmethod
-    def update_detected_intent(chat_id, detected_intent, user_id=None):
-        """Update chat topic with atomic operation"""
-        try:
-            db.session.rollback()
-            
-            query = db.session.query(Chat).filter_by(id=chat_id)
-            if user_id:
-                query = query.filter_by(user_id=user_id)
-            
-            chat = query.with_for_update().first()
-            if not chat:
-                db.session.rollback()
-                return False, "Chat not found"
-            
-            chat.detected_intent = detected_intent
-            chat.updated_at = datetime.utcnow()
-            
-            db.session.commit()
-            logger.info(f"Updated chat {chat_id} detected_intent to {detected_intent}")
-            return True, None
-            
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error updating chat detected_intent {chat_id}: {str(e)}")
-            return False, str(e)
+    def update_user_topic(
+        self, 
+        user_id: str, 
+        exercise_topic_id: str = None, 
+        test_topic_id: str = None
+    ) -> bool:
+        """
+        Update user topic and terminate ongoing chats.
+        Called when user selects new topic.
+        """
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return False
+        
+        # Update topic
+        if exercise_topic_id is not None:
+            user.exercise_topic_id = exercise_topic_id
+        if test_topic_id is not None:
+            user.test_topic_id = test_topic_id
+        
+        user.updated_at = datetime.utcnow()
+        
+        # Terminate ongoing chats since topic changed
+        self.terminate_ongoing_chats(user_id)
+        
+        self.db.commit()
+        return True

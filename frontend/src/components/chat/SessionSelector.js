@@ -86,18 +86,18 @@ const SessionSelector = ({
           
           {currentTopic && (
             <div className="current-topic">
-              <strong>Sujet sélectionné:</strong>
+              {/* <strong>Sujet sélectionné:</strong> */}
               <div className="topic-details">
                 <span className="topic-name">{currentTopic.name}</span>
                 {currentTopic.category && (
                   <span className="topic-category">({currentTopic.category})</span>
                 )}
               </div>
-              {currentTopic.description && (
+              {/* {currentTopic.description && (
                 <div className="topic-description">
                   <small>{currentTopic.description}</small>
                 </div>
-              )}
+              )} */}
             </div>
           )}
         </div>

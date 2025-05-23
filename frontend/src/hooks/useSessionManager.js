@@ -1,4 +1,4 @@
-// hooks/useSessionManager.js - Updated to handle no auto-chat creation
+// hooks/useSessionManager.js - Fixed eslint errors
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
@@ -182,65 +182,64 @@ const useSessionManager = (socketRef) => {
     }
   };
 
-  const transitionToNextSession = async () => {
-    if (sessionState.isTransitioning) return { already_transitioning: true };
-    
-    setSessionState(prev => ({ ...prev, isTransitioning: true }));
-    
+  const transitionToNextSession = useCallback(async () => {
     try {
+      setSessionState(prev => ({ ...prev, isTransitioning: true }));
+      
+      const targetSession = sessionState.currentSession + 1;
+      if (targetSession > 3) {
+        // Handle completion
+        navigate('/feedback');
+        return { success: true, completed: true };
+      }
+      
+      // End current timer
       await saveTimerToServer();
       
-      if (sessionState.currentSession >= 3) {
-        navigate('/feedback');
-        return { redirect: true };
-      }
-
-      const newSessionId = sessionState.currentSession + 1;
-      
-      // Use SocketIO for session change if available
+      // Try SocketIO first
       if (socketRef?.current?.connected) {
-        console.log(`Requesting session change to ${newSessionId} via SocketIO`);
-        socketRef.current.emit('session_change', { 
-          session_id: newSessionId 
+        return new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            resolve({ success: false, error: 'SocketIO timeout' });
+          }, 5000);
+          
+          const handleSuccess = () => {
+            clearTimeout(timeout);
+            socketRef.current.off('session_change_success', handleSuccess);
+            socketRef.current.off('session_change_error', handleError);
+            resolve({ success: true, method: 'socketio' });
+          };
+          
+          const handleError = (data) => {
+            clearTimeout(timeout);
+            socketRef.current.off('session_change_success', handleSuccess);
+            socketRef.current.off('session_change_error', handleError);
+            resolve({ success: false, error: data.error, method: 'socketio' });
+          };
+          
+          socketRef.current.on('session_change_success', handleSuccess);
+          socketRef.current.on('session_change_error', handleError);
+          socketRef.current.emit('session_change', { session_id: targetSession });
         });
-        
-        // Return immediately - the SocketIO handlers will manage the state
-        return { success: true, method: 'socketio' };
-      } else {
-        // Fallback to HTTP if no socket connection
-        console.log(`Requesting session change to ${newSessionId} via HTTP`);
-        const response = await axios.post('/api/dev/change-session', { 
-          sessionId: newSessionId
-        });
-        
-        // Note: response.data.chatId will be null - that's expected!
-        
-        setSessionState(prev => ({
-          ...prev,
-          currentSession: newSessionId,
-          currentChatId: null,  // No chat created yet
-          timeRemaining: SESSION_DURATIONS[newSessionId],
-          isTransitioning: false
-        }));
-
-        // Start timer for new session if needed
-        if (SESSION_DURATIONS[newSessionId]) {
-          startTimer(SESSION_DURATIONS[newSessionId]);
-        }
-        
-        return { 
-          success: true, 
-          chatId: null,  // No chat created
-          resetChat: true, 
-          method: 'http' 
-        };
       }
+      
+      // Fallback to HTTP
+      const response = await axios.post('/api/dev/change-session', {
+        sessionId: targetSession
+      });
+      
+      if (response.data.success) {
+        return { success: true, method: 'http' };
+      } else {
+        return { success: false, error: response.data.error, method: 'http' };
+      }
+      
     } catch (error) {
-      console.error('Session transition failed:', error);
+      return { success: false, error: error.message };
+    } finally {
       setSessionState(prev => ({ ...prev, isTransitioning: false }));
-      return { error: true };
     }
-  };
+  }, [sessionState.currentSession, saveTimerToServer, socketRef, navigate]);
 
   const formatTime = (seconds) => {
     if (seconds === null) return null;

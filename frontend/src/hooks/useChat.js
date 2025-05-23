@@ -1,632 +1,181 @@
 // hooks/useChat.js - Updated with topic support
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import io from 'socket.io-client';
 
-const useChat = (currentSession, onResultReceived) => {
-  const [chatState, setChatState] = useState({
-    chatId: null,
-    messages: [],
-    userInput: '',
-    currentTopic: null,
-    detectedIntent: null,
-    actualSessionId: null,
-    selectedTopicInfo: null  // Add topic info state
-  });
-  
-  // Connection and UI state
-  const [connectionState, setConnectionState] = useState({
-    isConnected: false,
-    isLoading: false,
-    error: null
-  });
-  
-  // Streaming state
-  const [streamState, setStreamState] = useState({
-    thoughtProcess: [],
-    currentStreamingMessage: '',
-    isStreaming: false
-  });
-  
-  const socketRef = useRef(null);
-  const messageListRef = useRef(null);
-  const currentMessageRef = useRef('');
-  const pendingUserMessages = useRef(new Set());
-  const lastLoadedSession = useRef(null);
+import { io } from 'socket.io-client';
+
+export const useChat = () => {
+  // ONLY these states needed - Single Source of Truth
+  const [currentChatId, setCurrentChatId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [socket, setSocket] = useState(null);
 
   // Initialize socket connection
   useEffect(() => {
-    initializeSocket();
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
+    const newSocket = io(process.env.REACT_APP_SOCKET_URL, {
+      auth: {
+        token: localStorage.getItem('authToken')
       }
+    });
+
+    newSocket.on('connect', () => {
+      setIsConnected(true);
+      console.log('Socket connected');
+    });
+
+    newSocket.on('disconnect', () => {
+      setIsConnected(false);
+      console.log('Socket disconnected');
+    });
+
+    // Chat state response
+    newSocket.on('chat_state_response', (data) => {
+      if (data.chat) {
+        setCurrentChatId(data.chat.id);
+        setMessages(data.chat.messages || []);
+      } else {
+        // No ongoing chat - clear state
+        setCurrentChatId(null);
+        setMessages([]);
+      }
+    });
+
+    // Message received
+    newSocket.on('message_received', (data) => {
+      setMessages(prev => [...prev, data.message]);
+    });
+
+    // Streaming events
+    newSocket.on('stream_start', (data) => {
+      setIsStreaming(true);
+      setCurrentChatId(data.chat_id);
+      // Add AI message placeholder
+      setMessages(prev => [...prev, {
+        id: `temp_${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        isStreaming: true
+      }]);
+    });
+
+    newSocket.on('stream_chunk', (data) => {
+      setMessages(prev => prev.map(msg => 
+        msg.isStreaming ? 
+          { ...msg, content: msg.content + data.content } : 
+          msg
+      ));
+    });
+
+    newSocket.on('stream_end', (data) => {
+      setIsStreaming(false);
+      setMessages(prev => prev.map(msg => 
+        msg.isStreaming ? 
+          { ...msg, isStreaming: false, id: data.message_id } : 
+          msg
+      ));
+
+      // Handle chat end events
+      if (data.chat_ended) {
+        handleChatEnd();
+      }
+    });
+
+    // Session change success
+    newSocket.on('session_change_success', () => {
+      console.log('Session changed, ongoing chats terminated');
+      clearChatState();
+    });
+
+    // Ongoing chats terminated
+    newSocket.on('ongoing_chats_terminated', () => {
+      console.log('Ongoing chats terminated');
+      clearChatState();
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.disconnect();
     };
   }, []);
-
-  // Load chat state when session changes or connection is established
-  useEffect(() => {
-    if (currentSession > 0 && socketRef.current?.connected) {
-      // Only request chat state if session actually changed
-      if (lastLoadedSession.current !== currentSession) {
-        console.log(`Session changed from ${lastLoadedSession.current} to ${currentSession} - loading chat state`);
-        lastLoadedSession.current = currentSession;
-        requestChatState();
-      }
-    } else if (currentSession === 1) {
-      // Tutorial - clear everything immediately
-      clearChatState();
-      lastLoadedSession.current = 1;
-    }
-  }, [currentSession, socketRef.current?.connected]);
 
   // Clear chat state helper
   const clearChatState = useCallback(() => {
-    setChatState({
-      chatId: null,
-      messages: [],
-      userInput: '',
-      currentTopic: null,
-      detectedIntent: null,
-      actualSessionId: null,
-      selectedTopicInfo: null
-    });
-    pendingUserMessages.current.clear();
-    setStreamState({
-      thoughtProcess: [],
-      currentStreamingMessage: '',
-      isStreaming: false
-    });
+    setCurrentChatId(null);
+    setMessages([]);
+    setIsStreaming(false);
   }, []);
 
-  const initializeSocket = async () => {
-    try {
-      // Get auth data
-      const response = await fetch('/api/dev/session-data', { credentials: 'include' });
-      const { userId } = await response.json();
-
-      if (!userId) {
-        setConnectionState(prev => ({ ...prev, error: 'Authentication failed' }));
-        return;
-      }
-
-      // Create socket connection
-      socketRef.current = io('http://127.0.0.1:5001', {
-        transports: ['websocket', 'polling'],
-        autoConnect: true,
-        withCredentials: true,
-        forceNew: true,
-        auth: { userId }
-      });
-
-      const socket = socketRef.current;
-      
-      // Connection events
-      socket.on('connect', () => {
-        console.log('Socket connected');
-        setConnectionState(prev => ({ ...prev, isConnected: true, error: null }));
-        
-        // Load chat state for current session
-        if (currentSession > 0) {
-          setTimeout(() => requestChatState(), 100);
-        }
-      });
-
-      socket.on('disconnect', () => {
-        console.log('Socket disconnected');
-        setConnectionState(prev => ({ ...prev, isConnected: false }));
-      });
-
-      // Chat state events
-      socket.on('chat_state_response', handleChatStateResponse);
-      socket.on('chat_state_updated', handleChatStateUpdate);
-      
-      // Message events
-      socket.on('message_received', handleMessageReceived);
-      
-      // Streaming events
-      socket.on('stream_start', handleStreamStart);
-      socket.on('workflow_progress', handleWorkflowProgress);
-      socket.on('stream_chunk', handleStreamChunk);
-      socket.on('stream_end', handleStreamEnd);
-      socket.on('stream_error', handleStreamError);
-      
-      // Chat action events
-      socket.on('conversation_abandoned', handleConversationAction);
-      socket.on('conversation_restarted', handleConversationAction);
-      socket.on('results_window_requested', handleConversationAction);
-      socket.on('result_data', handleResultData);
-      
-      // Topic selection events
-      socket.on('topic_selected', handleTopicSelected);
-      socket.on('conversation_ended_by_topic_change', handleConversationEndedByTopicChange);
-      
-      // Session change events
-      socket.on('ongoing_chats_terminated', handleOngoingChatsTerminated);
-      socket.on('session_change_success', handleSessionChangeSuccess);
-      socket.on('session_change_error', handleSessionChangeError);
-      
-      // Error events
-      socket.on('error', handleSocketError);
-
-    } catch (error) {
-      console.error('Socket initialization failed:', error);
-      setConnectionState(prev => ({ ...prev, error: 'Connection failed' }));
-    }
-  };
-
-  // New topic-related event handlers
-  const handleTopicSelected = useCallback((data) => {
-    console.log('Topic selected via socket:', data);
-    
-    setChatState(prev => ({
-      ...prev,
-      selectedTopicInfo: data.topicInfo,
-      currentTopic: data.topicInfo?.name || null
-    }));
-    
-    // Add system message about topic selection
-    if (data.topicInfo && data.topicInfo.name) {
-      const systemMessage = {
-        id: `${Date.now()}-system-topic-${Math.random()}`,
-        content: `Sujet sélectionné: ${data.topicInfo.name}`,
-        role: 'system',
-        timestamp: new Date().toISOString(),
-        isSystem: true
-      };
-      
-      setChatState(prev => ({
-        ...prev,
-        messages: [...prev.messages, systemMessage]
-      }));
-    }
-  }, []);
-
-  const handleConversationEndedByTopicChange = useCallback((data) => {
-    console.log('Conversation ended by topic change:', data);
-    
-    // Clear current chat but keep session info
-    setChatState(prev => ({
-      ...prev,
-      chatId: null,
-      messages: [],
-      currentTopic: data.newTopic || null,
-      selectedTopicInfo: data.topicInfo || null
-    }));
-    
-    // Clear pending messages
-    pendingUserMessages.current.clear();
-    
-    // Add system message about topic change
-    const systemMessage = {
-      id: `${Date.now()}-system-topic-change-${Math.random()}`,
-      content: data.message || 'Conversation terminée - nouveau sujet sélectionné',
-      role: 'system',
-      timestamp: new Date().toISOString(),
-      isSystem: true
-    };
-    
-    setChatState(prev => ({
-      ...prev,
-      messages: [systemMessage]
-    }));
-  }, []);
-
-  // Session change event handlers
-  const handleOngoingChatsTerminated = useCallback((data) => {
-    console.log('Ongoing chats terminated:', data);
-    // Clear current chat state immediately
+  // Handle chat end (abandon/recommencer/resultat)
+  const handleChatEnd = useCallback(() => {
+    console.log('Chat ended, clearing UI');
     clearChatState();
   }, [clearChatState]);
 
-  const handleSessionChangeSuccess = useCallback((data) => {
-    console.log('Session change successful:', data);
-    
-    // Update local session tracking
-    lastLoadedSession.current = data.session_id;
-    
-    // Clear and request fresh chat state
-    clearChatState();
-    
-    // Small delay then request new chat state
-    setTimeout(() => {
-      if (socketRef.current?.connected) {
-        requestChatState();
-      }
-    }, 200);
-  }, [clearChatState]);
-
-  const handleSessionChangeError = useCallback((data) => {
-    console.error('Session change error:', data);
-    setConnectionState(prev => ({ 
-      ...prev, 
-      error: `Session change failed: ${data.error}` 
-    }));
-  }, []);
-
-  // Event handlers
-  const handleChatStateResponse = useCallback((data) => {
-    console.log('Chat state received:', data);
-    
-    const formattedMessages = data.messages?.map(msg => ({
-      id: `${msg.timestamp}-${msg.sender}-${msg.message.slice(0, 10)}`,
-      content: msg.message,
-      role: msg.sender === 'user' ? 'user' : 'assistant',
-      timestamp: msg.timestamp,
-      isSystem: false
-    })) || [];
-
-    setChatState({
-      chatId: data.chat_id,
-      messages: formattedMessages,
-      userInput: '',
-      currentTopic: data.topic,
-      detectedIntent: null,
-      actualSessionId: data.session_id,  // Track actual session from server
-      selectedTopicInfo: null  // Will be loaded separately if needed
-    });
-    
-    // Clear pending messages since we got fresh state
-    pendingUserMessages.current.clear();
-    
-    // Update last loaded session
-    if (data.session_id) {
-      lastLoadedSession.current = data.session_id;
+  // Send message - creates chat lazily if needed
+  const sendMessage = useCallback((content) => {
+    if (!socket || !isConnected) {
+      console.error('Socket not connected');
+      return;
     }
-  }, []);
 
-  const handleChatStateUpdate = useCallback((data) => {
-    console.log('Chat state updated:', data);
-    
-    // Update chat ID if it changed
-    if (data.chat_id && data.chat_id !== chatState.chatId) {
-      setChatState(prev => ({ ...prev, chatId: data.chat_id }));
-    }
-  }, [chatState.chatId]);
-
-  const handleMessageReceived = useCallback((data) => {
-    console.log('Message received confirmation:', data);
-    
-    // Remove from pending messages
-    if (data.message) {
-      pendingUserMessages.current.delete(data.message);
-    }
-    
-    // Update chat ID if provided (especially important for first messages that create chats)
-    if (data.chat_id && data.chat_id !== chatState.chatId) {
-      console.log(`Updating chat ID from ${chatState.chatId} to ${data.chat_id}`);
-      setChatState(prev => ({ ...prev, chatId: data.chat_id }));
-    }
-    
-    // Update session tracking if provided
-    if (data.session_id) {
-      setChatState(prev => ({ ...prev, actualSessionId: data.session_id }));
-    }
-    
-    // Log if chat was just created
-    if (data.chat_created) {
-      console.log('New chat created on first message');
-    }
-  }, [chatState.chatId]);
-
-  const handleStreamStart = useCallback((data) => {
-    console.log('Stream starting:', data);
-    setStreamState({
-      thoughtProcess: [],
-      currentStreamingMessage: '',
-      isStreaming: true
-    });
-    setConnectionState(prev => ({ ...prev, isLoading: true }));
-    currentMessageRef.current = '';
-  }, []);
-
-  const handleWorkflowProgress = useCallback((data) => {
-    const progressStep = {
-      step: data.step,
-      status: data.status,
-      result: data.result,
-      topic: data.topic,
+    // Add user message immediately to UI
+    const userMessage = {
+      id: `user_${Date.now()}`,
+      role: 'user', 
+      content,
       timestamp: new Date().toISOString()
     };
     
-    setStreamState(prev => ({
-      ...prev,
-      thoughtProcess: [...prev.thoughtProcess, progressStep]
-    }));
+    setMessages(prev => [...prev, userMessage]);
 
-    // Update topic if detected
-    if (data.topic) {
-      setChatState(prev => ({ ...prev, currentTopic: data.topic }));
-    }
-  }, []);
-
-  const handleStreamChunk = useCallback((data) => {
-    currentMessageRef.current += data.content;
-    setStreamState(prev => ({
-      ...prev,
-      currentStreamingMessage: currentMessageRef.current
-    }));
-  }, []);
-
-  const handleStreamEnd = useCallback((data) => {
-    console.log('Stream ended:', data);
-    
-    setConnectionState(prev => ({ ...prev, isLoading: false }));
-    setStreamState(prev => ({ ...prev, isStreaming: false }));
-    
-    // Add complete message to chat - backend is source of truth
-    if (data.final_response) {
-      const newMessage = {
-        id: `${Date.now()}-assistant-${Math.random()}`,
-        content: data.final_response,
-        role: 'assistant',
-        timestamp: new Date().toISOString(),
-        isSystem: false
-      };
-  
-      setChatState(prev => ({
-        ...prev,
-        messages: [...prev.messages, newMessage], // Just add it - no duplicate check
-        currentTopic: data.current_topic || prev.currentTopic,
-        detectedIntent: data.detected_intent || prev.detectedIntent
-      }));
-    }
-    
-    // Clear streaming state
-    setStreamState(prev => ({
-      ...prev,
-      currentStreamingMessage: '',
-      isStreaming: false
-    }));
-    currentMessageRef.current = '';
-    
-    setTimeout(scrollToBottom, 100);
-  }, []);
-
-  const handleStreamError = useCallback((data) => {
-    console.error('Stream error:', data);
-    setConnectionState(prev => ({ 
-      ...prev, 
-      isLoading: false, 
-      error: `Stream error: ${data.error}` 
-    }));
-    setStreamState(prev => ({ 
-      ...prev, 
-      currentStreamingMessage: '', 
-      isStreaming: false 
-    }));
-    currentMessageRef.current = '';
-  }, []);
-
-  const handleConversationAction = useCallback((data) => {
-    console.log('Conversation action:', data);
-    
-    // Determine if this is an abandon action by checking the message content
-    const isAbandon = data.message && data.message.includes('abandonner');
-    const isRestart = data.new_chat_id || (data.message && data.message.includes('redémarrée'));
-    const isResults = data.message && data.message.includes('évaluation');
-    
-    // Handle different action types
-    if (isAbandon || isRestart) {
-      // Clear messages for abandon and restart
-      setChatState(prev => ({
-        ...prev,
-        chatId: data.new_chat_id || null,
-        messages: [], // Always clear messages for abandon/restart
-        currentTopic: null,
-        detectedIntent: null
-      }));
-      
-      // Clear pending messages
-      pendingUserMessages.current.clear();
-    }
-    
-    // Add system message if there's content
-    if (data.message) {
-      const systemMessage = {
-        id: `${Date.now()}-system-${Math.random()}`,
-        content: data.message,
-        role: 'system',
-        timestamp: new Date().toISOString(),
-        isSystem: true
-      };
-      
-      setChatState(prev => ({
-        ...prev,
-        messages: [...prev.messages, systemMessage]
-      }));
-    }
-    
-    setTimeout(scrollToBottom, 100);
-  }, []);
-
-  const handleResultData = useCallback((data) => {
-    console.log('Result data received:', data);
-    
-    // Add system message about results
-    const systemMessage = {
-      id: `${Date.now()}-system-result-${Math.random()}`,
-      content: 'Résultats de recherche disponibles',
-      role: 'system',
-      timestamp: new Date().toISOString(),
-      isSystem: true
-    };
-    
-    setChatState(prev => ({
-      ...prev,
-      messages: [...prev.messages, systemMessage]
-    }));
-    
-    // If onResultReceived callback is provided, call it
-    if (onResultReceived) {
-      onResultReceived(data.results);
-    }
-    
-    setTimeout(scrollToBottom, 100);
-  }, [onResultReceived]);
-
-  const handleSocketError = useCallback((data) => {
-    console.error('Socket error:', data);
-    
-    // Check if it's a topic selection error
-    if (data.message && data.message.includes('topic')) {
-      // Add system message about topic requirement
-      const systemMessage = {
-        id: `${Date.now()}-system-topic-error-${Math.random()}`,
-        content: '⚠️ Vous devez sélectionner un sujet avant de commencer une conversation. Utilisez le navigateur de sujets dans la barre latérale.',
-        role: 'system',
-        timestamp: new Date().toISOString(),
-        isSystem: true
-      };
-      
-      setChatState(prev => ({
-        ...prev,
-        messages: [...prev.messages, systemMessage]
-      }));
-    }
-    
-    setConnectionState(prev => ({ 
-      ...prev, 
-      error: data.message || 'Socket error',
-      isLoading: false 
-    }));
-  }, []);
-
-  // Actions
-  const requestChatState = useCallback(() => {
-    if (socketRef.current?.connected) {
-      console.log(`Requesting chat state for session ${currentSession}`);
-      socketRef.current.emit('get_chat_state', { session_id: currentSession });
-    } else {
-      console.warn(`Cannot request chat state - connected: ${socketRef.current?.connected}, session: ${currentSession}`);
-    }
-  }, [currentSession]);
-
-  const sendMessage = useCallback((message) => {
-    if (!message?.trim() || !connectionState.isConnected) {
-      return false;
-    }
-  
-    const messageContent = message.trim();
-    
-    // Check if this message is already pending (prevent spam)
-    if (pendingUserMessages.current.has(messageContent)) {
-      console.log('Message already pending, ignoring duplicate');
-      return false;
-    }
-  
-    // Add to pending messages
-    pendingUserMessages.current.add(messageContent);
-  
-    // Add user message immediately (optimistic update)
-    const userMessage = {
-      id: `${Date.now()}-user-${Math.random()}`,
-      content: messageContent,
-      role: 'user',
-      timestamp: new Date().toISOString(),
-      isSystem: false
-    };
-  
-    setChatState(prev => ({
-      ...prev,
-      messages: [...prev.messages, userMessage],
-      userInput: '',
-    }));
-  
-    // Send message - backend will enforce topic requirement
-    const messageData = {
-      message: messageContent,
-      chat_id: chatState.chatId,
-    };
-  
-    socketRef.current.emit('send_message', messageData);
-  
-    setTimeout(scrollToBottom, 100);
-    return true;
-  }, [connectionState.isConnected, chatState.chatId]);
-
-  const abandonConversation = useCallback(() => {
-    if (!connectionState.isConnected || !chatState.chatId) return false;
-    
-    socketRef.current.emit('send_message', {
-      message: 'abandon',
-      chat_id: chatState.chatId,
+    // Send via socket - backend will create chat if needed
+    socket.emit('send_message', {
+      content,
+      chat_id: currentChatId // null if no ongoing chat
     });
-    return true;
-  }, [connectionState.isConnected, chatState.chatId]);
+  }, [socket, isConnected, currentChatId]);
 
-  const restartConversation = useCallback(() => {
-    if (!connectionState.isConnected) return false;
+  // Get current chat state
+  const getChatState = useCallback(() => {
+    if (!socket || !isConnected) return;
     
-    socketRef.current.emit('send_message', {
-      message: 'recommencer',
-      chat_id: chatState.chatId,
-    });
-    return true;
-  }, [connectionState.isConnected, chatState.chatId]);
+    socket.emit('get_chat_state');
+  }, [socket, isConnected]);
 
-  const requestResults = useCallback((queryData) => {
-    if (!connectionState.isConnected || !chatState.chatId) return false;
+  // Change session - will terminate ongoing chats
+  const changeSession = useCallback((sessionId) => {
+    if (!socket || !isConnected) return;
     
-    socketRef.current.emit('send_message', {
-      message: 'résultat',
-      chat_id: chatState.chatId,
+    socket.emit('session_change', { session_id: sessionId });
+  }, [socket, isConnected]);
+
+  // Update topic - will terminate ongoing chats  
+  const updateTopic = useCallback((topicId, topicType) => {
+    if (!socket || !isConnected) return;
+    
+    const topicField = topicType === 'exercise' ? 'exercise_topic_id' : 'test_topic_id';
+    
+    socket.emit('update_topic', { 
+      [topicField]: topicId 
     });
-    return true;
-  }, [connectionState.isConnected, chatState.chatId]);
-
-  // New function to update selected topic info
-  const updateSelectedTopic = useCallback((topicInfo) => {
-    setChatState(prev => ({ 
-      ...prev, 
-      selectedTopicInfo: topicInfo,
-      currentTopic: topicInfo?.name || prev.currentTopic
-    }));
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    if (messageListRef.current) {
-      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
-    }
-  }, []);
-
-  const clearError = useCallback(() => {
-    setConnectionState(prev => ({ ...prev, error: null }));
-  }, []);
+  }, [socket, isConnected]);
 
   return {
-    // Chat state
-    chatId: chatState.chatId,
-    messages: chatState.messages,
-    userInput: chatState.userInput,
-    setUserInput: (value) => setChatState(prev => ({ ...prev, userInput: value })),
-    currentTopic: chatState.currentTopic,
-    detectedIntent: chatState.detectedIntent,
-    actualSessionId: chatState.actualSessionId,
-    selectedTopicInfo: chatState.selectedTopicInfo,
-    
-    // Connection state
-    isConnected: connectionState.isConnected,
-    isLoading: connectionState.isLoading,
-    error: connectionState.error,
-    
-    // Streaming state
-    thoughtProcess: streamState.thoughtProcess,
-    currentStreamingMessage: streamState.currentStreamingMessage,
-    isStreaming: streamState.isStreaming,
-    
-    // Refs
-    messageListRef,
-    socketRef,
+    // State
+    currentChatId,
+    messages,
+    isConnected,
+    isStreaming,
     
     // Actions
     sendMessage,
-    abandonConversation,
-    restartConversation,
-    requestResults,
-    requestChatState,
-    updateSelectedTopic,
-    clearError
+    getChatState,
+    changeSession,
+    updateTopic,
+    clearChatState
   };
 };
 

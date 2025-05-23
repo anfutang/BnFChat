@@ -149,6 +149,12 @@ const handleTopicChange = useCallback((topic) => {
   if (currentSession > 1) {
     setSelectedTopic(topic);
     
+    // ✅ ADD: Request fresh chat state after topic selection
+    // This will clear old messages if chat was ended
+    setTimeout(() => {
+      requestChatState();
+    }, 500);
+    
     // Don't auto-fill for "no topic" selection
     if (topic && topic.id > 0) {
       const suggestion = `Je recherche des informations sur ${topic.name}`;
@@ -158,7 +164,7 @@ const handleTopicChange = useCallback((topic) => {
       setUserInput('');
     }
   }
-}, [currentSession, setUserInput]);
+}, [currentSession, setUserInput, requestChatState]);
 
   // Handle logout with cleanup
   const handleLogout = useCallback(async () => {

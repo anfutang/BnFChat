@@ -244,7 +244,7 @@ def create_bnf_workflow(socketio_session_id):
     return workflow.compile()
 
 def process_chat_message(user_input, user_id, chat_id, session_id, socketio_session_id):
-    """Process chat message with single workflow - NO THREADING"""
+    """Process chat message with single workflow - user message already saved"""
     try:
         message_id = str(uuid.uuid4())
         
@@ -266,18 +266,6 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socketio_sess
                     'content': msg.get('message', ''),
                     'timestamp': msg.get('timestamp', '')
                 })
-        
-        # Save user message first
-        try:
-            # Ensure clean session state
-            db.session.close()
-            db.session.configure(bind=db.engine)
-        except:
-            pass
-            
-        success, error = ChatManager.add_message_to_chat(chat_id, 'user', user_input)
-        if not success:
-            raise Exception(f"Failed to save user message: {error}")
         
         # Create workflow
         workflow = create_bnf_workflow(socketio_session_id)
@@ -303,6 +291,8 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socketio_sess
         # Stream response
         final_response = final_state.get('final_response', 'Aucune réponse générée')
         workflow_status = final_state.get('workflow_status', 'completed')
+        current_topic = final_state.get('current_topic', '')
+        detected_intent = final_state.get('detected_intent', '')
         
         socketio.emit('workflow_progress', {
             'step': 'streaming_response',
@@ -320,7 +310,6 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socketio_sess
         
         # Save assistant response
         try:
-            # Ensure clean session for save
             db.session.close()
         except:
             pass
@@ -330,7 +319,6 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socketio_sess
             print(f"Warning: Failed to save assistant message: {error}")
         
         # Update topic if detected
-        detected_intent = final_state.get('detected_intent')
         if detected_intent:
             try:
                 db.session.close()
@@ -345,9 +333,9 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socketio_sess
         socketio.emit('stream_end', {
             'message_id': message_id,
             'final_response': final_response,
-            'current_topic': current_topic or '',
-            'detected_intent' : detected_intent or '',
-            'user_intent': final_state.get('detected_intent', ''),
+            'current_topic': current_topic,
+            'detected_intent': detected_intent,
+            'user_intent': detected_intent,
             'workflow_status': workflow_status,
             'time_metrics': final_state.get('time_metrics', {}),
             'workflow_completed': True
@@ -365,21 +353,18 @@ def handle_workflow_outcome(workflow_status, chat_id, user_id, session_id, final
     """Handle different workflow outcomes"""
     if workflow_status == 'abandon':
         ChatManager.end_chat(chat_id, "abandoned", user_id)
-        # Create a new chat for the session after abandon
-        new_chat, error = ChatManager.get_or_create_ongoing_chat(user_id, session_id)
         socketio.emit('conversation_abandoned', {
             'message': final_response,
             'chat_id': chat_id,
-            'new_chat_id': new_chat.id if new_chat and not error else None  # Provide new chat ID
+            'new_chat_id': None
         }, to=socketio_session_id)
         
     elif workflow_status == 'recommencer':
         ChatManager.end_chat(chat_id, "restarted", user_id)
-        new_chat, error = ChatManager.get_or_create_ongoing_chat(user_id, session_id)
         socketio.emit('conversation_restarted', {
             'message': final_response,
             'old_chat_id': chat_id,
-            'new_chat_id': new_chat.id if new_chat else None
+            'new_chat_id': None
         }, to=socketio_session_id)
         
     elif workflow_status == 'resultat':
@@ -422,60 +407,71 @@ def register_socketio_events():
         if user_id:
             leave_room(f"user_{user_id}")
             del socket_user_sessions[request.sid]
-
+    
     @socketio.on('send_message')
     @socketio_login_required
     def handle_send_message(data):
         try:
             user_input = data.get('message', '').strip()
-            provided_chat_id = data.get('chat_id')  # Can be null
             user_id = socket_user_sessions.get(request.sid)
             
             if not user_input:
                 emit('error', {'message': 'Message vide reçu'})
                 return
             
-            # CRITICAL FIX: Get session_id from user's database record, not from client
+            # Get user and session info
             try:
-                db.session.rollback()  # Ensure clean session
+                db.session.rollback()
                 user = db.session.query(User).filter_by(id=user_id).first()
                 if not user:
                     emit('error', {'message': 'Utilisateur introuvable'})
                     return
-                session_id = user.session_id  # Use user's current session from DB
+                session_id = user.session_id
             except Exception as e:
-                print(f"Error getting user session: {e}")
                 emit('error', {'message': 'Erreur accès session utilisateur'})
                 return
             
-            print(f"Processing message from user {user_id} in session {session_id}: {user_input}")
-            print(f"Provided chat_id: {provided_chat_id}")
-            
-            # Get or create chat for the user's CURRENT session
-            # This will enforce topic selection for sessions > 1
-            chat, error = ChatManager.get_or_create_ongoing_chat(user_id, session_id)
-            if error:
-                # Handle topic selection error specifically
-                if "topic" in error.lower():
+            # Validate topic selection for sessions > 1
+            if session_id > 1:
+                user_topic_id = user.exercise_topic_id if session_id == 2 else user.test_topic_id
+                if not user_topic_id or user_topic_id <= 0:
                     emit('error', {
                         'message': 'Vous devez sélectionner un sujet avant de commencer une conversation.',
                         'error_type': 'topic_required',
                         'action_required': 'select_topic'
                     })
-                else:
-                    emit('error', {'message': f'Erreur chat: {error}'})
+                    return
+            
+            # Check if ongoing chat exists
+            existing_chat, error = ChatManager.get_ongoing_chat(user_id, session_id)
+            if error:
+                emit('error', {'message': f'Erreur vérification chat: {error}'})
                 return
             
-            # Emit acknowledgment with the actual chat ID (newly created or existing)
+            if existing_chat:
+                # Use existing chat - add user message
+                chat = existing_chat
+                success, error = ChatManager.add_message_to_chat(chat.id, 'user', user_input)
+                if not success:
+                    emit('error', {'message': f'Erreur ajout message: {error}'})
+                    return
+                is_new_chat = False
+            else:
+                # Create new chat with first message
+                chat, error = ChatManager.create_chat_with_first_message(user_id, session_id, user_input)
+                if error:
+                    emit('error', {'message': f'Erreur création chat: {error}'})
+                    return
+                is_new_chat = True
+            
             emit('message_received', {
                 'message': user_input,
                 'chat_id': chat.id,
-                'session_id': session_id,  # Send back actual session ID
+                'session_id': session_id,
                 'socket_session_id': request.sid,
-                'chat_created': provided_chat_id is None  # Flag if we just created the chat
+                'is_new_chat': is_new_chat
             })
             
-            # Process message directly (NO THREADING)
             process_chat_message(user_input, user_id, chat.id, session_id, request.sid)
             
         except Exception as e:
@@ -488,14 +484,14 @@ def register_socketio_events():
         try:
             user_id = socket_user_sessions.get(request.sid)
             
-            # CRITICAL FIX: Get session_id from user's database record
+            # Get session_id from user's database record
             try:
-                db.session.rollback()  # Ensure clean session
+                db.session.rollback()
                 user = db.session.query(User).filter_by(id=user_id).first()
                 if not user:
                     emit('error', {'message': 'Utilisateur introuvable'})
                     return
-                session_id = user.session_id  # Use user's current session from DB
+                session_id = user.session_id
             except Exception as e:
                 print(f"Error getting user session for chat state: {e}")
                 emit('error', {'message': 'Erreur accès session utilisateur'})
@@ -503,7 +499,7 @@ def register_socketio_events():
             
             print(f"Getting chat state for user {user_id} in session {session_id}")
             chat_state = ChatManager.get_chat_state(user_id, session_id)
-            chat_state['session_id'] = session_id  # Ensure session_id is included
+            chat_state['session_id'] = session_id
             emit('chat_state_response', chat_state)
             
         except Exception as e:
@@ -524,7 +520,7 @@ def register_socketio_events():
             
             print(f"User {user_id} requesting session change to {new_session_id}")
             
-            # CRITICAL FIX: Update user's session_id in database FIRST
+            # Update user's session_id in database FIRST
             try:
                 db.session.rollback()
                 db.session.close()
@@ -538,7 +534,7 @@ def register_socketio_events():
                 old_session_id = user.session_id
                 user.session_id = new_session_id
                 
-                # End all ongoing chats for the user (all sessions)
+                # End all ongoing chats for the user
                 db.session.query(Chat).filter_by(
                     user_id=user_id,
                     status="ongoing"
@@ -553,26 +549,19 @@ def register_socketio_events():
                 emit('session_change_error', {'error': f'Failed to update user session: {str(e)}'})
                 return
             
-            # Notify client that ongoing chats are being terminated
+            # Notify client that ongoing chats are terminated
             emit('ongoing_chats_terminated', {
                 'message': 'Conversations en cours terminées pour changement de session',
                 'old_session_id': old_session_id,
                 'new_session_id': new_session_id
             })
             
-            # Give a small delay to ensure frontend processes the termination
             time.sleep(0.1)
             
-            # Create new chat for the new session (user's session_id is now updated)
-            new_chat, error = ChatManager.get_or_create_ongoing_chat(user_id, new_session_id)
-            if error:
-                emit('session_change_error', {'error': f'Failed to create new chat: {error}'})
-                return
-            
-            # Emit success
+            # Emit success (no new chat created - will be created with first message)
             emit('session_change_success', {
                 'session_id': new_session_id,
-                'chat_id': new_chat.id if new_chat else None,
+                'chat_id': None,
                 'message': f'Session changée vers {new_session_id}'
             })
             
@@ -580,7 +569,6 @@ def register_socketio_events():
             print(f"Error in handle_session_change: {str(e)}")
             emit('session_change_error', {'error': str(e)})
 
-    # Handle stop current processing
     @socketio.on('stop_processing')
     @socketio_login_required  
     def handle_stop_processing(data):
@@ -591,7 +579,6 @@ def register_socketio_events():
             
             print(f"User {user_id} requesting to stop processing for chat {chat_id}")
             
-            # Emit stop signal - the frontend can handle this
             emit('processing_stopped', {
                 'message': 'Traitement interrompu',
                 'chat_id': chat_id

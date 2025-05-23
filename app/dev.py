@@ -245,91 +245,64 @@ def change_session():
         logger.error(f"Error in HTTP change_session: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@bp.route('/chat-history', methods=['GET'])
+
+@bp.route('/current-chat', methods=['GET'])
 @login_required
-def get_chat_history():
-    """Get chat history using ChatManager"""
+def get_current_chat():
+    """Get current ongoing chat - returns 404 if none exists"""
     user_id = session.get("user_id")
-    
-    # Get session ID from user's current session (not query parameter)
-    user = User.query.get(user_id) if user_id else None
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    
-    session_id = user.session_id  # Use user's actual session
     
     if not user_id:
         return jsonify({"error": "No authenticated user"}), 401
+    
+    # Get user's current session
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    session_id = user.session_id
+    
+    # Use ChatManager to get ongoing chat
+    existing_chat, error = ChatManager.get_ongoing_chat(user_id, session_id)
+    
+    if error:
+        return jsonify({"error": error}), 500
+    
+    if existing_chat:
+        return jsonify({
+            "chatId": existing_chat.id,
+            "sessionId": session_id,
+            "status": existing_chat.status,
+            "topic": existing_chat.topic,
+            "messageCount": len(existing_chat.chat_history) if existing_chat.chat_history else 0
+        })
+    else:
+        return jsonify({
+            "chatId": None, 
+            "sessionId": session_id,
+            "message": "No ongoing chat - will be created with first message"
+        }), 200  # Changed from 404 to 200 since this is normal
+
+@bp.route('/chat-history', methods=['GET'])
+@login_required
+def get_chat_history():
+    """Get chat history - returns empty if no ongoing chat"""
+    user_id = session.get("user_id")
+    
+    if not user_id:
+        return jsonify({"error": "No authenticated user"}), 401
+    
+    # Get user's current session
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    session_id = user.session_id
     
     # Use ChatManager to get state
     chat_state = ChatManager.get_chat_state(user_id, session_id)
     
     return jsonify(chat_state)
-
-@bp.route('/current-chat', methods=['GET'])
-@login_required
-def get_current_chat():
-    """Get current chat using ChatManager"""
-    user_id = session.get("user_id")
-    
-    # Get session_id from user's database record
-    user = User.query.get(user_id) if user_id else None
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    
-    session_id = user.session_id
-    
-    if not user_id:
-        return jsonify({"error": "No authenticated user"}), 401
-    
-    chat_state = ChatManager.get_chat_state(user_id, session_id)
-    
-    if chat_state.get("chat_id"):
-        return jsonify({
-            "chatId": chat_state["chat_id"],
-            "sessionId": session_id,
-            "status": chat_state.get("status", "ongoing"),
-            "topic": chat_state.get("topic"),
-            "messageCount": len(chat_state.get("messages", []))
-        })
-    else:
-        return jsonify({"chatId": None, "sessionId": session_id}), 404
-
-@bp.route('/create-chat', methods=['POST'])
-@login_required
-def create_new_chat():
-    """Create new chat using ChatManager"""
-    user_id = session.get("user_id")
-    
-    if not user_id:
-        return jsonify({"error": "No authenticated user"}), 401
-    
-    data = request.json
-    first_message = data.get('firstMessage')
-    topic = data.get('topic')  # Add topic support
-    
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    
-    # Use user's current session from database
-    session_id = user.session_id
-    
-    # Use ChatManager for atomic creation
-    new_chat, error = ChatManager.get_or_create_ongoing_chat(
-        user_id, session_id, first_message, topic
-    )
-    
-    if error:
-        return jsonify({"error": error}), 500
-    
-    return jsonify({
-        "success": True,
-        "chatId": new_chat.id,
-        "sessionId": session_id,
-        "status": new_chat.status,
-        "topic": new_chat.topic
-    })
 
 @bp.route('/update-timer', methods=['POST'])
 @login_required
