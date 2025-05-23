@@ -1,4 +1,4 @@
-// src/components/chat/ChatInterface.js - Simplified with SocketIO-only
+// src/components/chat/ChatInterface.js - With Result Modal Integration
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -6,6 +6,7 @@ import useChat from '../../hooks/useChat';
 
 import SessionSelector from './SessionSelector';
 import ChatArea from './ChatArea';
+import ResultModal from '../feedback/ResultModal';
 
 import "./ChatInterface.css"
 
@@ -14,6 +15,11 @@ const ChatInterface = () => {
   const navigate = useNavigate();
   
   const [userInput, setUserInput] = useState('');
+  
+  // ADD RESULT MODAL STATE
+  const [isResultModalOpen, setIsResultModalOpen] = useState(false);
+  const [resultData, setResultData] = useState(null);
+  const [isResultLoading, setIsResultLoading] = useState(false);
   
   const {
     currentChatId,
@@ -28,8 +34,44 @@ const ChatInterface = () => {
     getChatState,
     changeSession,
     selectTopic,
-    clearError
+    clearError,
+    // ADD RESULT EVENT HANDLERS
+    onResultsTriggered,
+    onResultsData,
+    onResultsError
   } = useChat();
+
+  // ADD RESULT EVENT HANDLERS
+  React.useEffect(() => {
+    if (onResultsTriggered) {
+      onResultsTriggered(() => {
+        console.log("⭐ Results triggered - opening modal");
+        setIsResultLoading(true);
+        setIsResultModalOpen(true);
+        setResultData(null);
+      });
+    }
+  }, [onResultsTriggered]);
+
+  React.useEffect(() => {
+    if (onResultsData) {
+      onResultsData((data) => {
+        console.log("⭐ Results data received:", data);
+        setResultData(data);
+        setIsResultLoading(false);
+      });
+    }
+  }, [onResultsData]);
+
+  React.useEffect(() => {
+    if (onResultsError) {
+      onResultsError((error) => {
+        console.log("⭐ Results error:", error);
+        setIsResultLoading(false);
+        // Keep modal open but show error state
+      });
+    }
+  }, [onResultsError]);
 
   const handleSendMessage = useCallback((message) => {
     if (!message?.trim()) return;
@@ -55,6 +97,13 @@ const ChatInterface = () => {
       navigate('/login');
     }
   }, [logout, navigate]);
+
+  // ADD RESULT MODAL CLOSE HANDLER
+  const handleCloseResultModal = useCallback(() => {
+    setIsResultModalOpen(false);
+    setResultData(null);
+    setIsResultLoading(false);
+  }, []);
 
   // Show loading while waiting for session data
   if (!sessionData) {
@@ -110,6 +159,14 @@ const ChatInterface = () => {
           />
         </div>
       </div>
+
+      {/* ADD RESULT MODAL */}
+      <ResultModal
+        isOpen={isResultModalOpen}
+        onClose={handleCloseResultModal}
+        resultData={resultData}
+        isLoading={isResultLoading}
+      />
 
       {/* Error Display */}
       {error && (

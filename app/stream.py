@@ -42,6 +42,57 @@ def socketio_auth_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# ADD RESULT PROCESSING FUNCTION
+def process_search_results(user_input, chat_id, user_id):
+    """Process search results for both with and without conversation"""
+    try:
+        # This is where you'd integrate with your actual search API
+        # For now, returning mock data structure
+        
+        # Mock SRU query generation (replace with actual logic)
+        generated_sru_query = f'title any "{user_input}"'
+        original_query = user_input
+        
+        # Mock results (replace with actual API calls)
+        mock_results_with_conversation = [
+            {
+                "title": f"Result avec conversation pour: {user_input}",
+                "creator": "Auteur Test",
+                "description": "Description générée avec conversation",
+                "subject": "Sujet test", 
+                "date": "2024",
+                "type": "Document",
+                "link": "https://gallica.bnf.fr/ark:/12148/example1"
+            }
+        ]
+        
+        mock_results_without_conversation = [
+            {
+                "title": f"Result sans conversation pour: {user_input}",
+                "creator": "Auteur Original",
+                "description": "Description requête originale",
+                "subject": "Sujet original",
+                "date": "2024", 
+                "type": "Document",
+                "link": "https://gallica.bnf.fr/ark:/12148/example2"
+            }
+        ]
+        
+        result_data = {
+            "id": f"result_{chat_id}_{int(time.time())}",
+            "sruQuery": generated_sru_query,
+            "originalQuery": original_query,
+            "wcResults": mock_results_with_conversation,  # with conversation
+            "wocResults": mock_results_without_conversation,  # without conversation
+            "chatId": chat_id,
+            "userId": user_id
+        }
+        
+        return result_data, None
+        
+    except Exception as e:
+        return None, str(e)
+
 def register_socketio_events():
     
     @socketio.on('connect')
@@ -385,8 +436,32 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
         # Save assistant response
         ChatManager.add_message_to_chat(chat_id, 'assistant', response)
         
-        # Handle special workflow outcomes
-        if workflow_status in ['abandon', 'restart', 'results']:
+        # MODIFIED: Handle results status specifically
+        if workflow_status == 'results':
+            print(f"⭐ Results workflow triggered for chat {chat_id}")
+            
+            # Emit results triggered event
+            socketio.emit('results_triggered', {
+                'chat_id': chat_id,
+                'user_input': user_input
+            }, to=socket_session_id)
+            
+            # Process search results
+            result_data, error = process_search_results(user_input, chat_id, user_id)
+            
+            if error:
+                socketio.emit('results_error', {
+                    'error': error,
+                    'chat_id': chat_id
+                }, to=socket_session_id)
+            else:
+                # Emit results data
+                socketio.emit('results_data', result_data, to=socket_session_id)
+            
+            # End chat after results
+            ChatManager.end_chat(chat_id, "ended_by_results", user_id)
+            
+        elif workflow_status in ['abandon', 'restart']:
             ChatManager.end_chat(chat_id, f"ended_by_{workflow_status}", user_id)
             
             socketio.emit('chat_ended', {

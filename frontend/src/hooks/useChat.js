@@ -1,5 +1,4 @@
-
-// src/hooks/useChat.js - ALL non-auth operations via SocketIO
+// src/hooks/useChat.js - With Result Events
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
@@ -18,6 +17,10 @@ export const useChat = () => {
   
   const socketRef = useRef(null);
 
+  // ADD RESULT EVENT CALLBACKS
+  const resultTriggeredCallbackRef = useRef(null);
+  const resultDataCallbackRef = useRef(null);
+  const resultErrorCallbackRef = useRef(null);
 
   useEffect(() => {
     if (socketRef.current && isConnected && sessionData) {
@@ -144,6 +147,28 @@ export const useChat = () => {
           ));
         });
 
+        // ========== RESULT EVENTS (NEW) ==========
+        socket.on('results_triggered', (data) => {
+          console.log('⭐ Results triggered event received:', data);
+          if (resultTriggeredCallbackRef.current) {
+            resultTriggeredCallbackRef.current();
+          }
+        });
+
+        socket.on('results_data', (data) => {
+          console.log('⭐ Results data event received:', data);
+          if (resultDataCallbackRef.current) {
+            resultDataCallbackRef.current(data);
+          }
+        });
+
+        socket.on('results_error', (data) => {
+          console.log('⭐ Results error event received:', data);
+          if (resultErrorCallbackRef.current) {
+            resultErrorCallbackRef.current(data);
+          }
+        });
+
         // ========== CHAT END EVENTS ==========
         socket.on('chat_ended', (data) => {
           console.log('Chat ended:', data.reason);
@@ -246,6 +271,19 @@ export const useChat = () => {
     setError(null);
   }, []);
 
+  // ADD RESULT EVENT CALLBACK SETTERS
+  const onResultsTriggered = useCallback((callback) => {
+    resultTriggeredCallbackRef.current = callback;
+  }, []);
+
+  const onResultsData = useCallback((callback) => {
+    resultDataCallbackRef.current = callback;
+  }, []);
+
+  const onResultsError = useCallback((callback) => {
+    resultErrorCallbackRef.current = callback;
+  }, []);
+
   return {
     // State
     currentChatId,
@@ -269,7 +307,12 @@ export const useChat = () => {
     selectTopic,
     getSessionData,
     getTopics,
-    clearError
+    clearError,
+    
+    // ADD RESULT EVENT HANDLERS
+    onResultsTriggered,
+    onResultsData,
+    onResultsError
   };
 };
 
