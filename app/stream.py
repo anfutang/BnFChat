@@ -452,10 +452,18 @@ def register_socketio_events():
             print(f"Provided chat_id: {provided_chat_id}")
             
             # Get or create chat for the user's CURRENT session
-            # This will only create a chat if none exists (no empty chats)
+            # This will enforce topic selection for sessions > 1
             chat, error = ChatManager.get_or_create_ongoing_chat(user_id, session_id)
             if error:
-                emit('error', {'message': f'Erreur chat: {error}'})
+                # Handle topic selection error specifically
+                if "topic" in error.lower():
+                    emit('error', {
+                        'message': 'Vous devez sélectionner un sujet avant de commencer une conversation.',
+                        'error_type': 'topic_required',
+                        'action_required': 'select_topic'
+                    })
+                else:
+                    emit('error', {'message': f'Erreur chat: {error}'})
                 return
             
             # Emit acknowledgment with the actual chat ID (newly created or existing)

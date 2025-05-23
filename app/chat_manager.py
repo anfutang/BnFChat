@@ -1,4 +1,4 @@
-# app/chat_manager.py - Updated with proper session handling
+# app/chat_manager.py - Updated with topic support
 
 from sqlalchemy import text
 from datetime import datetime
@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 
 class ChatManager:
     """Centralized chat management with atomic operations"""
-    
     @staticmethod
-    def get_or_create_ongoing_chat(user_id, session_id, first_message=None):
+    def get_or_create_ongoing_chat(user_id, session_id, first_message=None, topic=None):
         """
         Atomic operation: Get existing ongoing chat or create new one
+        Always links chat to user's selected topic
         """
         try:
             # Close any existing transaction and start fresh
@@ -32,11 +32,31 @@ class ChatManager:
                 logger.warning(f"Session mismatch for user {user_id}: requested {session_id}, actual {actual_session_id}")
                 session_id = actual_session_id  # Use the actual session_id
             
+            # Get user's selected topic for this session - MANDATORY
+            user_topic_id = None
+            if session_id == 2:
+                user_topic_id = user.exercise_topic_id
+            elif session_id == 3:
+                user_topic_id = user.test_topic_id
+            
+            # NO CHAT CREATION WITHOUT TOPIC (except tutorial)
+            if session_id > 1 and (user_topic_id is None or user_topic_id <= 0):
+                db.session.rollback()
+                return None, "No topic selected. Please select a topic first."
+            
+            # Get topic name for chat storage
+            topic_name = None
+            if user_topic_id and user_topic_id > 0:
+                from .dev import TOPICS  # Import topics
+                session_topics = TOPICS.get(session_id, [])
+                topic_info = next((t for t in session_topics if t["id"] == user_topic_id), None)
+                topic_name = topic_info["name"] if topic_info else f"Topic {user_topic_id}"
+            
             # Check for existing ongoing chat with row lock for THIS session only
             existing_chat = (db.session.query(Chat)
-                           .filter_by(user_id=user_id, session_id=session_id, status="ongoing")
-                           .with_for_update()
-                           .first())
+                        .filter_by(user_id=user_id, session_id=session_id, status="ongoing")
+                        .with_for_update()
+                        .first())
             
             if existing_chat:
                 # Return existing chat
@@ -55,7 +75,7 @@ class ChatManager:
             if terminated_count > 0:
                 logger.warning(f"Terminated {terminated_count} ongoing chats for user {user_id} session {session_id}")
             
-            # Create new chat
+            # Create new chat with user's selected topic
             chat_history = []
             if first_message:
                 chat_history.append({
@@ -69,6 +89,7 @@ class ChatManager:
                 session_id=session_id,
                 status="ongoing",
                 chat_history=chat_history,
+                topic=topic_name,  # Use user's selected topic
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             )
@@ -77,7 +98,7 @@ class ChatManager:
             db.session.flush() 
             
             db.session.commit()
-            logger.info(f"Created new chat {new_chat.id} for user {user_id} session {session_id}")
+            logger.info(f"Created new chat {new_chat.id} for user {user_id} session {session_id} with topic '{topic_name}'")
             return new_chat, None
             
         except Exception as e:
@@ -249,11 +270,10 @@ class ChatManager:
             chat.updated_at = datetime.utcnow()
             
             db.session.commit()
-            logger.info(f"Updated chat {chat_id} topic to {detected_intent}")
+            logger.info(f"Updated chat {chat_id} detected_intent to {detected_intent}")
             return True, None
             
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error updating chat topic {chat_id}: {str(e)}")
+            logger.error(f"Error updating chat detected_intent {chat_id}: {str(e)}")
             return False, str(e)
-    

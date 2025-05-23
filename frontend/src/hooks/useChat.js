@@ -1,4 +1,4 @@
-// hooks/useChat.js
+// hooks/useChat.js - Updated with topic support
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import io from 'socket.io-client';
@@ -10,7 +10,8 @@ const useChat = (currentSession, onResultReceived) => {
     userInput: '',
     currentTopic: null,
     detectedIntent: null,
-    actualSessionId: null
+    actualSessionId: null,
+    selectedTopicInfo: null  // Add topic info state
   });
   
   // Connection and UI state
@@ -67,7 +68,8 @@ const useChat = (currentSession, onResultReceived) => {
       userInput: '',
       currentTopic: null,
       detectedIntent: null,
-      actualSessionId: null
+      actualSessionId: null,
+      selectedTopicInfo: null
     });
     pendingUserMessages.current.clear();
     setStreamState({
@@ -76,7 +78,6 @@ const useChat = (currentSession, onResultReceived) => {
       isStreaming: false
     });
   }, []);
-
 
   const initializeSocket = async () => {
     try {
@@ -136,6 +137,10 @@ const useChat = (currentSession, onResultReceived) => {
       socket.on('results_window_requested', handleConversationAction);
       socket.on('result_data', handleResultData);
       
+      // Topic selection events
+      socket.on('topic_selected', handleTopicSelected);
+      socket.on('conversation_ended_by_topic_change', handleConversationEndedByTopicChange);
+      
       // Session change events
       socket.on('ongoing_chats_terminated', handleOngoingChatsTerminated);
       socket.on('session_change_success', handleSessionChangeSuccess);
@@ -149,6 +154,63 @@ const useChat = (currentSession, onResultReceived) => {
       setConnectionState(prev => ({ ...prev, error: 'Connection failed' }));
     }
   };
+
+  // New topic-related event handlers
+  const handleTopicSelected = useCallback((data) => {
+    console.log('Topic selected via socket:', data);
+    
+    setChatState(prev => ({
+      ...prev,
+      selectedTopicInfo: data.topicInfo,
+      currentTopic: data.topicInfo?.name || null
+    }));
+    
+    // Add system message about topic selection
+    if (data.topicInfo && data.topicInfo.name) {
+      const systemMessage = {
+        id: `${Date.now()}-system-topic-${Math.random()}`,
+        content: `Sujet sélectionné: ${data.topicInfo.name}`,
+        role: 'system',
+        timestamp: new Date().toISOString(),
+        isSystem: true
+      };
+      
+      setChatState(prev => ({
+        ...prev,
+        messages: [...prev.messages, systemMessage]
+      }));
+    }
+  }, []);
+
+  const handleConversationEndedByTopicChange = useCallback((data) => {
+    console.log('Conversation ended by topic change:', data);
+    
+    // Clear current chat but keep session info
+    setChatState(prev => ({
+      ...prev,
+      chatId: null,
+      messages: [],
+      currentTopic: data.newTopic || null,
+      selectedTopicInfo: data.topicInfo || null
+    }));
+    
+    // Clear pending messages
+    pendingUserMessages.current.clear();
+    
+    // Add system message about topic change
+    const systemMessage = {
+      id: `${Date.now()}-system-topic-change-${Math.random()}`,
+      content: data.message || 'Conversation terminée - nouveau sujet sélectionné',
+      role: 'system',
+      timestamp: new Date().toISOString(),
+      isSystem: true
+    };
+    
+    setChatState(prev => ({
+      ...prev,
+      messages: [systemMessage]
+    }));
+  }, []);
 
   // Session change event handlers
   const handleOngoingChatsTerminated = useCallback((data) => {
@@ -200,7 +262,8 @@ const useChat = (currentSession, onResultReceived) => {
       userInput: '',
       currentTopic: data.topic,
       detectedIntent: null,
-      actualSessionId: data.session_id  // Track actual session from server
+      actualSessionId: data.session_id,  // Track actual session from server
+      selectedTopicInfo: null  // Will be loaded separately if needed
     });
     
     // Clear pending messages since we got fresh state
@@ -404,6 +467,24 @@ const useChat = (currentSession, onResultReceived) => {
 
   const handleSocketError = useCallback((data) => {
     console.error('Socket error:', data);
+    
+    // Check if it's a topic selection error
+    if (data.message && data.message.includes('topic')) {
+      // Add system message about topic requirement
+      const systemMessage = {
+        id: `${Date.now()}-system-topic-error-${Math.random()}`,
+        content: '⚠️ Vous devez sélectionner un sujet avant de commencer une conversation. Utilisez le navigateur de sujets dans la barre latérale.',
+        role: 'system',
+        timestamp: new Date().toISOString(),
+        isSystem: true
+      };
+      
+      setChatState(prev => ({
+        ...prev,
+        messages: [...prev.messages, systemMessage]
+      }));
+    }
+    
     setConnectionState(prev => ({ 
       ...prev, 
       error: data.message || 'Socket error',
@@ -448,14 +529,17 @@ const useChat = (currentSession, onResultReceived) => {
   
     setChatState(prev => ({
       ...prev,
-      messages: [...prev.messages, userMessage], // Just add it - no duplicate check
+      messages: [...prev.messages, userMessage],
       userInput: '',
     }));
   
-    socketRef.current.emit('send_message', {
+    // Send message - backend will enforce topic requirement
+    const messageData = {
       message: messageContent,
-      chat_id: chatState.chatId, 
-    });
+      chat_id: chatState.chatId,
+    };
+  
+    socketRef.current.emit('send_message', messageData);
   
     setTimeout(scrollToBottom, 100);
     return true;
@@ -491,6 +575,15 @@ const useChat = (currentSession, onResultReceived) => {
     return true;
   }, [connectionState.isConnected, chatState.chatId]);
 
+  // New function to update selected topic info
+  const updateSelectedTopic = useCallback((topicInfo) => {
+    setChatState(prev => ({ 
+      ...prev, 
+      selectedTopicInfo: topicInfo,
+      currentTopic: topicInfo?.name || prev.currentTopic
+    }));
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     if (messageListRef.current) {
       messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
@@ -510,6 +603,7 @@ const useChat = (currentSession, onResultReceived) => {
     currentTopic: chatState.currentTopic,
     detectedIntent: chatState.detectedIntent,
     actualSessionId: chatState.actualSessionId,
+    selectedTopicInfo: chatState.selectedTopicInfo,
     
     // Connection state
     isConnected: connectionState.isConnected,
@@ -531,6 +625,7 @@ const useChat = (currentSession, onResultReceived) => {
     restartConversation,
     requestResults,
     requestChatState,
+    updateSelectedTopic,
     clearError
   };
 };

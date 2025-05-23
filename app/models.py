@@ -33,6 +33,9 @@ class User(db.Model):
     timer_exercise = db.Column(db.Integer, nullable=False, default=300)
     timer_test = db.Column(db.Integer, nullable=False, default=2100)
 
+    exercise_topic_id = db.Column(db.Integer, nullable=False, default=0)
+    test_topic_id = db.Column(db.Integer, nullable=False, default=0)
+
     def __init__(self, username, password, **kwargs):
         self.username = username
         self.set_password(password)   # Hash the password
@@ -101,7 +104,7 @@ class Chat(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
     
     # Other columns remain the same
-    topic = db.Column(db.String(100), nullable=True)
+    topic = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(20), nullable=False, default="ongoing")
     session_id = db.Column(db.Integer, nullable=False, default=2) # 1: tutoriel, 2: exercice, 3: test
     updated_at = db.Column(db.DateTime, nullable=False, 

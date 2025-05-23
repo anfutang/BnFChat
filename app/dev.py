@@ -5,12 +5,30 @@ from datetime import datetime
 from .db import db
 from .models import User, Chat
 from .auth import login_required
+from .chat_manager import ChatManager  # Import ChatManager
 
 bp = Blueprint('dev', __name__, url_prefix="/api/dev")
 
 logger = logging.getLogger(__name__)
 
-# Add this new route to your dev.py file
+# Topic definitions - centralized in backend
+TOPICS = {
+    2: [  # Exercise session topics
+        {"id": 1, "name": "Voltaire", "description": "Philosophe et écrivain des Lumières (1694-1778)", "category": "Littérature"},
+        {"id": 2, "name": "Napoléon III", "description": "Empereur des Français (1808-1873)", "category": "Histoire"},
+        {"id": 3, "name": "Watteau", "description": "Peintre rococo (1684-1721)", "category": "Arts visuels"},
+        {"id": 4, "name": "Michel Foucault", "description": "Philosophe contemporain (1926-1984)", "category": "Philosophie"}
+    ],
+    3: [  # Test session topics
+        {"id": 5, "name": "Mozart", "description": "Compositeur classique (1756-1791)", "category": "Musique"},
+        {"id": 6, "name": "Frédéric Chopin", "description": "Compositeur et pianiste (1810-1849)", "category": "Musique"},
+        {"id": 7, "name": "Victor Hugo", "description": "Écrivain romantique (1802-1885)", "category": "Littérature"},
+        {"id": 8, "name": "Rembrandt", "description": "Peintre hollandais (1606-1669)", "category": "Arts visuels"},
+        {"id": 9, "name": "Marguerite Duras", "description": "Écrivaine contemporaine (1914-1996)", "category": "Littérature"}
+    ]
+}
+
+# dev.py - Updated select_topic to reject topic_id=0
 
 @bp.route('/select-topic', methods=['POST'])
 @login_required
@@ -23,10 +41,10 @@ def select_topic():
         
         data = request.json
         topic_id = data.get('topicId')
-        topic_name = data.get('topicName')
         
-        if not topic_id or not topic_name:
-            return jsonify({"error": "Topic ID and name required"}), 400
+        # REJECT topic_id=0 - no libre topic allowed
+        if topic_id is None or topic_id <= 0:
+            return jsonify({"error": "Valid topic ID required (must be > 0)"}), 400
         
         # Get user's current session
         user = User.query.get(user_id)
@@ -34,6 +52,15 @@ def select_topic():
             return jsonify({"error": "User not found"}), 404
         
         session_id = user.session_id
+        
+        # Validate topic for current session
+        topic_info = None
+        if session_id in TOPICS:
+            session_topics = TOPICS[session_id]
+            topic_info = next((t for t in session_topics if t["id"] == topic_id), None)
+        
+        if topic_info is None:
+            return jsonify({"error": "Invalid topic for current session"}), 400
         
         # Get current ongoing chat if exists
         current_chat = Chat.query.filter_by(
@@ -46,7 +73,7 @@ def select_topic():
         if current_chat:
             success, error = ChatManager.end_chat(
                 current_chat.id, 
-                "end_by_topic_changes", 
+                "end_by_topic_change", 
                 user_id
             )
             if not success:
@@ -54,31 +81,21 @@ def select_topic():
         
         # Store selected topic in user record for this session
         if session_id == 2:
-            user.exercise_topic = topic_name
+            user.exercise_topic_id = topic_id
         elif session_id == 3:
-            user.test_topic = topic_name
+            user.test_topic_id = topic_id
         
         db.session.commit()
         
-        # Create new chat with selected topic
-        new_chat, error = ChatManager.get_or_create_ongoing_chat(
-            user_id, 
-            session_id,
-            topic=topic_name
-        )
-        
-        if error:
-            return jsonify({"error": f"Failed to create new chat: {error}"}), 500
-        
-        logger.info(f"User {user_id} selected topic '{topic_name}' in session {session_id}")
+        logger.info(f"User {user_id} selected topic {topic_id} ({topic_info['name']}) in session {session_id}")
         
         return jsonify({
             "success": True,
             "topicId": topic_id,
-            "topicName": topic_name,
-            "chatId": new_chat.id if new_chat else None,
+            "topicInfo": topic_info,
             "sessionId": session_id,
-            "message": f"Topic changed to '{topic_name}'"
+            "chatEnded": current_chat is not None,
+            "message": f"Topic selected: '{topic_info['name']}'"
         })
         
     except Exception as e:
@@ -86,8 +103,45 @@ def select_topic():
         logger.error(f"Error in select_topic: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+# Updated get_chat_topics to ensure a topic is always selected
+@bp.route('/chat-topics', methods=['GET'])
+@login_required
+def get_chat_topics():
+    """Get available topics for current session"""
+    user_id = session.get("user_id")
+    user = User.query.get(user_id) if user_id else None
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    session_id = user.session_id
+    
+    # Get topics for current session
+    topics = TOPICS.get(session_id, [])
+    
+    # Get current selected topic
+    current_topic_id = None
+    if session_id == 2:
+        current_topic_id = getattr(user, 'exercise_topic_id', None)
+    elif session_id == 3:
+        current_topic_id = getattr(user, 'test_topic_id', None)
+    
+    # If no topic selected and topics available, auto-select first one
+    if (current_topic_id is None or current_topic_id <= 0) and topics:
+        current_topic_id = topics[0]["id"]
+        # Update user record
+        if session_id == 2:
+            user.exercise_topic_id = current_topic_id
+        elif session_id == 3:
+            user.test_topic_id = current_topic_id
+        db.session.commit()
+    
+    return jsonify({
+        "topics": topics,
+        "currentTopicId": current_topic_id,
+        "sessionId": session_id
+    })
 
-# Update the get_session_data route to include current topic
+# Update the get_session_data route to include current topic info
 @bp.route('/session-data', methods=['GET'])
 @login_required
 def get_session_data():
@@ -99,11 +153,17 @@ def get_session_data():
         return jsonify({"error": "User not found"}), 404
     
     # Get current topic based on session
-    current_topic = None
+    current_topic_id = 0
+    current_topic_info = None
+    
     if user.session_id == 2:
-        current_topic = getattr(user, 'exercise_topic', None)
+        current_topic_id = getattr(user, 'exercise_topic_id', 0)
+        if current_topic_id > 0:
+            current_topic_info = next((t for t in TOPICS[2] if t["id"] == current_topic_id), None)
     elif user.session_id == 3:
-        current_topic = getattr(user, 'test_topic', None)
+        current_topic_id = getattr(user, 'test_topic_id', 0)
+        if current_topic_id > 0:
+            current_topic_info = next((t for t in TOPICS[3] if t["id"] == current_topic_id), None)
     
     session_data = {
         "username": user.username,
@@ -113,7 +173,8 @@ def get_session_data():
         "timerTest": user.timer_test,
         "avatarSeed": user.avatar_seed,
         "permissionLevel": getattr(user, 'permission_level', 0),
-        "currentTopic": current_topic
+        "currentTopicId": current_topic_id,
+        "currentTopicInfo": current_topic_info
     }
     return jsonify(session_data)
 
@@ -245,6 +306,7 @@ def create_new_chat():
     
     data = request.json
     first_message = data.get('firstMessage')
+    topic = data.get('topic')  # Add topic support
     
     user = User.query.get(user_id)
     if not user:
@@ -255,7 +317,7 @@ def create_new_chat():
     
     # Use ChatManager for atomic creation
     new_chat, error = ChatManager.get_or_create_ongoing_chat(
-        user_id, session_id, first_message
+        user_id, session_id, first_message, topic
     )
     
     if error:
@@ -265,7 +327,8 @@ def create_new_chat():
         "success": True,
         "chatId": new_chat.id,
         "sessionId": session_id,
-        "status": new_chat.status
+        "status": new_chat.status,
+        "topic": new_chat.topic
     })
 
 @bp.route('/update-timer', methods=['POST'])
@@ -303,39 +366,6 @@ def update_timer():
         "sessionId": session_id,
         "timerValue": timer_value
     })
-
-
-@bp.route('/chat-topics', methods=['GET'])
-@login_required
-def get_chat_topics():
-    """Get available topics for current session"""
-    user_id = session.get("user_id")
-    user = User.query.get(user_id) if user_id else None
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    
-    session_id = user.session_id  # Use user's actual session
-    
-    # Define topics based on session
-    if session_id == 2:  # Exercise
-        topics = [
-            {"id": 1, "name": "Voltaire", "description": "Philosophe et écrivain des Lumières"},
-            {"id": 2, "name": "Napoléon III", "description": "Empereur des Français"},
-            {"id": 3, "name": "Watteau", "description": "Peintre rococo"},
-            {"id": 4, "name": "Michel Foucault", "description": "Philosophe contemporain"}
-        ]
-    elif session_id == 3:  # Test
-        topics = [
-            {"id": 5, "name": "Mozart", "description": "Compositeur classique"},
-            {"id": 6, "name": "Frédéric Chopin", "description": "Compositeur et pianiste"},
-            {"id": 7, "name": "Victor Hugo", "description": "Écrivain romantique"},
-            {"id": 8, "name": "Rembrandt", "description": "Peintre hollandais"},
-            {"id": 9, "name": "Marguerite Duras", "description": "Écrivaine contemporaine"}
-        ]
-    else:  # Tutorial
-        topics = []
-    
-    return jsonify({"topics": topics})
 
 @bp.route('/result-metadata', methods=['GET'])
 @login_required

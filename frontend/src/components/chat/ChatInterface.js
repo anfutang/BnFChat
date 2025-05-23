@@ -143,19 +143,22 @@ const ChatInterface = () => {
     sendMessage(message);
   }, [isConnected, sendMessage, clearError]);
 
-  // Handle topic selection from navigator
-  const handleTopicChange = useCallback((topic) => {
-    // Only handle topic changes for exercise and test sessions
-    if (currentSession > 1) {
-      setSelectedTopic(topic);
-      
-      // Auto-fill message input with topic suggestion
-      if (topic) {
-        const suggestion = `Je recherche des informations sur ${topic.name}`;
-        setUserInput(suggestion);
-      }
+// Handle topic selection from navigator
+const handleTopicChange = useCallback((topic) => {
+  // Only handle topic changes for exercise and test sessions
+  if (currentSession > 1) {
+    setSelectedTopic(topic);
+    
+    // Don't auto-fill for "no topic" selection
+    if (topic && topic.id > 0) {
+      const suggestion = `Je recherche des informations sur ${topic.name}`;
+      setUserInput(suggestion);
+    } else if (topic && topic.id === 0) {
+      // Clear input for free search
+      setUserInput('');
     }
-  }, [currentSession, setUserInput]);
+  }
+}, [currentSession, setUserInput]);
 
   // Handle logout with cleanup
   const handleLogout = useCallback(async () => {

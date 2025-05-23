@@ -29,7 +29,7 @@ const SessionNavigation = ({
       {/* Chat Actions - Only for sessions 2 and 3 */}
       {currentSession > 1 && (
         <div className="chat-actions">
-          <button 
+          {/* <button 
             onClick={onRestartChat} 
             className="action-btn restart-btn"
             disabled={!canUseActions}
@@ -45,7 +45,7 @@ const SessionNavigation = ({
             title={!isConnected ? 'Connexion requise' : 'Abandonner et créer une nouvelle conversation'}
           >
             ⏭️ Abandonner
-          </button>
+          </button> */}
         </div>
       )}
       
