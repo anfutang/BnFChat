@@ -53,12 +53,26 @@ def register_socketio_events():
             user_id = auth['userId']
             socket_user_sessions[request.sid] = user_id
             print(f'User {user_id} authenticated via socket')
-        
-        emit('connected', {
-            'status': 'connected',
-            'session_id': request.sid,
-            'user_id': user_id
-        })
+            
+            # Auto-trigger session data retrieval after authentication
+            emit('connected', {
+                'status': 'connected',
+                'session_id': request.sid,
+                'user_id': user_id
+            })
+            
+            # Automatically send session data and chat state
+            try:
+                handle_get_session_data()  # This will emit session_data_response
+                handle_get_chat_state()    # This will emit chat_state_response
+            except Exception as e:
+                print(f"Error in auto-retrieval: {str(e)}")
+        else:
+            emit('connected', {
+                'status': 'connected',
+                'session_id': request.sid,
+                'user_id': None
+            })
 
     @socketio.on('disconnect')
     def handle_disconnect():
@@ -273,7 +287,13 @@ def register_socketio_events():
                 return
             
             chat_state = ChatManager.get_chat_state(user_id, user.session_id)
-            emit('chat_state_response', chat_state)
+            
+            # Always emit response, even if no ongoing chat
+            emit('chat_state_response', {
+                'chat': chat_state.get('chat'),
+                'sessionId': user.session_id,
+                'hasOngoingChat': chat_state.get('chat') is not None
+            })
             
         except Exception as e:
             print(f"Error in handle_get_chat_state: {str(e)}")

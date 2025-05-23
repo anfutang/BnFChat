@@ -18,6 +18,13 @@ export const useChat = () => {
   
   const socketRef = useRef(null);
 
+
+  useEffect(() => {
+    if (socketRef.current && isConnected && sessionData) {
+      socketRef.current.emit('get_chat_state');
+    }
+  }, [isConnected, sessionData]);
+  
   // Initialize socket connection
   useEffect(() => {
     const initSocket = async () => {
@@ -58,6 +65,7 @@ export const useChat = () => {
           setSessionData(data);
           // Also request topics for current session
           socket.emit('get_topics');
+          socket.emit('get_chat_state');
         });
 
         // ========== TOPIC EVENTS ==========
