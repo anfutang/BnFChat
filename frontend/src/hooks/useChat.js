@@ -79,14 +79,6 @@ const useChat = (currentSession, onResultReceived) => {
     });
   }, []);
 
-  // Message deduplication helper
-  const isDuplicateMessage = useCallback((newMessage, existingMessages) => {
-    return existingMessages.some(msg => 
-      msg.content === newMessage.content && 
-      msg.role === newMessage.role &&
-      Math.abs(new Date(msg.timestamp) - new Date(newMessage.timestamp)) < 5000 // 5 second window
-    );
-  }, []);
 
   const initializeSocket = async () => {
     try {
@@ -302,7 +294,7 @@ const useChat = (currentSession, onResultReceived) => {
     setConnectionState(prev => ({ ...prev, isLoading: false }));
     setStreamState(prev => ({ ...prev, isStreaming: false }));
     
-    // Add complete message to chat (with deduplication)
+    // Add complete message to chat - backend is source of truth
     if (data.final_response) {
       const newMessage = {
         id: `${Date.now()}-assistant-${Math.random()}`,
@@ -311,20 +303,14 @@ const useChat = (currentSession, onResultReceived) => {
         timestamp: new Date().toISOString(),
         isSystem: false
       };
-
-      setChatState(prev => {
-        // Check for duplicates before adding
-        if (!isDuplicateMessage(newMessage, prev.messages)) {
-          return {
-            ...prev,
-            messages: [...prev.messages, newMessage],
-            isFirstMessage: false,
-            currentTopic: data.detected_topic || prev.currentTopic,
-            detectedIntent: data.detected_intent || prev.detectedIntent
-          };
-        }
-        return prev;
-      });
+  
+      setChatState(prev => ({
+        ...prev,
+        messages: [...prev.messages, newMessage], // Just add it - no duplicate check
+        isFirstMessage: false,
+        currentTopic: data.detected_topic || prev.currentTopic,
+        detectedIntent: data.detected_intent || prev.detectedIntent
+      }));
     }
     
     // Clear streaming state
@@ -335,9 +321,8 @@ const useChat = (currentSession, onResultReceived) => {
     }));
     currentMessageRef.current = '';
     
-    // Auto-scroll
     setTimeout(scrollToBottom, 100);
-  }, [isDuplicateMessage]);
+  }, []);
 
   const handleStreamError = useCallback((data) => {
     console.error('Stream error:', data);
@@ -445,7 +430,7 @@ const useChat = (currentSession, onResultReceived) => {
     if (!message?.trim() || !connectionState.isConnected) {
       return false;
     }
-
+  
     const messageContent = message.trim();
     
     // Check if this message is already pending (prevent spam)
@@ -453,10 +438,10 @@ const useChat = (currentSession, onResultReceived) => {
       console.log('Message already pending, ignoring duplicate');
       return false;
     }
-
+  
     // Add to pending messages
     pendingUserMessages.current.add(messageContent);
-
+  
     // Add user message immediately (optimistic update)
     const userMessage = {
       id: `${Date.now()}-user-${Math.random()}`,
@@ -465,29 +450,22 @@ const useChat = (currentSession, onResultReceived) => {
       timestamp: new Date().toISOString(),
       isSystem: false
     };
-
-    setChatState(prev => {
-      // Check for duplicates before adding
-      if (!isDuplicateMessage(userMessage, prev.messages)) {
-        return {
-          ...prev,
-          messages: [...prev.messages, userMessage],
-          userInput: '',
-          isFirstMessage: false
-        };
-      }
-      return { ...prev, userInput: '' };
-    });
-
-    // Note: chat_id can be null for first message - server will create chat
+  
+    setChatState(prev => ({
+      ...prev,
+      messages: [...prev.messages, userMessage], // Just add it - no duplicate check
+      userInput: '',
+      isFirstMessage: false
+    }));
+  
     socketRef.current.emit('send_message', {
       message: messageContent,
       chat_id: chatState.chatId, 
     });
-
+  
     setTimeout(scrollToBottom, 100);
     return true;
-  }, [connectionState.isConnected, chatState.chatId, isDuplicateMessage]);
+  }, [connectionState.isConnected, chatState.chatId]);
 
   const abandonConversation = useCallback(() => {
     if (!connectionState.isConnected || !chatState.chatId) return false;
