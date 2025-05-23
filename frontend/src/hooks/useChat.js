@@ -1,10 +1,9 @@
-// hooks/useChat.js - Updated version with better session synchronization
+// hooks/useChat.js
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import io from 'socket.io-client';
 
 const useChat = (currentSession, onResultReceived) => {
-  // Core chat state - single source of truth
   const [chatState, setChatState] = useState({
     chatId: null,
     messages: [],
@@ -12,7 +11,7 @@ const useChat = (currentSession, onResultReceived) => {
     currentTopic: null,
     detectedIntent: null,
     isFirstMessage: true,
-    actualSessionId: null  // Track the actual session from server
+    actualSessionId: null
   });
   
   // Connection and UI state
@@ -32,8 +31,8 @@ const useChat = (currentSession, onResultReceived) => {
   const socketRef = useRef(null);
   const messageListRef = useRef(null);
   const currentMessageRef = useRef('');
-  const pendingUserMessages = useRef(new Set()); // Track pending user messages
-  const lastLoadedSession = useRef(null); // Track last loaded session
+  const pendingUserMessages = useRef(new Set());
+  const lastLoadedSession = useRef(null);
 
   // Initialize socket connection
   useEffect(() => {
@@ -324,7 +323,7 @@ const useChat = (currentSession, onResultReceived) => {
             detectedIntent: data.detected_intent || prev.detectedIntent
           };
         }
-        return prev; // Don't add duplicate
+        return prev;
       });
     }
     
@@ -477,15 +476,13 @@ const useChat = (currentSession, onResultReceived) => {
           isFirstMessage: false
         };
       }
-      return { ...prev, userInput: '' }; // Clear input even if duplicate
+      return { ...prev, userInput: '' };
     });
 
-    // Send to server - let server determine session_id from user table
     // Note: chat_id can be null for first message - server will create chat
     socketRef.current.emit('send_message', {
       message: messageContent,
-      chat_id: chatState.chatId,  // Can be null - server will handle
-      // Don't send session_id - let server get it from user table
+      chat_id: chatState.chatId, 
     });
 
     setTimeout(scrollToBottom, 100);
@@ -498,7 +495,6 @@ const useChat = (currentSession, onResultReceived) => {
     socketRef.current.emit('send_message', {
       message: 'abandon',
       chat_id: chatState.chatId,
-      // Don't send session_id - let server get it from user table
     });
     return true;
   }, [connectionState.isConnected, chatState.chatId]);
@@ -509,7 +505,6 @@ const useChat = (currentSession, onResultReceived) => {
     socketRef.current.emit('send_message', {
       message: 'recommencer',
       chat_id: chatState.chatId,
-      // Don't send session_id - let server get it from user table
     });
     return true;
   }, [connectionState.isConnected, chatState.chatId]);
@@ -520,7 +515,6 @@ const useChat = (currentSession, onResultReceived) => {
     socketRef.current.emit('send_message', {
       message: 'résultat',
       chat_id: chatState.chatId,
-      // Don't send session_id - let server get it from user table
     });
     return true;
   }, [connectionState.isConnected, chatState.chatId]);
@@ -544,7 +538,7 @@ const useChat = (currentSession, onResultReceived) => {
     isFirstMessage: chatState.isFirstMessage,
     currentTopic: chatState.currentTopic,
     detectedIntent: chatState.detectedIntent,
-    actualSessionId: chatState.actualSessionId, // Expose actual session from server
+    actualSessionId: chatState.actualSessionId,
     
     // Connection state
     isConnected: connectionState.isConnected,
