@@ -34,9 +34,12 @@ def check_auth():
         
     return jsonify({
         "authenticated": True,
-        "username": user.username,
-        "avatarSeed": user.avatar_seed,
-        "profileCompleted": user.profile_created
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "avatarSeed": user.avatar_seed,
+            "profileCompleted": user.profile_created
+        }
     })
 
 

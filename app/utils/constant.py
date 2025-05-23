@@ -48,3 +48,22 @@ user_profile_keys = ["age","diploma","situation","other-situation","engaged-in-a
                      "is-gallica-user","frequency-usage-gallica","time-usage-gallica","accept-further-contact","avatar-seed","permission_level"]
 
 visible_users = [f"bnf-scai-{i}" for i in range(1,10)]
+
+def get_topic_name(topic_id):
+    """Get topic name by ID"""
+    topic_names = {
+        1: "Voltaire",
+        2: "Napoléon III", 
+        3: "Watteau",
+        4: "Foucault",
+        5: "Mozart",
+        6: "Chopin",
+        7: "Victor Hugo",
+        8: "Rembrandt"
+    }
+    return topic_names.get(topic_id, "Sujet libre")
+
+# Response constants
+ABANDON_RESPONSE = "Conversation abandonnée. Vous pouvez commencer une nouvelle recherche à tout moment."
+RESTART_RESPONSE = "Conversation redémarrée. Comment puis-je vous aider?"
+RESULTS_RESPONSE = "Ouverture de la fenêtre de résultats..."

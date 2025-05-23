@@ -1,167 +1,242 @@
-// hooks/useChat.js - Updated with topic support
 
+// src/hooks/useChat.js - ALL non-auth operations via SocketIO
 import { useState, useRef, useCallback, useEffect } from 'react';
-
 import { io } from 'socket.io-client';
 
 export const useChat = () => {
-  // ONLY these states needed - Single Source of Truth
+  // Single source of truth states
   const [currentChatId, setCurrentChatId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [socket, setSocket] = useState(null);
+  const [error, setError] = useState(null);
+  
+  // Session and topic data (via SocketIO)
+  const [sessionData, setSessionData] = useState(null);
+  const [topics, setTopics] = useState([]);
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  
+  const socketRef = useRef(null);
 
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io(process.env.REACT_APP_SOCKET_URL, {
-      auth: {
-        token: localStorage.getItem('authToken')
+    const initSocket = async () => {
+      try {
+        // Get current user ID for socket auth
+        const authResponse = await fetch('/api/auth/check-auth');
+        const authData = await authResponse.json();
+        
+        if (!authData.authenticated) {
+          setError('Not authenticated');
+          return;
+        }
+
+        const socket = io('http://127.0.0.1:5001/', {
+          auth: {
+            userId: authData.user.id
+          }
+        });
+
+        socketRef.current = socket;
+
+        socket.on('connect', () => {
+          setIsConnected(true);
+          setError(null);
+          console.log('Socket connected');
+          
+          // Request initial data
+          socket.emit('get_session_data');
+        });
+
+        socket.on('disconnect', () => {
+          setIsConnected(false);
+          console.log('Socket disconnected');
+        });
+
+        // ========== SESSION DATA EVENTS ==========
+        socket.on('session_data_response', (data) => {
+          setSessionData(data);
+          // Also request topics for current session
+          socket.emit('get_topics');
+        });
+
+        // ========== TOPIC EVENTS ==========
+        socket.on('topics_response', (data) => {
+          setTopics(data.topics);
+          
+          // Set current topic if available
+          if (data.currentTopicId > 0) {
+            const currentTopic = data.topics.find(t => t.id === data.currentTopicId);
+            setSelectedTopic(currentTopic);
+          } else {
+            setSelectedTopic(null);
+          }
+        });
+
+        socket.on('topic_selected', (data) => {
+          if (data.success) {
+            setSelectedTopic(data.topicInfo);
+            
+            // Clear chat state if chat was ended
+            if (data.chatEnded) {
+              setCurrentChatId(null);
+              setMessages([]);
+            }
+          }
+        });
+
+        // ========== CHAT EVENTS ==========
+        socket.on('chat_state_response', (data) => {
+          if (data.chat) {
+            setCurrentChatId(data.chat.id);
+            setMessages(data.chat.messages || []);
+          } else {
+            setCurrentChatId(null);
+            setMessages([]);
+          }
+        });
+
+        socket.on('message_received', (data) => {
+          const userMessage = {
+            id: `user_${Date.now()}`,
+            role: 'user',
+            content: data.message,
+            timestamp: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, userMessage]);
+        });
+
+        // ========== STREAMING EVENTS ==========
+        socket.on('stream_start', (data) => {
+          setIsStreaming(true);
+          setCurrentChatId(data.chat_id);
+          // Add AI message placeholder
+          setMessages(prev => [...prev, {
+            id: `temp_${Date.now()}`,
+            role: 'assistant',
+            content: '',
+            isStreaming: true
+          }]);
+        });
+
+        socket.on('stream_chunk', (data) => {
+          setMessages(prev => prev.map(msg => 
+            msg.isStreaming ? 
+              { ...msg, content: msg.content + data.content } : 
+              msg
+          ));
+        });
+
+        socket.on('stream_end', (data) => {
+          setIsStreaming(false);
+          setMessages(prev => prev.map(msg => 
+            msg.isStreaming ? 
+              { ...msg, isStreaming: false, id: `assistant_${Date.now()}` } : 
+              msg
+          ));
+        });
+
+        // ========== CHAT END EVENTS ==========
+        socket.on('chat_ended', (data) => {
+          console.log('Chat ended:', data.reason);
+          setCurrentChatId(null);
+          setMessages([]);
+        });
+
+        socket.on('ongoing_chats_terminated', (data) => {
+          console.log('Ongoing chats terminated:', data.reason);
+          setCurrentChatId(null);
+          setMessages([]);
+        });
+
+        // ========== SESSION CHANGE EVENTS ==========
+        socket.on('session_change_success', (data) => {
+          console.log('Session changed successfully:', data.session_id);
+          setCurrentChatId(null);
+          setMessages([]);
+          
+          // Request fresh data
+          socket.emit('get_session_data');
+        });
+
+        // ========== ERROR HANDLING ==========
+        socket.on('error', (data) => {
+          setError(data.message);
+          console.error('Socket error:', data);
+        });
+
+      } catch (error) {
+        setError('Failed to initialize socket connection');
+        console.error('Socket init error:', error);
       }
-    });
+    };
 
-    newSocket.on('connect', () => {
-      setIsConnected(true);
-      console.log('Socket connected');
-    });
-
-    newSocket.on('disconnect', () => {
-      setIsConnected(false);
-      console.log('Socket disconnected');
-    });
-
-    // Chat state response
-    newSocket.on('chat_state_response', (data) => {
-      if (data.chat) {
-        setCurrentChatId(data.chat.id);
-        setMessages(data.chat.messages || []);
-      } else {
-        // No ongoing chat - clear state
-        setCurrentChatId(null);
-        setMessages([]);
-      }
-    });
-
-    // Message received
-    newSocket.on('message_received', (data) => {
-      setMessages(prev => [...prev, data.message]);
-    });
-
-    // Streaming events
-    newSocket.on('stream_start', (data) => {
-      setIsStreaming(true);
-      setCurrentChatId(data.chat_id);
-      // Add AI message placeholder
-      setMessages(prev => [...prev, {
-        id: `temp_${Date.now()}`,
-        role: 'assistant',
-        content: '',
-        isStreaming: true
-      }]);
-    });
-
-    newSocket.on('stream_chunk', (data) => {
-      setMessages(prev => prev.map(msg => 
-        msg.isStreaming ? 
-          { ...msg, content: msg.content + data.content } : 
-          msg
-      ));
-    });
-
-    newSocket.on('stream_end', (data) => {
-      setIsStreaming(false);
-      setMessages(prev => prev.map(msg => 
-        msg.isStreaming ? 
-          { ...msg, isStreaming: false, id: data.message_id } : 
-          msg
-      ));
-
-      // Handle chat end events
-      if (data.chat_ended) {
-        handleChatEnd();
-      }
-    });
-
-    // Session change success
-    newSocket.on('session_change_success', () => {
-      console.log('Session changed, ongoing chats terminated');
-      clearChatState();
-    });
-
-    // Ongoing chats terminated
-    newSocket.on('ongoing_chats_terminated', () => {
-      console.log('Ongoing chats terminated');
-      clearChatState();
-    });
-
-    setSocket(newSocket);
+    initSocket();
 
     return () => {
-      newSocket.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
     };
   }, []);
 
-  // Clear chat state helper
-  const clearChatState = useCallback(() => {
-    setCurrentChatId(null);
-    setMessages([]);
-    setIsStreaming(false);
-  }, []);
-
-  // Handle chat end (abandon/recommencer/resultat)
-  const handleChatEnd = useCallback(() => {
-    console.log('Chat ended, clearing UI');
-    clearChatState();
-  }, [clearChatState]);
-
-  // Send message - creates chat lazily if needed
+  // ========== SOCKET ACTIONS ==========
+  
+  // Send message
   const sendMessage = useCallback((content) => {
-    if (!socket || !isConnected) {
-      console.error('Socket not connected');
+    if (!socketRef.current || !isConnected) {
+      setError('Not connected to server');
       return;
     }
 
-    // Add user message immediately to UI
-    const userMessage = {
-      id: `user_${Date.now()}`,
-      role: 'user', 
-      content,
-      timestamp: new Date().toISOString()
-    };
-    
-    setMessages(prev => [...prev, userMessage]);
+    if (!content?.trim()) {
+      return;
+    }
 
-    // Send via socket - backend will create chat if needed
-    socket.emit('send_message', {
-      content,
-      chat_id: currentChatId // null if no ongoing chat
+    socketRef.current.emit('send_message', {
+      message: content.trim()
     });
-  }, [socket, isConnected, currentChatId]);
+  }, [isConnected]);
 
   // Get current chat state
   const getChatState = useCallback(() => {
-    if (!socket || !isConnected) return;
+    if (!socketRef.current || !isConnected) return;
     
-    socket.emit('get_chat_state');
-  }, [socket, isConnected]);
+    socketRef.current.emit('get_chat_state');
+  }, [isConnected]);
 
-  // Change session - will terminate ongoing chats
+  // Change session
   const changeSession = useCallback((sessionId) => {
-    if (!socket || !isConnected) return;
+    if (!socketRef.current || !isConnected) return;
     
-    socket.emit('session_change', { session_id: sessionId });
-  }, [socket, isConnected]);
+    socketRef.current.emit('session_change', { session_id: sessionId });
+  }, [isConnected]);
 
-  // Update topic - will terminate ongoing chats  
-  const updateTopic = useCallback((topicId, topicType) => {
-    if (!socket || !isConnected) return;
+  // Select topic
+  const selectTopic = useCallback((topicId) => {
+    if (!socketRef.current || !isConnected) return;
     
-    const topicField = topicType === 'exercise' ? 'exercise_topic_id' : 'test_topic_id';
+    socketRef.current.emit('select_topic', { topicId });
+  }, [isConnected]);
+
+  // Get session data
+  const getSessionData = useCallback(() => {
+    if (!socketRef.current || !isConnected) return;
     
-    socket.emit('update_topic', { 
-      [topicField]: topicId 
-    });
-  }, [socket, isConnected]);
+    socketRef.current.emit('get_session_data');
+  }, [isConnected]);
+
+  // Get topics
+  const getTopics = useCallback(() => {
+    if (!socketRef.current || !isConnected) return;
+    
+    socketRef.current.emit('get_topics');
+  }, [isConnected]);
+
+  // Clear error
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   return {
     // State
@@ -169,13 +244,24 @@ export const useChat = () => {
     messages,
     isConnected,
     isStreaming,
+    error,
+    
+    // Session and topic data
+    sessionData,
+    topics,
+    selectedTopic,
+    
+    // Refs
+    socketRef,
     
     // Actions
     sendMessage,
     getChatState,
     changeSession,
-    updateTopic,
-    clearChatState
+    selectTopic,
+    getSessionData,
+    getTopics,
+    clearError
   };
 };
 

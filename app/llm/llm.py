@@ -166,3 +166,47 @@ def call_nl2sru(query,sru_hint,stream_response=False):
         # parsed_result = completion.choices[0].message.parsed
         # return (getattr(parsed_result,"reasoning"), getattr(parsed_result,"sru_query"))
         return completion.choices[0].message.content
+
+from ..utils.constant import *
+
+class SimpleWorkflow:
+    def __init__(self):
+        self.steps = ['analyze', 'search', 'respond']
+    
+    def execute(self, state):
+        user_input = state.get('user_input', '').lower()
+        
+        # Check for special commands
+        if 'abandon' in user_input:
+            return {
+                'response': ABANDON_RESPONSE,
+                'status': 'abandon'
+            }
+        elif 'recommencer' in user_input or 'restart' in user_input:
+            return {
+                'response': RESTART_RESPONSE,
+                'status': 'restart'
+            }
+        elif 'résultat' in user_input or 'result' in user_input:
+            return {
+                'response': RESULTS_RESPONSE,
+                'status': 'results'
+            }
+        
+        # Simple response generation
+        if any(word in user_input for word in ['bonjour', 'salut', 'hello']):
+            response = "Bonjour! Je suis votre assistant de recherche BNF. Comment puis-je vous aider aujourd'hui?"
+        elif any(word in user_input for word in ['merci', 'thank']):
+            response = "Je vous en prie! N'hésitez pas si vous avez d'autres questions."
+        elif len(user_input) > 0:
+            response = f"Je recherche des informations sur '{user_input}' dans les collections de la BNF. Voici ce que j'ai trouvé..."
+        else:
+            response = "Je n'ai pas bien compris votre demande. Pouvez-vous reformuler?"
+        
+        return {
+            'response': response,
+            'status': 'completed'
+        }
+
+def create_simple_workflow():
+    return SimpleWorkflow()

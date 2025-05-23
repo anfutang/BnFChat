@@ -2,7 +2,7 @@ import os
 from flask import Flask, jsonify
 from flask_socketio import SocketIO
 from .db import init_app, ensure_database_exists
-from . import auth, dev, stream
+from . import auth, stream
 from flask_cors import CORS
 
 from .utils.rag_db_utils import close_rag_db
@@ -53,7 +53,6 @@ def create_app(test_config=None):
 
     # Register blueprints
     app.register_blueprint(auth.bp, url_prefix='/api/auth')
-    app.register_blueprint(dev.bp, url_prefix='/api/dev')
     
     # Initialize stream blueprint with SocketIO
     stream.init_socketio(socketio)
