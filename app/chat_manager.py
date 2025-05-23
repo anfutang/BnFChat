@@ -15,7 +15,6 @@ class ChatManager:
     def get_or_create_ongoing_chat(user_id, session_id, first_message=None):
         """
         Atomic operation: Get existing ongoing chat or create new one
-        CRITICAL: Uses session_id from user's database record, not passed parameter
         """
         try:
             # Close any existing transaction and start fresh
@@ -67,7 +66,7 @@ class ChatManager:
             
             new_chat = Chat(
                 user_id=user_id,
-                session_id=session_id,  # Use the verified session_id
+                session_id=session_id,
                 status="ongoing",
                 chat_history=chat_history,
                 created_at=datetime.utcnow(),
@@ -75,7 +74,7 @@ class ChatManager:
             )
             
             db.session.add(new_chat)
-            db.session.flush()  # Get the ID before commit
+            db.session.flush() 
             
             db.session.commit()
             logger.info(f"Created new chat {new_chat.id} for user {user_id} session {session_id}")
@@ -175,7 +174,6 @@ class ChatManager:
     def get_chat_state(user_id, session_id):
         """Get current chat state for user session - uses user's actual session if mismatch"""
         try:
-            # CRITICAL: Verify session_id against user's actual session
             user = db.session.query(User).filter_by(id=user_id).first()
             if not user:
                 return {
@@ -259,21 +257,3 @@ class ChatManager:
             logger.error(f"Error updating chat topic {chat_id}: {str(e)}")
             return False, str(e)
     
-    @staticmethod 
-    def debug_user_chats(user_id):
-        """Debug method to see all chats for a user"""
-        try:
-            user = db.session.query(User).filter_by(id=user_id).first()
-            chats = db.session.query(Chat).filter_by(user_id=user_id).all()
-            
-            print(f"=== Debug User {user_id} ===")
-            print(f"User session_id: {user.session_id if user else 'User not found'}")
-            print(f"Total chats: {len(chats)}")
-            
-            for chat in chats:
-                print(f"  Chat {chat.id}: session={chat.session_id}, status={chat.status}, messages={len(chat.chat_history) if chat.chat_history else 0}")
-            
-            return True, None
-        except Exception as e:
-            print(f"Debug error: {e}")
-            return False, str(e)

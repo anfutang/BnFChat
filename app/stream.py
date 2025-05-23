@@ -363,8 +363,6 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socketio_sess
             'error_type': 'workflow_error'
         }, to=socketio_session_id)
 
-# Updated section for handle_workflow_outcome function in paste.txt
-
 def handle_workflow_outcome(workflow_status, chat_id, user_id, session_id, final_response, socketio_session_id):
     """Handle different workflow outcomes"""
     if workflow_status == 'abandon':

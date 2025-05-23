@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 
 from .db import db
-from .models import User, Chat, end_ongoing_chats, create_chat, get_or_create_chat_for_session
+from .models import User, Chat, end_ongoing_chats
 from .auth import login_required
 
 bp = Blueprint('dev', __name__, url_prefix="/api/dev")
@@ -49,7 +49,6 @@ def change_session():
         return jsonify({"error": "Invalid session ID"}), 400
     
     try:
-        # STEP 1: Update user's session_id in database FIRST
         db.session.rollback()
         db.session.close()
         
@@ -60,7 +59,6 @@ def change_session():
         
         old_session_id = user.session_id
         
-        # Don't do anything if already in requested session
         if old_session_id == new_session_id:
             return jsonify({
                 "success": True,
@@ -73,7 +71,6 @@ def change_session():
         # Update user session
         user.session_id = new_session_id
         
-        # STEP 2: Only terminate existing ongoing chats (don't create empty ones)
         existing_ongoing_chats = db.session.query(Chat).filter_by(
             user_id=user_id,
             status="ongoing"
@@ -91,11 +88,10 @@ def change_session():
         # Update Flask session
         session["session_id"] = new_session_id
         
-        # STEP 3: Return success - NO AUTO-CHAT CREATION
         return jsonify({
             "success": True,
             "sessionId": new_session_id,
-            "chatId": None,  # No chat created yet - will be created on first message
+            "chatId": None,
             "message": f"Session changed to {new_session_id} via HTTP",
             "terminated_count": terminated_count
         })
@@ -225,7 +221,7 @@ def update_timer():
         "timerValue": timer_value
     })
 
-# Topic and Result Management Routes
+
 @bp.route('/chat-topics', methods=['GET'])
 @login_required
 def get_chat_topics():
@@ -273,7 +269,6 @@ def get_result_metadata():
     if not chat:
         return jsonify({"error": "Chat not found"}), 404
     
-    # Mock metadata - replace with actual implementation
     metadata = {
         "chatId": chat.id,
         "topic": chat.topic,
@@ -299,9 +294,6 @@ def complete_tutorial():
     if not user:
         return jsonify({"error": "User not found"}), 404
     
-    # End tutorial chats
-    end_ongoing_chats(user_id, "tutorial_completed")
-    
     # Move to exercise session
     user.session_id = 2
     db.session.commit()
@@ -311,20 +303,3 @@ def complete_tutorial():
         "message": "Tutorial completed",
         "nextSession": 2
     })
-
-# Debug route to check user chats (remove in production)
-@bp.route('/debug-user-chats', methods=['GET'])
-@login_required
-def debug_user_chats():
-    """Debug endpoint to see user's chats"""
-    user_id = session.get("user_id")
-    
-    if not user_id:
-        return jsonify({"error": "No authenticated user"}), 401
-    
-    success, error = ChatManager.debug_user_chats(user_id)
-    
-    if success:
-        return jsonify({"success": True, "message": "Check server logs for debug info"})
-    else:
-        return jsonify({"error": error}), 500
