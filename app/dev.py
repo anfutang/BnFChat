@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 
 from .db import db
-from .models import User, Chat, end_ongoing_chats
+from .models import User, Chat
 from .auth import login_required
 
 bp = Blueprint('dev', __name__, url_prefix="/api/dev")
