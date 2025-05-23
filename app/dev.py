@@ -10,7 +10,84 @@ bp = Blueprint('dev', __name__, url_prefix="/api/dev")
 
 logger = logging.getLogger(__name__)
 
-# Session Management Routes
+# Add this new route to your dev.py file
+
+@bp.route('/select-topic', methods=['POST'])
+@login_required
+def select_topic():
+    """Handle topic selection and end current conversation"""
+    try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"error": "No authenticated user"}), 401
+        
+        data = request.json
+        topic_id = data.get('topicId')
+        topic_name = data.get('topicName')
+        
+        if not topic_id or not topic_name:
+            return jsonify({"error": "Topic ID and name required"}), 400
+        
+        # Get user's current session
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        session_id = user.session_id
+        
+        # Get current ongoing chat if exists
+        current_chat = Chat.query.filter_by(
+            user_id=user_id,
+            session_id=session_id,
+            status="ongoing"
+        ).first()
+        
+        # End current chat if exists
+        if current_chat:
+            success, error = ChatManager.end_chat(
+                current_chat.id, 
+                "end_by_topic_changes", 
+                user_id
+            )
+            if not success:
+                logger.warning(f"Failed to end current chat: {error}")
+        
+        # Store selected topic in user record for this session
+        if session_id == 2:
+            user.exercise_topic = topic_name
+        elif session_id == 3:
+            user.test_topic = topic_name
+        
+        db.session.commit()
+        
+        # Create new chat with selected topic
+        new_chat, error = ChatManager.get_or_create_ongoing_chat(
+            user_id, 
+            session_id,
+            topic=topic_name
+        )
+        
+        if error:
+            return jsonify({"error": f"Failed to create new chat: {error}"}), 500
+        
+        logger.info(f"User {user_id} selected topic '{topic_name}' in session {session_id}")
+        
+        return jsonify({
+            "success": True,
+            "topicId": topic_id,
+            "topicName": topic_name,
+            "chatId": new_chat.id if new_chat else None,
+            "sessionId": session_id,
+            "message": f"Topic changed to '{topic_name}'"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in select_topic: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# Update the get_session_data route to include current topic
 @bp.route('/session-data', methods=['GET'])
 @login_required
 def get_session_data():
@@ -21,6 +98,13 @@ def get_session_data():
     if not user:
         return jsonify({"error": "User not found"}), 404
     
+    # Get current topic based on session
+    current_topic = None
+    if user.session_id == 2:
+        current_topic = getattr(user, 'exercise_topic', None)
+    elif user.session_id == 3:
+        current_topic = getattr(user, 'test_topic', None)
+    
     session_data = {
         "username": user.username,
         "userId": user_id,
@@ -28,11 +112,10 @@ def get_session_data():
         "timerExercise": user.timer_exercise,
         "timerTest": user.timer_test,
         "avatarSeed": user.avatar_seed,
-        "permissionLevel": getattr(user, 'permission_level', 0)
+        "permissionLevel": getattr(user, 'permission_level', 0),
+        "currentTopic": current_topic
     }
     return jsonify(session_data)
-
-from .chat_manager import ChatManager
 
 @bp.route('/change-session', methods=['POST'])
 @login_required

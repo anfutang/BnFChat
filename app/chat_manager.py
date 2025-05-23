@@ -231,7 +231,7 @@ class ChatManager:
             }
     
     @staticmethod
-    def update_chat_topic(chat_id, topic, user_id=None):
+    def update_detected_intent(chat_id, detected_intent, user_id=None):
         """Update chat topic with atomic operation"""
         try:
             db.session.rollback()
@@ -245,11 +245,11 @@ class ChatManager:
                 db.session.rollback()
                 return False, "Chat not found"
             
-            chat.topic = topic
+            chat.detected_intent = detected_intent
             chat.updated_at = datetime.utcnow()
             
             db.session.commit()
-            logger.info(f"Updated chat {chat_id} topic to {topic}")
+            logger.info(f"Updated chat {chat_id} topic to {detected_intent}")
             return True, None
             
         except Exception as e:

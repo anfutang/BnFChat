@@ -51,9 +51,8 @@ class BNFWorkflowState(TypedDict):
     socketio_session_id: str
     chat_history: list
     detected_intent: str
-    user_intent_summary: str
     topics_found: list
-    detected_topic: str
+    current_topic: str
     final_response: str
     workflow_status: str
     time_metrics: dict
@@ -139,13 +138,12 @@ def create_bnf_workflow(socketio_session_id):
             return {
                 **state,
                 'detected_intent': detected_intent,
-                'user_intent_summary': user_intent,
                 'time_metrics': {**state.get('time_metrics', {}), 'intent_detection': f"{intent_time:.3f}s"}
             }
             
         except Exception as e:
             print(f"Error in conversation analysis: {e}")
-            return {**state, 'user_intent_summary': state['user_input']}
+            return {**state}
     
     def search_knowledge(state: BNFWorkflowState) -> BNFWorkflowState:
         """Search in knowledge base"""
@@ -159,26 +157,26 @@ def create_bnf_workflow(socketio_session_id):
         
         try:
             start_time = time.time()
-            user_intent = state.get('user_intent_summary', state['user_input'])
+            detected_intent = state.get('detected_intent', state['user_input'])
             
             # Search using KNN
-            search_result = knn(user_intent, 20)
+            search_result = knn(detected_intent, 20)
             search_time = time.time() - start_time
             
             if search_result and search_result.get("topic"):
                 topics = search_result["topic"]
-                detected_topic = topics[0] if topics else None
+                current_topic = topics[0] if topics else None
                 
                 socketio.emit('workflow_progress', {
                     'step': 'knowledge_search',
                     'status': f'Trouvé {len(topics)} sujets pertinents',
-                    'topic': detected_topic,
+                    'current_topic': current_topic,
                 }, to=socketio_session_id)
                 
                 return {
                     **state,
                     'topics_found': topics,
-                    'detected_topic': detected_topic or '',
+                    'current_topic': current_topic or '',
                     'time_metrics': {**state.get('time_metrics', {}), 'search': f"{search_time:.3f}s"}
                 }
             else:
@@ -187,11 +185,11 @@ def create_bnf_workflow(socketio_session_id):
                     'status': 'Aucun sujet pertinent trouvé',
                 }, to=socketio_session_id)
                 
-                return {**state, 'topics_found': [], 'detected_topic': ''}
+                return {**state, 'topics_found': [], 'current_topic': ''}
                 
         except Exception as e:
             print(f"Error in knowledge search: {e}")
-            return {**state, 'topics_found': [], 'detected_topic': ''}
+            return {**state, 'topics_found': [], 'current_topic': ''}
     
     def generate_response(state: BNFWorkflowState) -> BNFWorkflowState:
         """Generate final response"""
@@ -206,18 +204,18 @@ def create_bnf_workflow(socketio_session_id):
         
         # Generate response based on search results
         topics_found = state.get('topics_found', [])
-        detected_topic = state.get('detected_topic', '')
-        user_intent = state.get('user_intent_summary', state['user_input'])
+        current_topic = state.get('current_topic', '')
+        detected_intent = state.get('detected_intent', state['user_input'])
         
         if len(topics_found) > 0:
-            topic_text = f" sur {detected_topic}" if detected_topic else ""
-            final_response = f"Voici ce que j'ai trouvé{topic_text} concernant '{user_intent}'. "
+            topic_text = f" sur {current_topic}" if current_topic else ""
+            final_response = f"Voici ce que j'ai trouvé{topic_text} concernant '{detected_intent}'. "
             final_response += f"J'ai identifié {len(topics_found)} sujets pertinents dans nos collections. "
             final_response += "Souhaitez-vous que je lance une recherche détaillée?"
             workflow_status = 'topics_found'
         else:
             final_response = refusal_response
-            if state.get('user_intent_summary'):
+            if state.get('detected_intent'):
                 final_response += " " + search_notification
                 workflow_status = 'refused_with_search'
             else:
@@ -293,9 +291,8 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socketio_sess
             "socketio_session_id": socketio_session_id,
             "chat_history": chat_history,
             "detected_intent": "",
-            "user_intent_summary": "",
             "topics_found": [],
-            "detected_topic": "",
+            "current_topic": "",
             "final_response": "",
             "workflow_status": "",
             "time_metrics": {}
@@ -333,13 +330,13 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socketio_sess
             print(f"Warning: Failed to save assistant message: {error}")
         
         # Update topic if detected
-        detected_topic = final_state.get('detected_topic')
-        if detected_topic:
+        detected_intent = final_state.get('detected_intent')
+        if detected_intent:
             try:
                 db.session.close()
             except:
                 pass
-            ChatManager.update_chat_topic(chat_id, detected_topic, user_id)
+            ChatManager.update_detected_intent(chat_id, detected_intent, user_id)
         
         # Handle special workflow outcomes
         handle_workflow_outcome(workflow_status, chat_id, user_id, session_id, final_response, socketio_session_id)
@@ -348,8 +345,9 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socketio_sess
         socketio.emit('stream_end', {
             'message_id': message_id,
             'final_response': final_response,
-            'detected_topic': detected_topic or '',
-            'user_intent': final_state.get('user_intent_summary', ''),
+            'current_topic': current_topic or '',
+            'detected_intent' : detected_intent or '',
+            'user_intent': final_state.get('detected_intent', ''),
             'workflow_status': workflow_status,
             'time_metrics': final_state.get('time_metrics', {}),
             'workflow_completed': True

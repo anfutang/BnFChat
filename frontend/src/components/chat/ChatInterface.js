@@ -28,7 +28,6 @@ const ChatInterface = () => {
     messages,
     userInput,
     setUserInput,
-    isFirstMessage,
     currentTopic,
     detectedIntent,
     

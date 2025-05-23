@@ -10,7 +10,6 @@ const useChat = (currentSession, onResultReceived) => {
     userInput: '',
     currentTopic: null,
     detectedIntent: null,
-    isFirstMessage: true,
     actualSessionId: null
   });
   
@@ -68,7 +67,6 @@ const useChat = (currentSession, onResultReceived) => {
       userInput: '',
       currentTopic: null,
       detectedIntent: null,
-      isFirstMessage: true,
       actualSessionId: null
     });
     pendingUserMessages.current.clear();
@@ -202,7 +200,6 @@ const useChat = (currentSession, onResultReceived) => {
       userInput: '',
       currentTopic: data.topic,
       detectedIntent: null,
-      isFirstMessage: formattedMessages.length === 0,
       actualSessionId: data.session_id  // Track actual session from server
     });
     
@@ -307,8 +304,7 @@ const useChat = (currentSession, onResultReceived) => {
       setChatState(prev => ({
         ...prev,
         messages: [...prev.messages, newMessage], // Just add it - no duplicate check
-        isFirstMessage: false,
-        currentTopic: data.detected_topic || prev.currentTopic,
+        currentTopic: data.current_topic || prev.currentTopic,
         detectedIntent: data.detected_intent || prev.detectedIntent
       }));
     }
@@ -354,7 +350,6 @@ const useChat = (currentSession, onResultReceived) => {
         ...prev,
         chatId: data.new_chat_id || null,
         messages: [], // Always clear messages for abandon/restart
-        isFirstMessage: true,
         currentTopic: null,
         detectedIntent: null
       }));
@@ -455,7 +450,6 @@ const useChat = (currentSession, onResultReceived) => {
       ...prev,
       messages: [...prev.messages, userMessage], // Just add it - no duplicate check
       userInput: '',
-      isFirstMessage: false
     }));
   
     socketRef.current.emit('send_message', {
@@ -513,7 +507,6 @@ const useChat = (currentSession, onResultReceived) => {
     messages: chatState.messages,
     userInput: chatState.userInput,
     setUserInput: (value) => setChatState(prev => ({ ...prev, userInput: value })),
-    isFirstMessage: chatState.isFirstMessage,
     currentTopic: chatState.currentTopic,
     detectedIntent: chatState.detectedIntent,
     actualSessionId: chatState.actualSessionId,
