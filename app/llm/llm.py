@@ -8,7 +8,7 @@ from openai import OpenAI
 import numpy as np
 
 from ..prompt.module import *
-from ..prompt.agent import ambiguity_detection, relevance_checker, rac
+from ..prompt.agent import ambiguity_detection, relevance_checker, clarification_checker
 from .parser import *
 from ..utils.utils import normalize, fetch_error
 from ..utils.constant import RAG_EMBED_DIM
@@ -57,16 +57,16 @@ def build_indexed_facets(facets: list):
     return '\n'.join(context)
 
 @safe_func
-def call_conv_intent_detection(chat_history: list):
-    messages = prompt_formatting(conv_intent_detection,[build_conv_paragraph(chat_history)])
+def call_conv_action_detection(chat_history: list):
+    messages = prompt_formatting(conv_action_detection,[build_conv_paragraph(chat_history)])
     completion = client.beta.chat.completions.parse(
             model=model_id,
             messages=messages,
-            response_format=ConvIntentDetection,
+            response_format=ConvActionDetection,
             temperature=0.0
         )
     parsed_result = completion.choices[0].message.parsed
-    return getattr(parsed_result,"intent")
+    return getattr(parsed_result,"action")
 
 @safe_func
 def call_entity_disambiguation(chat_history:list):
@@ -77,10 +77,10 @@ def call_entity_disambiguation(chat_history:list):
         model=model_id,
         messages=messages,
         response_format=entityDisambiguation,
-        temperature=0.01
+        temperature=0.0
     )
     parsed_result = completion.choices[0].message.parsed
-    return (getattr(parsed_result,"conclusion"), getattr(parsed_result,"clarifying_question"))
+    return getattr(parsed_result,"conclusion"), getattr(parsed_result,"clarifying_question")
 
 @safe_func
 def call_metadata_processor(chat_history: list, bibligraphic_records: str):
@@ -119,17 +119,28 @@ def call_relevance_checker(user_intent: str, facets: list):
     return getattr(parsed_result,"conclusion"), getattr(parsed_result,"relevant_facets") 
 
 @safe_func
-def call_rac(chat_history: list, facets: list):
-    messages = prompt_formatting(rac,['\n'.join([build_conv_paragraph(chat_history),'\n',build_indexed_facets(facets)])])
+def call_clarification_checker(chat_history: list, facets: list):
+    messages = prompt_formatting(clarification_checker,['\n'.join([build_conv_paragraph(chat_history),'\n',build_indexed_facets(facets)])])
     completion = client.beta.chat.completions.parse(
             model=model_id,
             messages=messages,
-            response_format=RAC,
+            response_format=clarificationChekcer,
             temperature=0.7
         )
     parsed_result = completion.choices[0].message.parsed
-    return getattr(parsed_result,"conclusion"), getattr(parsed_result,"clarifying_question") 
+    return getattr(parsed_result,"conclusion"), getattr(parsed_result,"useful_facets") 
 
+@safe_func
+def call_cq_generation(chat_history: list, facets: list):
+    messages = prompt_formatting(cq_generation,['\n'.join([build_conv_paragraph(chat_history),'\n',build_indexed_facets(facets)])])
+    completion = client.beta.chat.completions.parse(
+            model=model_id,
+            messages=messages,
+            response_format=CQGeneration,
+            temperature=0.5
+        )
+    parsed_result = completion.choices[0].message.parsed
+    return getattr(parsed_result,"clarifying_question")
 
 @safe_func
 def call_embedding(query: str):
@@ -140,12 +151,11 @@ def call_embedding(query: str):
     ).data[0].embedding]))
 
 @safe_func
-def call_nl2sru(query,sru_hint,stream_response=False):
-    # if sru_hint:
-    if False:
+def call_nl2sru(query: str,sru_hint: str,stream_response=False):
+    if sru_hint:
         messages = prompt_formatting(nl2sru,['\n'.join([f"Query : {query}",f"Hint : {sru_hint}"])])
     else:
-        messages = prompt_formatting(nl2sru,[f"Query : {query}",f"Hint : {sru_hint}"]) 
+        messages = prompt_formatting(nl2sru,[f"Query : {query}"]) 
     # messages = prompt_formatting(nl2sru,[query])
     # print(messages)
 
@@ -166,47 +176,3 @@ def call_nl2sru(query,sru_hint,stream_response=False):
         # parsed_result = completion.choices[0].message.parsed
         # return (getattr(parsed_result,"reasoning"), getattr(parsed_result,"sru_query"))
         return completion.choices[0].message.content
-
-from ..utils.constant import *
-
-class SimpleWorkflow:
-    def __init__(self):
-        self.steps = ['analyze', 'search', 'respond']
-    
-    def execute(self, state):
-        user_input = state.get('user_input', '').lower()
-        
-        # Check for special commands
-        if 'abandon' in user_input:
-            return {
-                'response': ABANDON_RESPONSE,
-                'status': 'abandon'
-            }
-        elif 'recommencer' in user_input or 'restart' in user_input:
-            return {
-                'response': RESTART_RESPONSE,
-                'status': 'restart'
-            }
-        elif 'résultat' in user_input or 'result' in user_input:
-            return {
-                'response': RESULTS_RESPONSE,
-                'status': 'results'
-            }
-        
-        # Simple response generation
-        if any(word in user_input for word in ['bonjour', 'salut', 'hello']):
-            response = "Bonjour! Je suis votre assistant de recherche BNF. Comment puis-je vous aider aujourd'hui?"
-        elif any(word in user_input for word in ['merci', 'thank']):
-            response = "Je vous en prie! N'hésitez pas si vous avez d'autres questions."
-        elif len(user_input) > 0:
-            response = f"Je recherche des informations sur '{user_input}' dans les collections de la BNF. Voici ce que j'ai trouvé..."
-        else:
-            response = "Je n'ai pas bien compris votre demande. Pouvez-vous reformuler?"
-        
-        return {
-            'response': response,
-            'status': 'completed'
-        }
-
-def create_simple_workflow():
-    return SimpleWorkflow()

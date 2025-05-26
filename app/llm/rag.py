@@ -7,12 +7,12 @@ import numpy as np
 
 from ..utils.utils import normalize, get_cosine_sim
 from ..utils.constant import METADATA_DIR, RAG_EMBED_DIM
-from ..utils.rag_db_utils import get_rag_db
+# from ..utils.rag_db_utils import get_rag_db
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-faiss_index = faiss.read_index(os.path.join(METADATA_DIR,"hnsw_index.faiss"))
+faiss_index = faiss.read_index(os.path.join("../instance","hnsw_index.faiss"))
 faiss_index.hnsw.efSearch = 64
 
 def knn(query,k):
@@ -32,10 +32,11 @@ def knn(query,k):
             if cosine_sim[ix] < 0.5:
                 break
             ix += 1
-        return find_facets(I[0].tolist()[:ix])
+        return find_facets(cosine_sim[:ix],I[0].tolist()[:ix])
 
-def find_facets(target_ids):
-    db = get_rag_db()
+def find_facets(similarity_scores,target_ids):
+    # db = get_rag_db()
+    db = sqlite3.connect("../instance/kv_mapping.db")
     c = db.cursor()
 
     placeholders = ', '.join(['?'] * len(target_ids))
@@ -44,10 +45,11 @@ def find_facets(target_ids):
     rows = c.fetchall()
     id_to_kv = {row[0]: (row[1], row[2]) for row in rows}
 
-    ordered_kv_dict = {"topic":[],"sru_statements":[]}
-    for id_ in target_ids:
+    ordered_kv_dict = {"facet":[],"sru_statements":[],"score":[]}
+    for score, id_ in zip(similarity_scores,target_ids):
         if id_ in id_to_kv:
             k, v = id_to_kv[id_]
-            ordered_kv_dict["topic"].append(k)
+            ordered_kv_dict["score"].append(score)
+            ordered_kv_dict["facet"].append(k)
             ordered_kv_dict["sru_statements"].append(v)
     return ordered_kv_dict

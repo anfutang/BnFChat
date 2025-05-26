@@ -97,7 +97,7 @@ nl2sru = f"""Task: Convert the following French natural language query into an S
 
 Format:
 - Allowed Dublin Core fields: dc.title, dc.creator, dc.contributor, dc.date, dc.type, dc.subject, text (for exact text matches), and gallicapublication_date (for specifying date conditions).
-- Allowed values for dc.type: monographie, manuscrit, carte, image, fascicule, sonore, partition, objet, video. Be careful to choose only keywords from the list for dc.type. Any other keyword that is not in the list will raise error.
+- Allowed values for dc.type: monographie, manuscrit, carte, image, fascicule, sonore, partition, objet, video.
 
 Rules:
 - For entities (e.g., names, titles), use the adj operator with quotation marks, e.g., dc.creator adj "Flaubert", dc.title adj "Le Figaro". In other cases, use 'all' (e.g. for topic-related keywords).
@@ -177,17 +177,42 @@ Refer to the following examples for guidance:
 {conv_summarization_fs_examples}
 """
 
-conv_intent_detection = """I will provide a dialogue between a user and a virtual assistant in a conversational search system. The assistant's role is to help the user refine their query by asking clarification questions. However, the user may sometimes want to abandon the conversation due to poor interaction quality, or proceed to search immediately without further clarification.
+conv_action_detection = """I will provide a dialogue between a user and a virtual assistant in a conversational search system. The assistant's role is to help the user refine their query by asking clarification questions. However, the user may sometimes want to abandon the conversation due to poor interaction quality, or proceed to search immediately without further clarification.
 
 Your task is to infer the user's current intent based on their latest response. There are three possible outcomes:
 1. If the user is engaging normally with the assistant, output "continue".
 2. If the user wants to end the conversation, output "abandon".
-3. If the user simply expresses an instruction to search such as "cherche maintenant" or similar, without providing any query input or responding to a previous clarifying question, output "search".
-4. If the user provides the first user query or responds to a previously asked clarifying question, and at the same time explicitly instructs to search, output "input_and_search". For example, "biographie de hugo; cherche" ou "litterature et c'est tout."
+3. If the user explicitly instructs to search, output "search".
+
+Be careful to output "search" only when the user clearly indicates to search, which could be a direct instruction such as "cherche maintenant" or an instruction after their response or input query such as "... et c'est tout", "... et ne clarifie plus".
+
+Output must be in JSON format with a single key named "action". Do not include any explanations or extra text.
+"""
+
+conv_intent_detection_old = """I will provide a dialogue between a user and a virtual assistant in a conversational search system. The assistant's role is to help the user refine their query by asking clarification questions. However, the user may sometimes want to abandon the conversation due to poor interaction quality, or proceed to search immediately without further clarification.
+
+Your task is to infer the user's current intent based on their latest response. There are three possible outcomes:
+1. If the user is engaging normally with the assistant, output "continue".
+2. If the user wants to end the conversation, output "abandon".
+3. If the user ignores a clarifying question and explicitly wants to search immediately with the last detected intent, output "search". 
+4. If the user responds to the previously asked clarifying question then explicitly instructs to search, output "respond_and_search".
 
 Be careful to output "search" or "respond_and_search" only when the user clearly indicates to search, such as "cherche maintenant", "... et c'est tout", "ne clarifie plus".
 
 Output must be in JSON format with a single key named "intent". Do not include any explanations or extra text.
+"""
+
+cq_generation = """Given a conversation history and a list of relevant facets, generate a clarifying question in French that is coherent to the provided facets. The goal is to guide users to explore facets in a given database. 
+
+Constraints:
+- The generated clarifying question must be in French.
+- Do not ask trivial or repetitive questions.
+- Do not associate facets; treat them as independent.
+- Only ask a clarifying question if it meaningfully advances the conversation based on the facets.
+- Prefer questions that refine the user’s intent with greater specificity, without exceeding the scope of known content.
+- The question must align with the conversation and guide exploration of existing knowledge in the database.
+
+Output must be in JSON format with a single key named "clarifying_question". Generate without any verbosity.
 """
 
 test = "Given the user query, guess the user intent. Be creative."

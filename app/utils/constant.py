@@ -16,12 +16,13 @@ chatmode2ky = {"select":"reformulated_queries",
                "select+respond":"clarification_questions"}
 
 abandon_response = "Vous avez décidé d'abondonner le dialogue. Votre conversation sera réinitialisée."
-search_response = "Recherche lancée selon l'intention détectée la plus récente. Veuillez patienter."
+search_response = "Recherche lancée. Veuillez patienter."
 refusal_response = "Désolé, nul document pertinent trouvé dans notre base de données actuelle."
-terminate_response = "Impossible de clarifier davantage. Recherche lancée selon la dernière intention détectée. Veuillez patienter."
-no_intent_response = "Pas d'intention détectée. Votre conversation sera réinitialisée."
-reinitialization_notification = " Votre conversation sera réinitialisée."
-search_notification = " Recherche lancée selon la dernière intention détectée. Veuillez patienter."
+search_last_user_intent_response = "Nul document pertinent trouvé pour votre intention actuelle. Recherche lancée selon l'intention détectée la plus récente. Veuillez patienter."
+no_further_clarification_response = "Impossible de clarifier davantage. Recherche lancée selon la dernière intention détectée. Veuillez patienter."
+# no_intent_response = "Pas d'intention détectée. Votre conversation sera réinitialisée."
+# reinitialization_notification = " Votre conversation sera réinitialisée."
+# search_notification = " Recherche lancée selon la dernière intention détectée. Veuillez patienter."
 
 base_gallica_url = "https://gallica.bnf.fr/SRU?version=1.2&operation=searchRetrieve&query={sruQuery}&maximumRecords={maximumRecords}&startRecord={startRecord}"
 

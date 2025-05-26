@@ -2,8 +2,8 @@ import pydantic
 from pydantic import BaseModel
 from typing import List
 
-class ConvIntentDetection(BaseModel):
-    intent: str
+class ConvActionDetection(BaseModel):
+    action: str
 
 class entityDisambiguation(BaseModel):
     conclusion: str
@@ -20,6 +20,9 @@ class relevanceChecker(BaseModel):
     conclusion: str
     relevant_facets: List[str]
 
-class RAC(BaseModel):
+class clarificationChekcer(BaseModel):
     conclusion: str
+    useful_facets: List[str]
+
+class CQGeneration(BaseModel):
     clarifying_question: str
