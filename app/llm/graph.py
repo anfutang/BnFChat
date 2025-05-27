@@ -6,8 +6,8 @@ from typing import TypedDict, Optional, List, Tuple, Dict
 from .llm import *
 from .rag import knn
 from ..utils.retriever import retrieve_result_page
-from ..utils.constant import abandon_response, search_response, refusal_response, search_last_user_intent_response, no_further_clarification_response
-from ..utils.utils import extract_sru_query
+from ..utils.constant import ABANDON_RESPONSE, SEARCH_RESPONSE, REFUSAL_RESPONSE, SEARCH_LAST_USER_INTENT_RESPONSE, NO_FURTHER_CLARIFICATION_RESPONSE
+from ..utils.utils import extract_sru_query, fetch_error
 
 from langgraph.graph import StateGraph, END
 from langchain_core.runnables import RunnableLambda
@@ -33,6 +33,7 @@ def is_fisrt_input(conv_history: list):
 # systen erreur (display message to user conv, save graph error to db, restart new conv )
 # erreur:
 
+# advance (! only used in langgraph pipeline; route to the next node)
 
 # -- user workflow (end conv + restart new conv)
 # session change
@@ -54,7 +55,7 @@ def build_graph(socketio): # socketio instance
 
         # output
         response: Optional[str]
-        status: Optional[str] # used as an indicator to finalize
+        status: Optional[str] # used as an argument for prompt chain routers
         search_result:  Optional[Tuple[List[Dict], List[Dict]]]
         generated_sru_query: Optional[str]
         original_sru_query: Optional[str]
@@ -67,19 +68,30 @@ def build_graph(socketio): # socketio instance
         })
 
         conv_history = state["conv_history"]
-        conv_action = call_conv_action_detection(conv_history)[1]
 
+        call_llm_result = call_conv_action_detection(conv_history)
+        if isinstance(call_llm_result,Exception):
+            state["status"] = "error"
+            state["error_message"] = "node: conv_action_detection [LLM]. ✖️"+fetch_error(call_llm_result) 
+            return state
+        conv_action = call_llm_result[1]
         state["conv_action"] = conv_action
 
         if conv_action == "abandon":
-            state["response"] = abandon_response
+            state["response"] = ABANDON_RESPONSE
             state["status"] = "end:user_abandon"
         elif conv_action == "search":
-            state["response"] = search_response
-            state["user_intent"] = call_conv_summarization(conv_history)[1]
+            state["response"] = SEARCH_RESPONSE
+            call_llm_result = call_conv_summarization(conv_history)
+            if isinstance(call_llm_result,Exception):
+                state["status"] = "error"
+                state["error_message"] = "node: conv_action_detection -> conv_summarization [LLM]. ✖️"+fetch_error(call_llm_result) 
+                return state
+            state["user_intent"] = call_llm_result[1]
+            #TODO: show user_intent & save user intent
             state["status"] = "search:user"
         elif conv_action == "continue":
-            state["status"] = "continue"
+            state["status"] = "advance"
         return state
 
     def ambiguity_detection(state: State) -> State:
@@ -89,7 +101,12 @@ def build_graph(socketio): # socketio instance
         })
         conv_history = state["conv_history"]
         if is_fisrt_input(conv_history) or not state.get("last_user_intent"):
-            ambiguous, cq = call_entity_disambiguation(conv_history)[1]  
+            call_llm_result = call_entity_disambiguation(conv_history)
+            if isinstance(call_llm_result,Exception):
+                state["status"] = "error"
+                state["error_message"] = "node: conv_ambiguity_detection [LLM]. ✖️"+fetch_error(call_llm_result) 
+                return state
+            ambiguous, cq = call_llm_result[1]  
             state["ambiguous"] = ambiguous
         else:
             state["ambiguous"] = "no"    
@@ -98,7 +115,14 @@ def build_graph(socketio): # socketio instance
             state["response"] = cq
             state["status"] = "continue"
         else:
-            state["user_intent"] = call_conv_summarization(conv_history)[1]
+            call_llm_result = call_conv_summarization(conv_history)
+            if isinstance(call_llm_result,Exception):
+                state["status"] = "error"
+                state["error_message"] = "node: conv_ambiguity_detection -> conv_summarization [LLM]. ✖️"+fetch_error(call_llm_result) 
+                return state   
+            state["user_intent"] = call_llm_result[1]
+            state["status"] = "advance"
+            #TODO: show user_intent & save user intent
         
         return state
 
@@ -114,19 +138,25 @@ def build_graph(socketio): # socketio instance
             state["relevant"] = "no"
         else:
             candidate_facets = knn_result["facet"]
-            relevant, filtered_facets = call_relevance_checker(user_intent,candidate_facets)[1]
+            call_llm_result = call_relevance_checker(user_intent,candidate_facets)
+            if isinstance(call_llm_result,Exception):
+                state["status"] = "error"
+                state["error_message"] = "node: knn_relevance_check [LLM]. ✖️"+fetch_error(call_llm_result) 
+                return state
+            relevant, filtered_facets = call_llm_result[1]
             # print(relevant,filtered_facets)
             state["relevant"] = relevant
         if state["relevant"] == "no":
             if state.get("last_user_intent"):
-                state["response"] = search_last_user_intent_response
+                state["response"] = SEARCH_LAST_USER_INTENT_RESPONSE
                 state["user_intent"] = state.get("last_user_intent") 
                 state["status"] = "search:system_intent_irrelevant"
             else:
-                state["response"] = refusal_response
+                state["response"] = REFUSAL_RESPONSE
                 state["status"] = "end:refuse"
         else:
             state["relevant_facets"] = filtered_facets
+            state["status"] = "advance"
         # print("relevance_checker")
         return state
 
@@ -139,14 +169,24 @@ def build_graph(socketio): # socketio instance
         conv_history = state["conv_history"]
         relevant_facets = state.get("relevant_facets", [])
         
-        clarification_needed, filtered_facets = call_clarification_checker(conv_history, relevant_facets)[1]
-        state["clarification_needed"] = clarification_needed
+        call_llm_result = call_clarification_checker(conv_history, relevant_facets)
+        if isinstance(call_llm_result,Exception):
+            state["status"] = "error"
+            state["error_message"] = "node: rac [LLM]. ✖️"+fetch_error(call_llm_result) 
+            return state
+        clarification_needed, filtered_facets = call_llm_result[1]
+        # state["clarification_needed"] = clarification_needed
         
         if clarification_needed:
-            state["response"] = call_cq_generation(conv_history,relevant_facets)[1]
+            call_llm_result = call_cq_generation(conv_history, filtered_facets)
+            if isinstance(call_llm_result,Exception):
+                state["status"] = "error"
+                state["error_message"] = "node: cq_generation [LLM]. ✖️"+fetch_error(call_llm_result) 
+                return state
+            state["response"] = call_llm_result[1]
             state["status"] = "continue"
         else:
-            state["response"] = no_further_clarification_response
+            state["response"] = NO_FURTHER_CLARIFICATION_RESPONSE
             state["status"] = "search:system_no_further_clarification"
         # print("rac")
         return state
@@ -159,26 +199,46 @@ def build_graph(socketio): # socketio instance
         user_intent = state.get("user_intent")
         knn_result = knn(user_intent,1)
         if not knn_result:
-            state["response"] = refusal_response
+            # here, relevance check is only for cases when users instruct to search using the first user query, the query may not be relevant
+            # If not the first query, relevance is checked in previous chain; no need to double check.
+            state["response"] = REFUSAL_RESPONSE
             state["status"] = "end:refuse"
             return state
         if knn_result["score"][0] > 0.9:
             sru_hint = knn_result["sru_statements"][0]
         else:
             sru_hint = ""
-        sru_query = extract_sru_query(call_nl2sru(user_intent, sru_hint)[1])
-
+        
+        # generate SRU and parse from the raw LLM result
+        call_llm_result = call_nl2sru(user_intent, sru_hint)
+        if isinstance(call_llm_result,Exception):
+            state["status"] = "error"
+            state["error_message"] = "node: search -> NL2SRU [LLM]. ✖️"+fetch_error(call_llm_result) 
+            return state
+        try: 
+            sru_query = extract_sru_query(call_llm_result[1])
+        except: 
+            state["status"] = "error"
+            state["error_message"] = "node: search -> NL2SRU [parsing]. ✖️Error parsing SRU query from LLM result."
+            return state
+        
         socketio.emit("graph_update", {
             "node": "search",
             "info": "Préparation de la recherche : Interaction avec Gallica en cours…"
         })
+
+        # fetch results w/ and w/o conversation using Gallica API
         first_user_query = state["conv_history"][0]
         original_sru_query = f"gallica all {first_user_query}"
         state["generated_sru_query"] = sru_query
         state["original_sru_query"] = original_sru_query
-        state["search_result"] = retrieve_result_page(sru_query,original_sru_query)
-        # print("search")
-        return state
+        try:
+            state["search_result"] = retrieve_result_page(sru_query,original_sru_query)
+            return state
+        except Exception as e:
+            state["status"] = "error"
+            state["error_message"] = "node: search -> retrieval [Gallica API]. ✖️"+fetch_error(call_llm_result) 
+            return state
 
     def finalize(state: State) -> State:
         socketio.emit("graph_update", {
@@ -186,41 +246,20 @@ def build_graph(socketio): # socketio instance
             "info": "Sauvegarde de la conversation…"
         })
 
-        if state["status"] in abandon_list:
-            socketio.emit("graph_update", {
-                "node": "finalize",
-                "info": "Conversation abandonnée."
-            })
-        elif state["status"] in result_lists:
-            socketio.emit("graph_update", {
-                "node": "finalize",
-                "info": "Aucun résultat trouvé."
-            })
-        elif state["status"] in error:
-            socketio.emit("graph_update", {
-                "node": "finalize",
-        elif  status == "continue":
-            socketio.emit("graph_update", {
-                "node": "finalize",
-                "info": "Conversation continue."
-            })
-        else:
-            socketio.emit("graph_update", {
+        # for all status
+        #TODO: save_conv(state["response"],state["status"]); 
+        #TODO: show_response()
 
-        # socketio.emit("stream_chunk", {
-        #     "content": state["response"]
-        # })
-        # print("start: finalize...")
-        status = state["status"]
-        base_status = status.split(':')[0]
-        # 1. save conversation
-        # save_conv(state["conv_history"],state["first_input"],status)
-        # 2. show response
-        # show_response(state["response"])
-        # 3. initialize the chat interface
-        # if base_status == "end":
-        #     time.sleep(3)
-        #     init_conv()
+        # status tag: end; search; continue.
+        status_tag = state["status"].split(':')[0]
+
+        if status_tag == "end":
+            # TODO: time delay & newconv()
+            pass
+        elif status_tag == "search":
+            #TODO: show_search_result(state["search_result"]) 
+            #TODO: save_user_evals(); save state["generated_sru_query"] (no need to save state["search_result"])
+            pass
         return state
 
     # --- build LangGraph ---
@@ -239,44 +278,50 @@ def build_graph(socketio): # socketio instance
 
     builder.add_conditional_edges(
         "conv_action_detection",
-        lambda s: s["conv_action"],
+        lambda s: s["status"].split(':')[0],
         {
-            "abandon": "finalize",
-            "search": "finalize",
-            "continue": "ambiguity_detection"
+            "advance": "ambiguity_detection",
+            "end": "finalize",
+            "error": "finalize",
+            "search": "search",
         }
     )
 
     builder.add_conditional_edges(
         "ambiguity_detection",
-        lambda s: s["ambiguous"],
+        lambda s: s["status"].split(':')[0],
         {
-            "yes": "finalize",
-            "no": "knn_relevance_check"
+            "advance": "knn_relevance_check",
+            "continue":"finalize",
+            "end": "finalize",
+            "error": "finalize",
         }
     )
 
     builder.add_conditional_edges(
         "knn_relevance_check",
-        lambda s: s["relevant"],
+        lambda s: s["status"].split(':')[0],
         {
-            "yes": "rac",
-            "no": "finalize",
+            "advance": "rac",
+            "end": "finalize",
+            "error": "finalize",
+            "search": "search",
         }
     )
 
-    builder.add_edge("rac", "finalize")
-        
-    builder.add_conditional_edges(
-        "finalize", 
-        lambda s: "search" if s["status"].split(':')[0] == "search" else "end",
+    builder.add_edge(
+        "rac", 
+        lambda s: s["status"].split(':')[0],
         {
-            "end":END,
+            "continue":"finalize",
+            "error":"finalize",
             "search":"search",
         }
     )
 
-    builder.add_edge("search", END)
+    builder.add_edge("search", "finalize")
+        
+    builder.add_edge("finalize", END)
 
     # compile graph
     graph = builder.compile()

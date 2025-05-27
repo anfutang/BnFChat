@@ -28,7 +28,7 @@ def safe_func(func):
             end_time = time.time()
             return (f"{end_time-start_time:.3f}", res)
         except Exception as e:
-            return json.dumps({"type": "error", "content": f"{func.__name__}\n"+fetch_error(e)})
+            return e
     return wrapper
 
 def prompt_formatting(system_message,chat_history):
