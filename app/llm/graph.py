@@ -12,11 +12,36 @@ from ..utils.utils import extract_sru_query
 from langgraph.graph import StateGraph, END
 from langchain_core.runnables import RunnableLambda
 
+
+def is_fisrt_input(conv_history: list):
+    return len(conv_history) == 1
+
+
+# abandon (end conv + restart new conv)
+# end:user_abandon -> user wants to abandon
+# end:refuse -> system wants to abandon cause no results
+# end:user_restart -> user wants to restart
+
+# search (get results + display + evaluate + end conv + restart new conv)
+# search:user -> user wants to search result
+# search:system_no_further_clarification -> system wants to no further clarification
+# search:system_intent_irrelevant -> system wants to search using last intent 
+
+# continue (continue conv)
+# continue -> continue conv
+
+# systen erreur (display message to user conv, save graph error to db, restart new conv )
+# erreur:
+
+
+# -- user workflow (end conv + restart new conv)
+# session change
+# change topic
+
 # --- State definition ---
 def build_graph(socketio): # socketio instance
     class State(TypedDict, total=False):
         conv_history: str
-        first_input: bool
         last_user_intent: Optional[str]
 
         # intermediate variables
@@ -34,12 +59,6 @@ def build_graph(socketio): # socketio instance
         generated_sru_query: Optional[str]
         original_sru_query: Optional[str]
 
-        # constants
-        abandon_response: str
-        search_response: str
-        refusal_response: str
-        search_last_user_intent_response: str
-        no_further_clarification_response: str
 
     def conv_action_detection(state: State) -> State:
         socketio.emit("graph_update", {
@@ -69,7 +88,7 @@ def build_graph(socketio): # socketio instance
             "info": "Analyse de l’ambiguïté en cours… "
         })
         conv_history = state["conv_history"]
-        if state["first_input"] or not state.get("last_user_intent"):
+        if is_fisrt_input(conv_history) or not state.get("last_user_intent"):
             ambiguous, cq = call_entity_disambiguation(conv_history)[1]  
             state["ambiguous"] = ambiguous
         else:
@@ -100,11 +119,11 @@ def build_graph(socketio): # socketio instance
             state["relevant"] = relevant
         if state["relevant"] == "no":
             if state.get("last_user_intent"):
-                state["response"] = status["search_last_user_intent_response"]
+                state["response"] = search_last_user_intent_response
                 state["user_intent"] = state.get("last_user_intent") 
                 state["status"] = "search:system_intent_irrelevant"
             else:
-                state["response"] = state["refusal_response"]
+                state["response"] = refusal_response
                 state["status"] = "end:refuse"
         else:
             state["relevant_facets"] = filtered_facets
@@ -166,17 +185,42 @@ def build_graph(socketio): # socketio instance
             "node": "finalize",
             "info": "Sauvegarde de la conversation…"
         })
+
+        if state["status"] in abandon_list:
+            socketio.emit("graph_update", {
+                "node": "finalize",
+                "info": "Conversation abandonnée."
+            })
+        elif state["status"] in result_lists:
+            socketio.emit("graph_update", {
+                "node": "finalize",
+                "info": "Aucun résultat trouvé."
+            })
+        elif state["status"] in error:
+            socketio.emit("graph_update", {
+                "node": "finalize",
+        elif  status == "continue":
+            socketio.emit("graph_update", {
+                "node": "finalize",
+                "info": "Conversation continue."
+            })
+        else:
+            socketio.emit("graph_update", {
+
+        # socketio.emit("stream_chunk", {
+        #     "content": state["response"]
+        # })
         # print("start: finalize...")
         status = state["status"]
         base_status = status.split(':')[0]
         # 1. save conversation
-        save_conv(state["conv_history"],state["first_input"],status)
+        # save_conv(state["conv_history"],state["first_input"],status)
         # 2. show response
-        show_response(state["response"])
+        # show_response(state["response"])
         # 3. initialize the chat interface
-        if base_status == "end":
-            time.sleep(3)
-            init_conv()
+        # if base_status == "end":
+        #     time.sleep(3)
+        #     init_conv()
         return state
 
     # --- build LangGraph ---
@@ -237,3 +281,46 @@ def build_graph(socketio): # socketio instance
     # compile graph
     graph = builder.compile()
     return graph
+
+
+class SimpleWorkflow:
+    def __init__(self):
+        self.steps = ['analyze', 'search', 'respond']
+    
+    def execute(self, state):
+        user_input = state.get('user_input', '').lower()
+        
+        # Check for special commands
+        if 'abandon' in user_input:
+            return {
+                'response': 'abandon',
+                'status': 'abandon'
+            }
+        elif 'recommencer' in user_input or 'restart' in user_input:
+            return {
+                'response': 'restart',
+                'status': 'restart'
+            }
+        elif 'résultat' in user_input or 'result' in user_input:
+            return {
+                'response': 'results',
+                'status': 'results'
+            }
+        
+        # Simple response generation
+        if any(word in user_input for word in ['bonjour', 'salut', 'hello']):
+            response = "Bonjour! Je suis votre assistant de recherche BNF. Comment puis-je vous aider aujourd'hui?"
+        elif any(word in user_input for word in ['merci', 'thank']):
+            response = "Je vous en prie! N'hésitez pas si vous avez d'autres questions."
+        elif len(user_input) > 0:
+            response = f"Je recherche des informations sur '{user_input}' dans les collections de la BNF. Voici ce que j'ai trouvé..."
+        else:
+            response = "Je n'ai pas bien compris votre demande. Pouvez-vous reformuler?"
+        
+        return {
+            'response': response,
+            'status': 'completed'
+        }
+
+# def build_graph(socketio):
+#     return SimpleWorkflow()

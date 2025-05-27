@@ -12,7 +12,7 @@ from ..utils.constant import METADATA_DIR, RAG_EMBED_DIM
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-faiss_index = faiss.read_index(os.path.join("../instance","hnsw_index.faiss"))
+faiss_index = faiss.read_index(os.path.join("./instance","hnsw_index.faiss"))
 faiss_index.hnsw.efSearch = 64
 
 def knn(query,k):

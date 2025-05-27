@@ -131,6 +131,7 @@ export const useChat = () => {
         });
 
         socket.on('stream_chunk', (data) => {
+          console.log('⭐ Stream chunk event received:', data);
           setMessages(prev => prev.map(msg => 
             msg.isStreaming ? 
               { ...msg, content: msg.content + data.content } : 

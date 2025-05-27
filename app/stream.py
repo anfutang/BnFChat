@@ -5,7 +5,7 @@ from flask_socketio import emit, disconnect
 from .chat_manager import ChatManager
 from .db import db
 from .models import User, Chat
-from .llm.llm import create_simple_workflow
+from .llm.graph import build_graph
 from .utils.constant import *
 
 bp = Blueprint('stream', __name__)
@@ -406,74 +406,79 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
     """Process chat message with simple workflow"""
     try:
         # Create and execute workflow
-        workflow = create_simple_workflow()
+        state = build_graph(socketio).invoke({"conv_history": [user_input], "first_input": True, "abandon_response": "hbksa", "search_response": "hbksa", "refusal_response": "hbksa", "search_last_user_intent_response": "hbksa", "no_further_clarification_response": "hbksa"})
         
-        # Execute workflow
-        result = workflow.execute({
-            'user_input': user_input,
-            'user_id': user_id,
-            'chat_id': chat_id,
-            'session_id': session_id
-        })
+        # # Execute workflow
+        # result = workflow.execute({
+        #     'user_input': user_input,
+        #     'user_id': user_id,
+        #     'chat_id': chat_id,
+        #     'session_id': session_id
+        # })
         
-        # Stream response
-        response = result.get('response', 'No response generated')
-        workflow_status = result.get('status', 'completed')
+        # # Stream response
+        # response = result.get('response', 'No response generated')
+        # workflow_status = result.get('status', 'completed')
         
         # Emit stream start
         socketio.emit('stream_start', {
             'chat_id': chat_id
         }, to=socket_session_id)
         
-        # Stream response word by word
-        words = response.split()
-        for i, word in enumerate(words):
-            socketio.emit('stream_chunk', {
-                'content': word + " "
+
+        socketio.emit('stream_chunk', {
+                'content': state["response"]
             }, to=socket_session_id)
-            time.sleep(0.03)  # Small delay for streaming effect
+
+        # # Stream response word by word
+        # words = response.split()
+        # for i, word in enumerate(words):
+        #     socketio.emit('stream_chunk', {
+        #         'content': word + " "
+        #     }, to=socket_session_id)
+        #     time.sleep(0.03)  # Small delay for streaming effect
         
         # Save assistant response
-        ChatManager.add_message_to_chat(chat_id, 'assistant', response)
+        # ChatManager.add_message_to_chat(chat_id, 'assistant', workflow["response"])
         
-        # MODIFIED: Handle results status specifically
-        if workflow_status == 'results':
-            print(f"⭐ Results workflow triggered for chat {chat_id}")
+        # # MODIFIED: Handle results status specifically
+        # if workflow_status == 'results':
+        #     print(f"⭐ Results workflow triggered for chat {chat_id}")
             
-            # Emit results triggered event
-            socketio.emit('results_triggered', {
-                'chat_id': chat_id,
-                'user_input': user_input
-            }, to=socket_session_id)
+        #     # Emit results triggered event
+        #     socketio.emit('results_triggered', {
+        #         'chat_id': chat_id,
+        #         'user_input': user_input
+        #     }, to=socket_session_id)
             
-            # Process search results
-            result_data, error = process_search_results(user_input, chat_id, user_id)
+        #     # Process search results
+        #     result_data, error = process_search_results(user_input, chat_id, user_id)
             
-            if error:
-                socketio.emit('results_error', {
-                    'error': error,
-                    'chat_id': chat_id
-                }, to=socket_session_id)
-            else:
-                # Emit results data
-                socketio.emit('results_data', result_data, to=socket_session_id)
+        #     if error:
+        #         socketio.emit('results_error', {
+        #             'error': error,
+        #             'chat_id': chat_id
+        #         }, to=socket_session_id)
+        #     else:
+        #         # Emit results data
+        #         socketio.emit('results_data', result_data, to=socket_session_id)
             
-            # End chat after results
-            ChatManager.end_chat(chat_id, "ended_by_results", user_id)
+        #     # End chat after results
+        #     ChatManager.end_chat(chat_id, "ended_by_results", user_id)
             
-        elif workflow_status in ['abandon', 'restart']:
-            ChatManager.end_chat(chat_id, f"ended_by_{workflow_status}", user_id)
+        # elif workflow_status in ['abandon', 'restart']:
+        #     ChatManager.end_chat(chat_id, f"ended_by_{workflow_status}", user_id)
             
-            socketio.emit('chat_ended', {
-                'reason': workflow_status,
-                'message': response
-            }, to=socket_session_id)
+        #     socketio.emit('chat_ended', {
+        #         'reason': workflow_status,
+        #         'message': response
+        #     }, to=socket_session_id)
         
-        # Emit stream end
-        socketio.emit('stream_end', {
-            'response': response,
-            'status': workflow_status
-        }, to=socket_session_id)
+        # # Emit stream end
+        # socketio.emit('stream_end', {
+        #     'response': response,
+        #     'status': workflow_status
+        # }, to=socket_session_id)
         
     except Exception as e:
         print(f"Error in process_chat_message: {str(e)}")
