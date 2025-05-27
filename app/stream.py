@@ -406,7 +406,8 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
     """Process chat message with simple workflow"""
     try:
         # Create and execute workflow
-        state = build_graph(socketio).invoke({"conv_history": [user_input], "first_input": True, "abandon_response": "hbksa", "search_response": "hbksa", "refusal_response": "hbksa", "search_last_user_intent_response": "hbksa", "no_further_clarification_response": "hbksa"})
+        graph = build_graph(socketio)
+        state = graph.invoke({"conv_history": [user_input]})
         
         # # Execute workflow
         # result = workflow.execute({

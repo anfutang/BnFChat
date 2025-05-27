@@ -14,6 +14,7 @@ const ChatArea = ({
   sessionData,
   selectedTopic,
   messages,
+  assistantStatus,
   userInput,
   setUserInput,
   onSendMessage,
@@ -87,7 +88,7 @@ const ChatArea = ({
         
         <MessageList>
           {/* Welcome message */}
-          {messages.length === 0 && (
+          {/* {messages.length === 0 && (
             <Message
               model={{
                 message: `Welcome to the BNF Assistant ${getSessionTitle()}! How can I help you today?`,
@@ -101,29 +102,20 @@ const ChatArea = ({
                 name="BNF Assistant"
               />
             </Message>
-          )}
+          )} */}
           
           {/* Chat messages */}
           {processedMessages.map((msgModel, index) => (
             <Message 
               key={index} 
               model={msgModel}
-            >
-              <Avatar
-                src={
-                  msgModel.direction === "incoming" 
-                    ? "https://ui-avatars.com/api/?name=BNF&background=007bff&color=fff"
-                    : `https://ui-avatars.com/api/?name=${sessionData?.username || 'User'}&background=28a745&color=fff`
-                }
-                name={msgModel.sender}
-              />
-            </Message>
+            ></Message>
           ))}
           
           {/* Typing indicator */}
           {isStreaming && (
             <TypingIndicator 
-              content="BNF Assistant is thinking..."
+              content={assistantStatus}
               avatar={
                 <Avatar
                   src="https://ui-avatars.com/api/?name=BNF&background=007bff&color=fff"

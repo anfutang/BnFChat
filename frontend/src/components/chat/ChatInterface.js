@@ -27,6 +27,7 @@ const ChatInterface = () => {
     isConnected,
     isStreaming,
     error,
+    assistantStatus,
     sessionData,
     topics,
     selectedTopic,
@@ -150,6 +151,7 @@ const ChatInterface = () => {
             sessionData={sessionData}
             selectedTopic={selectedTopic}
             messages={messages}
+            assistantStatus={assistantStatus}
             userInput={userInput}
             setUserInput={setUserInput}
             onSendMessage={handleSendMessage}

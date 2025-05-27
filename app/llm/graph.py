@@ -88,8 +88,11 @@ def build_graph(socketio): # socketio instance
                 state["error_message"] = "node: conv_action_detection -> conv_summarization [LLM]. ✖️"+fetch_error(call_llm_result) 
                 return state
             state["user_intent"] = call_llm_result[1]
-            #TODO: show user_intent & save user intent
             state["status"] = "search:user"
+
+            socketio.emit("show_user_intent", {
+                "user_intent": state["user_intent"]
+            })
         elif conv_action == "continue":
             state["status"] = "advance"
         return state
@@ -122,7 +125,10 @@ def build_graph(socketio): # socketio instance
                 return state   
             state["user_intent"] = call_llm_result[1]
             state["status"] = "advance"
-            #TODO: show user_intent & save user intent
+            
+            socketio.emit("show_user_intent", {
+                "user_intent": state["user_intent"]
+            })
         
         return state
 
@@ -249,6 +255,9 @@ def build_graph(socketio): # socketio instance
         # for all status
         #TODO: save_conv(state["response"],state["status"]); 
         #TODO: show_response()
+        socketio.emit("llm_response", {
+            "response":state["response"]
+        })
 
         # status tag: end; search; continue.
         status_tag = state["status"].split(':')[0]
@@ -309,7 +318,7 @@ def build_graph(socketio): # socketio instance
         }
     )
 
-    builder.add_edge(
+    builder.add_conditional_edges(
         "rac", 
         lambda s: s["status"].split(':')[0],
         {

@@ -9,6 +9,7 @@ export const useChat = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(null);
+  const [assistantStatus, setAssistantStatus] = useState('');
   
   // Session and topic data (via SocketIO)
   const [sessionData, setSessionData] = useState(null);
@@ -117,36 +118,39 @@ export const useChat = () => {
           setMessages(prev => [...prev, userMessage]);
         });
 
-        // ========== STREAMING EVENTS ==========
-        socket.on('stream_start', (data) => {
-          setIsStreaming(true);
+        socket.on('graph_update', (data) => {
+          setAssistantStatus(data.info);
+        });
+
+        socket.on('llm_response', (data) => {
+          setIsStreaming(false);
           setCurrentChatId(data.chat_id);
           // Add AI message placeholder
           setMessages(prev => [...prev, {
             id: `temp_${Date.now()}`,
             role: 'assistant',
-            content: '',
-            isStreaming: true
+            content: data.response,
+            isStreaming: false
           }]);
         });
 
-        socket.on('stream_chunk', (data) => {
-          console.log('⭐ Stream chunk event received:', data);
-          setMessages(prev => prev.map(msg => 
-            msg.isStreaming ? 
-              { ...msg, content: msg.content + data.content } : 
-              msg
-          ));
-        });
+        // socket.on('stream_chunk', (data) => {
+        //   console.log('⭐ Stream chunk event received:', data);
+        //   setMessages(prev => prev.map(msg => 
+        //     msg.isStreaming ? 
+        //       { ...msg, content: msg.content + data.content } : 
+        //       msg
+        //   ));
+        // });
 
-        socket.on('stream_end', (data) => {
-          setIsStreaming(false);
-          setMessages(prev => prev.map(msg => 
-            msg.isStreaming ? 
-              { ...msg, isStreaming: false, id: `assistant_${Date.now()}` } : 
-              msg
-          ));
-        });
+        // socket.on('stream_end', (data) => {
+        //   setIsStreaming(false);
+        //   setMessages(prev => prev.map(msg => 
+        //     msg.isStreaming ? 
+        //       { ...msg, isStreaming: false, id: `assistant_${Date.now()}` } : 
+        //       msg
+        //   ));
+        // });
 
         // ========== RESULT EVENTS (NEW) ==========
         socket.on('results_triggered', (data) => {
@@ -227,6 +231,8 @@ export const useChat = () => {
       return;
     }
 
+    setIsStreaming(true);
+
     socketRef.current.emit('send_message', {
       message: content.trim()
     });
@@ -292,6 +298,7 @@ export const useChat = () => {
     isConnected,
     isStreaming,
     error,
+    assistantStatus,
     
     // Session and topic data
     sessionData,
