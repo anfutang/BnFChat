@@ -414,27 +414,22 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
         # Force refresh to ensure we have the latest chat history
         db.session.refresh(chat)
         
-        # Build full conversation history for the graph
+        # Build conversation history as list of user messages only
+        # (based on your original code, the graph expects user messages only)
         conv_history = []
         if chat.chat_history:
             for msg in chat.chat_history:
-                # Include both user and assistant messages
-                conv_history.append({
-                    'role': msg['role'],
-                    'content': msg['content']
-                })
+                if msg['role'] == 'user':
+                    conv_history.append(msg['content'])
         
         # Debug logging
         print(f"[process_chat_message] Processing message for chat {chat_id}")
-        print(f"[process_chat_message] Current history length: {len(conv_history)}")
-        print(f"[process_chat_message] History: {[f'{m['role']}: {m['content'][:30]}...' for m in conv_history]}")
+        print(f"[process_chat_message] User messages in history: {len(conv_history)}")
+        print(f"[process_chat_message] Conv history: {conv_history}")
         
-        # Create and execute workflow with FULL history
+        # Create and execute workflow with expected format
         graph = build_graph(socketio)
-        state = graph.invoke({
-            "conv_history": conv_history,
-            "current_input": user_input  # Pass current input separately if needed by your graph
-        })
+        state = graph.invoke({"conv_history": conv_history})
         
         # Get assistant response
         assistant_response = state.get("response", "No response generated")

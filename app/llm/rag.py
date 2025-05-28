@@ -36,7 +36,7 @@ def knn(query,k):
 
 def find_facets(similarity_scores,target_ids):
     # db = get_rag_db()
-    db = sqlite3.connect("../instance/kv_mapping.db")
+    db = sqlite3.connect("./instance/kv_mapping.db")
     c = db.cursor()
 
     placeholders = ', '.join(['?'] * len(target_ids))
