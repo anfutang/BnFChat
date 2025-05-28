@@ -315,3 +315,19 @@ textarea {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.feedback-closing-message {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 10px;
+  font-style: italic;
+}
+
+
+.result-modal-overlay.no-close {
+  pointer-events: none;
+}
+
+.result-modal-overlay.no-close .result-modal {
+  pointer-events: all;
+}

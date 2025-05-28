@@ -251,10 +251,6 @@ def build_graph(socketio): # socketio instance
             "node": "finalize",
             "info": "Sauvegarde de la conversation…"
         })
-
-
-        
-        # Just return the state - let process_chat_message handle the emission
         return state
 
     # --- build LangGraph ---

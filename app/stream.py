@@ -7,6 +7,8 @@ from .db import db
 from .models import User, Chat
 from .llm.graph import build_graph
 from .utils.constant import *
+from .utils.retriever import retrieve_result_page
+import datetime
 
 bp = Blueprint('stream', __name__)
 socketio = None
@@ -41,57 +43,6 @@ def socketio_auth_required(f):
             return
         return f(*args, **kwargs)
     return decorated_function
-
-# ADD RESULT PROCESSING FUNCTION
-def process_search_results(user_input, chat_id, user_id):
-    """Process search results for both with and without conversation"""
-    try:
-        # This is where you'd integrate with your actual search API
-        # For now, returning mock data structure
-        
-        # Mock SRU query generation (replace with actual logic)
-        generated_sru_query = f'title any "{user_input}"'
-        original_query = user_input
-        
-        # Mock results (replace with actual API calls)
-        mock_results_with_conversation = [
-            {
-                "title": f"Result avec conversation pour: {user_input}",
-                "creator": "Auteur Test",
-                "description": "Description générée avec conversation",
-                "subject": "Sujet test", 
-                "date": "2024",
-                "type": "Document",
-                "link": "https://gallica.bnf.fr/ark:/12148/example1"
-            }
-        ]
-        
-        mock_results_without_conversation = [
-            {
-                "title": f"Result sans conversation pour: {user_input}",
-                "creator": "Auteur Original",
-                "description": "Description requête originale",
-                "subject": "Sujet original",
-                "date": "2024", 
-                "type": "Document",
-                "link": "https://gallica.bnf.fr/ark:/12148/example2"
-            }
-        ]
-        
-        result_data = {
-            "id": f"result_{chat_id}_{int(time.time())}",
-            "sruQuery": generated_sru_query,
-            "originalQuery": original_query,
-            "wcResults": mock_results_with_conversation,  # with conversation
-            "wocResults": mock_results_without_conversation,  # without conversation
-            "chatId": chat_id,
-            "userId": user_id
-        }
-        
-        return result_data, None
-        
-    except Exception as e:
-        return None, str(e)
 
 def register_socketio_events():
     
@@ -402,6 +353,48 @@ def register_socketio_events():
             print(f"Error in handle_session_change: {str(e)}")
             emit('error', {'error': str(e)})
 
+    @socketio.on('submit_conv_feedback')
+    @socketio_auth_required
+    def handle_submit_feedback(data):
+        try:
+            chat_id = data.get('chatId')
+            feedback_data = {
+                'preferenceType': data.get('preferenceType'),
+                'qualityRating': data.get('qualityRating'),
+                'conversationRating': data.get('conversationRating'),
+                'comment': data.get('comment'),
+                'resultId': data.get('resultId'),
+                'timestamp': datetime.datetime.utcnow().isoformat()
+            }
+            
+            # Save feedback and end chat
+            chat = Chat.query.get(chat_id)
+            if chat:
+                chat.feedback = feedback_data
+                chat.status = "end_by_user_feedback"
+                chat.updated_at = datetime.datetime.utcnow()
+                db.session.commit()
+                
+                # Emit feedback saved first
+                emit('feedback_saved', {
+                    'success': True,
+                    'chatId': chat_id
+                })
+                
+                # Then end the chat
+                emit('chat_ended', {
+                    'chat_id': chat_id,
+                    'reason': 'end_by_user_feedback'
+                })
+                
+                # Clear chat UI
+                emit('ongoing_chats_terminated', {
+                    'reason': 'feedback_submitted',
+                    'message': 'Chat ended after feedback submission'
+                })
+        except Exception as e:
+            emit('error', {'message': str(e)})
+
 def process_chat_message(user_input, user_id, chat_id, session_id, socket_session_id):
     """Process chat message with simple workflow"""
     try:
@@ -421,11 +414,6 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
             for msg in chat.chat_history:
                 if msg['role'] == 'user':
                     conv_history.append(msg['content'])
-        
-        # Debug logging
-        print(f"[process_chat_message] Processing message for chat {chat_id}")
-        print(f"[process_chat_message] User messages in history: {len(conv_history)}")
-        print(f"[process_chat_message] Conv history: {conv_history}")
         
         # Create and execute workflow with expected format
         graph = build_graph(socketio)
@@ -451,12 +439,28 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
         # Handle special statuses
         status_tag = state.get("status", "").split(':')[0]
         if status_tag == "search":
+            socketio.emit("results_triggered", {
+                "info": "Recherche déclenchée"
+            }, to=socket_session_id)
+
             # Process search results
-            result_data, error = process_search_results(user_input, chat_id, user_id)
-            if result_data:
+            try:
+                wc_results = state.get("search_result", [[], []])[0]  # with conversation results
+                woc_results = state.get("search_result", [[], []])[1]  # without conversation results
+                
+                result_data = {
+                    'chatId': chat_id,  # Include chat ID for feedback submission
+                    'sruQuery': state.get("generated_sru_query", ""),
+                    'originalQuery': state.get("original_sru_query", ""),
+                    'wcResults': wc_results,
+                    'wocResults': woc_results,
+                    'timestamp': datetime.datetime.utcnow().isoformat()
+                }
+                
                 socketio.emit('results_data', result_data, to=socket_session_id)
-            elif error:
-                socketio.emit('results_error', {'error': error}, to=socket_session_id)
+            except Exception as e:
+                print(f"[process_chat_message] Error processing results: {str(e)}")
+                socketio.emit('results_error', {'error': str(e)}, to=socket_session_id)
                 
         elif status_tag == "end":
             # Handle chat ending
@@ -464,6 +468,13 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
             socketio.emit('chat_ended', {
                 'chat_id': chat_id,
                 'reason': state.get("status")
+            }, to=socket_session_id)
+        elif status_tag == "error":
+            # Handle error state
+            error_msg = state.get("error_message", "Unknown error occurred")
+            print(f"[process_chat_message] Graph error: {error_msg}")
+            socketio.emit('error', {
+                'error': error_msg
             }, to=socket_session_id)
 
     except Exception as e:

@@ -22,6 +22,7 @@ export const useChat = () => {
   const resultTriggeredCallbackRef = useRef(null);
   const resultDataCallbackRef = useRef(null);
   const resultErrorCallbackRef = useRef(null);
+  const feedbackSavedCallbackRef = useRef(null);
 
   useEffect(() => {
     if (socketRef.current && isConnected && sessionData) {
@@ -137,7 +138,7 @@ export const useChat = () => {
           setMessages(prev => [...prev, assistantMessage]);
         });
 
-        // ========== RESULT EVENTS (NEW) ==========
+        // ========== RESULT EVENTS ==========
         socket.on('results_triggered', (data) => {
           console.log('⭐ Results triggered event received:', data);
           if (resultTriggeredCallbackRef.current) {
@@ -156,6 +157,14 @@ export const useChat = () => {
           console.log('⭐ Results error event received:', data);
           if (resultErrorCallbackRef.current) {
             resultErrorCallbackRef.current(data);
+          }
+        });
+
+        // ========== FEEDBACK EVENTS ==========
+        socket.on('feedback_saved', (data) => {
+          console.log('Feedback saved successfully:', data);
+          if (feedbackSavedCallbackRef.current) {
+            feedbackSavedCallbackRef.current(data);
           }
         });
 
@@ -276,6 +285,10 @@ export const useChat = () => {
     resultErrorCallbackRef.current = callback;
   }, []);
 
+  const onFeedbackSaved = useCallback((callback) => {
+    feedbackSavedCallbackRef.current = callback;
+  }, []);
+
   return {
     // State
     currentChatId,
@@ -305,7 +318,8 @@ export const useChat = () => {
     // ADD RESULT EVENT HANDLERS
     onResultsTriggered,
     onResultsData,
-    onResultsError
+    onResultsError,
+    onFeedbackSaved
   };
 };
 

@@ -59,6 +59,7 @@ class Chat(db.Model):
     chat_history = db.Column(db.JSON, nullable=False, default=list)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
+    feedback = db.Column(db.JSON, nullable=True) # replace with multiple columns instead when you know what you will have inside
     
     def __init__(self, user_id, session_id, topic_id, status='ongoing'):
         self.user_id = user_id

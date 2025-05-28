@@ -39,7 +39,8 @@ const ChatInterface = () => {
     // ADD RESULT EVENT HANDLERS
     onResultsTriggered,
     onResultsData,
-    onResultsError
+    onResultsError,
+    socketRef
   } = useChat();
 
   // ADD RESULT EVENT HANDLERS
@@ -168,6 +169,7 @@ const ChatInterface = () => {
         onClose={handleCloseResultModal}
         resultData={resultData}
         isLoading={isResultLoading}
+        socketRef={socketRef}
       />
 
       {/* Error Display */}

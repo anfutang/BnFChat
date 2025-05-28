@@ -3,7 +3,7 @@ import axios from 'axios';
 import { FaStar, FaRegStar, FaTimes } from 'react-icons/fa';
 import './ResultModal.css';
 
-const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
+const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
   // State for storing feedback
   const [preferenceType, setPreferenceType] = useState(''); // 'avec' or 'sans'
   const [qualityRating, setQualityRating] = useState(0); // for question 2
@@ -24,7 +24,7 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
 
   // Reset feedback state when modal is opened with new data
   useEffect(() => {
-    if (isOpen && resultData) {
+    if (isOpen && resultData && !resultData.feedbackSaved) {
       console.log("⭐ Resetting feedback state with new data");
       setPreferenceType('');
       setQualityRating(0);
@@ -39,9 +39,10 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
       isOpen, 
       isLoading, 
       hasResultData: !!resultData,
-      renderKey
+      renderKey,
+      feedbackSubmitted
     });
-  }, [isOpen, isLoading, resultData, renderKey]);
+  }, [isOpen, isLoading, resultData, renderKey, feedbackSubmitted]);
   
   // Check if all mandatory fields are filled
   const isMandatoryFilled = preferenceType !== '' && qualityRating > 0 && conversationRating > 0;
@@ -49,36 +50,44 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
   // If modal is closed, don't render anything
   if (!isOpen) return null;
 
-  const handleSubmitFeedback = async () => {
+  const handleSubmitConvFeedback = async () => {
     if (!isMandatoryFilled) {
       alert("Veuillez remplir tous les champs obligatoires avant de soumettre.");
       return;
     }
-    
-    try {
-      await axios.post('/api/dev/result-feedback', {
+
+    // Use the passed socketRef instead of window.socket
+    if (socketRef?.current) {
+      console.log("⭐ Submitting feedback...");
+      socketRef.current.emit('submit_conv_feedback', {
         preferenceType,
         qualityRating,
         conversationRating,
         comment,
-        resultId: resultData?.id
+        resultId: resultData?.id,
+        chatId: resultData?.chatId
       });
+      
+      // Immediately show submitted state
       setFeedbackSubmitted(true);
-    } catch (error) {
-      console.error('Failed to submit feedback:', error);
+      
+      // Close modal after a delay
+      setTimeout(() => {
+        onClose();
+      }, 2000);
+      
+    } else {
+      console.error('Socket not available');
+      alert('Connection error. Please try again.');
     }
   };
 
-  // Simplified close handler - prioritize making modal work first
+  // Only allow closing if loading or no result data yet
   const handleCloseModal = () => {
-    if (feedbackSubmitted || !resultData || isLoading) {
-      onClose();
-    } else if (resultData && !isMandatoryFilled) {
-      // Only block closing if we have results and mandatory fields aren't filled
-      alert("Veuillez remplir tous les champs obligatoires avant de fermer.");
-    } else {
+    if (isLoading || !resultData) {
       onClose();
     }
+    // Don't allow closing if we have results - user must submit feedback
   };
 
   // Render star rating with labels
@@ -117,9 +126,12 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
       <div className="result-modal">
         <div className="result-modal-header">
           <h2>Résultats de recherche</h2>
-          <button className="close-button" onClick={handleCloseModal}>
-            <FaTimes />
-          </button>
+          {/* Only show close button during loading or if no results yet */}
+          {(isLoading || !resultData) && (
+            <button className="close-button" onClick={handleCloseModal}>
+              <FaTimes />
+            </button>
+          )}
         </div>
         
         <div className="result-modal-content">
@@ -233,7 +245,7 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
                   />
                   <button 
                     className={`submit-feedback ${!isMandatoryFilled ? 'disabled' : ''}`}
-                    onClick={handleSubmitFeedback}
+                    onClick={handleSubmitConvFeedback}
                     disabled={!isMandatoryFilled}
                   >
                     Soumettre l'évaluation
@@ -242,9 +254,7 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading }) => {
               ) : (
                 <div className="feedback-thank-you">
                   <p>Merci pour votre évaluation!</p>
-                  <button className="close-after-feedback" onClick={onClose}>
-                    Fermer
-                  </button>
+                  <p className="feedback-closing-message">La fenêtre se fermera automatiquement...</p>
                 </div>
               )}
             </>
