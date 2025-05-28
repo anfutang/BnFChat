@@ -122,35 +122,20 @@ export const useChat = () => {
           setAssistantStatus(data.info);
         });
 
-        socket.on('llm_response', (data) => {
+        socket.on('assistant_response', (data) => {
           setIsStreaming(false);
           setCurrentChatId(data.chat_id);
-          // Add AI message placeholder
-          setMessages(prev => [...prev, {
-            id: `temp_${Date.now()}`,
-            role: 'assistant',
-            content: data.response,
-            isStreaming: false
-          }]);
+          
+          // Add assistant message
+          const assistantMessage = {
+            id: `assistant_${Date.now()}`,
+            role: 'assistant', 
+            content: data.content,
+            timestamp: new Date().toISOString()
+          };
+          
+          setMessages(prev => [...prev, assistantMessage]);
         });
-
-        // socket.on('stream_chunk', (data) => {
-        //   console.log('⭐ Stream chunk event received:', data);
-        //   setMessages(prev => prev.map(msg => 
-        //     msg.isStreaming ? 
-        //       { ...msg, content: msg.content + data.content } : 
-        //       msg
-        //   ));
-        // });
-
-        // socket.on('stream_end', (data) => {
-        //   setIsStreaming(false);
-        //   setMessages(prev => prev.map(msg => 
-        //     msg.isStreaming ? 
-        //       { ...msg, isStreaming: false, id: `assistant_${Date.now()}` } : 
-        //       msg
-        //   ));
-        // });
 
         // ========== RESULT EVENTS (NEW) ==========
         socket.on('results_triggered', (data) => {

@@ -87,22 +87,6 @@ const ChatArea = ({
         </ConversationHeader>
         
         <MessageList>
-          {/* Welcome message */}
-          {/* {messages.length === 0 && (
-            <Message
-              model={{
-                message: `Welcome to the BNF Assistant ${getSessionTitle()}! How can I help you today?`,
-                sentTime: new Date().toLocaleTimeString(),
-                sender: "assistant",
-                direction: "incoming"
-              }}
-            >
-              <Avatar
-                src="https://ui-avatars.com/api/?name=BNF&background=007bff&color=fff"
-                name="BNF Assistant"
-              />
-            </Message>
-          )} */}
           
           {/* Chat messages */}
           {processedMessages.map((msgModel, index) => (

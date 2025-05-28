@@ -409,80 +409,32 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
         graph = build_graph(socketio)
         state = graph.invoke({"conv_history": [user_input]})
         
-        # # Execute workflow
-        # result = workflow.execute({
-        #     'user_input': user_input,
-        #     'user_id': user_id,
-        #     'chat_id': chat_id,
-        #     'session_id': session_id
-        # })
+        # Get assistant response
+        assistant_response = state.get("response", "No response generated")
         
-        # # Stream response
-        # response = result.get('response', 'No response generated')
-        # workflow_status = result.get('status', 'completed')
+        # Save assistant response to database
+        success, error = ChatManager.add_message_to_chat(chat_id, 'assistant', assistant_response)
+        if not success:
+            print(f"Failed to save assistant response: {error}")
         
-        # Emit stream start
-        socketio.emit('stream_start', {
-            'chat_id': chat_id
+        # Send complete response to frontend
+        socketio.emit('assistant_response', {
+            'chat_id': chat_id,
+            'content': assistant_response,
+            'status': state.get("status", "completed")
         }, to=socket_session_id)
         
-
-        socketio.emit('stream_chunk', {
-                'content': state["response"]
-            }, to=socket_session_id)
-
-        # # Stream response word by word
-        # words = response.split()
-        # for i, word in enumerate(words):
-        #     socketio.emit('stream_chunk', {
-        #         'content': word + " "
-        #     }, to=socket_session_id)
-        #     time.sleep(0.03)  # Small delay for streaming effect
-        
-        # Save assistant response
-        # ChatManager.add_message_to_chat(chat_id, 'assistant', workflow["response"])
-        
-        # # MODIFIED: Handle results status specifically
-        # if workflow_status == 'results':
-        #     print(f"⭐ Results workflow triggered for chat {chat_id}")
-            
-        #     # Emit results triggered event
-        #     socketio.emit('results_triggered', {
-        #         'chat_id': chat_id,
-        #         'user_input': user_input
-        #     }, to=socket_session_id)
-            
-        #     # Process search results
-        #     result_data, error = process_search_results(user_input, chat_id, user_id)
-            
-        #     if error:
-        #         socketio.emit('results_error', {
-        #             'error': error,
-        #             'chat_id': chat_id
-        #         }, to=socket_session_id)
-        #     else:
-        #         # Emit results data
-        #         socketio.emit('results_data', result_data, to=socket_session_id)
-            
-        #     # End chat after results
-        #     ChatManager.end_chat(chat_id, "ended_by_results", user_id)
-            
-        # elif workflow_status in ['abandon', 'restart']:
-        #     ChatManager.end_chat(chat_id, f"ended_by_{workflow_status}", user_id)
-            
-        #     socketio.emit('chat_ended', {
-        #         'reason': workflow_status,
-        #         'message': response
-        #     }, to=socket_session_id)
-        
-        # # Emit stream end
-        # socketio.emit('stream_end', {
-        #     'response': response,
-        #     'status': workflow_status
-        # }, to=socket_session_id)
+        # Handle special statuses (search results, etc.)
+        status_tag = state.get("status", "").split(':')[0]
+        if status_tag == "search":
+            # Handle search results if needed
+            pass
+        elif status_tag == "end":
+            # Handle chat ending if needed
+            ChatManager.end_chat(chat_id, state.get("status"), user_id)
         
     except Exception as e:
         print(f"Error in process_chat_message: {str(e)}")
-        socketio.emit('stream_error', {
+        socketio.emit('error', {
             'error': str(e)
         }, to=socket_session_id)

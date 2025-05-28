@@ -252,14 +252,12 @@ def build_graph(socketio): # socketio instance
             "info": "Sauvegarde de la conversation…"
         })
 
-        # for all status
-        #TODO: save_conv(state["response"],state["status"]); 
-        #TODO: show_response()
-        socketio.emit("llm_response", {
-            "response":state["response"]
-        })
+        # REMOVE THIS OLD EMISSION:
+        # socketio.emit("llm_response", {
+        #     "response":state["response"]
+        # })
 
-        # status tag: end; search; continue.
+        # Status-specific handling (keep this logic)
         status_tag = state["status"].split(':')[0]
 
         if status_tag == "end":
@@ -267,8 +265,10 @@ def build_graph(socketio): # socketio instance
             pass
         elif status_tag == "search":
             #TODO: show_search_result(state["search_result"]) 
-            #TODO: save_user_evals(); save state["generated_sru_query"] (no need to save state["search_result"])
+            #TODO: save_user_evals(); save state["generated_sru_query"]
             pass
+        
+        # Just return the state - let process_chat_message handle the emission
         return state
 
     # --- build LangGraph ---
@@ -335,46 +335,3 @@ def build_graph(socketio): # socketio instance
     # compile graph
     graph = builder.compile()
     return graph
-
-
-class SimpleWorkflow:
-    def __init__(self):
-        self.steps = ['analyze', 'search', 'respond']
-    
-    def execute(self, state):
-        user_input = state.get('user_input', '').lower()
-        
-        # Check for special commands
-        if 'abandon' in user_input:
-            return {
-                'response': 'abandon',
-                'status': 'abandon'
-            }
-        elif 'recommencer' in user_input or 'restart' in user_input:
-            return {
-                'response': 'restart',
-                'status': 'restart'
-            }
-        elif 'résultat' in user_input or 'result' in user_input:
-            return {
-                'response': 'results',
-                'status': 'results'
-            }
-        
-        # Simple response generation
-        if any(word in user_input for word in ['bonjour', 'salut', 'hello']):
-            response = "Bonjour! Je suis votre assistant de recherche BNF. Comment puis-je vous aider aujourd'hui?"
-        elif any(word in user_input for word in ['merci', 'thank']):
-            response = "Je vous en prie! N'hésitez pas si vous avez d'autres questions."
-        elif len(user_input) > 0:
-            response = f"Je recherche des informations sur '{user_input}' dans les collections de la BNF. Voici ce que j'ai trouvé..."
-        else:
-            response = "Je n'ai pas bien compris votre demande. Pouvez-vous reformuler?"
-        
-        return {
-            'response': response,
-            'status': 'completed'
-        }
-
-# def build_graph(socketio):
-#     return SimpleWorkflow()
