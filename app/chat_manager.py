@@ -62,13 +62,23 @@ class ChatManager:
             if not chat:
                 return False, "Chat not found"
             
+            # Debug logging
+            print(f"[ChatManager] Before adding {role} message: {len(chat.chat_history)} messages in chat {chat_id}")
+            
             chat.add_message(role, content)
             db.session.commit()
+            
+            # Verify the save
+            db.session.refresh(chat)
+            print(f"[ChatManager] After adding: {len(chat.chat_history)} messages")
+            if chat.chat_history:
+                print(f"[ChatManager] Last message: {chat.chat_history[-1]['role']}: {chat.chat_history[-1]['content'][:50]}...")
             
             return True, None
             
         except Exception as e:
             db.session.rollback()
+            print(f"[ChatManager] Error adding message: {str(e)}")
             return False, str(e)
     
     @staticmethod

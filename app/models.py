@@ -80,8 +80,17 @@ class Chat(db.Model):
         if self.chat_history is None:
             self.chat_history = []
         
-        self.chat_history.append(message)
+        # Create a new list to ensure SQLAlchemy detects the change
+        # This is crucial for JSON column change detection
+        new_history = list(self.chat_history)
+        new_history.append(message)
+        self.chat_history = new_history
+        
         self.updated_at = datetime.datetime.utcnow()
+        
+        # Explicitly mark the attribute as modified
+        # from sqlalchemy.orm.attributes import flag_modified
+        # flag_modified(self, 'chat_history')
     
     def __repr__(self):
         return f'<Chat {self.id} - User {self.user_id} - Session {self.session_id}>'

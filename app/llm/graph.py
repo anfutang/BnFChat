@@ -252,21 +252,7 @@ def build_graph(socketio): # socketio instance
             "info": "Sauvegarde de la conversation…"
         })
 
-        # REMOVE THIS OLD EMISSION:
-        # socketio.emit("llm_response", {
-        #     "response":state["response"]
-        # })
 
-        # Status-specific handling (keep this logic)
-        status_tag = state["status"].split(':')[0]
-
-        if status_tag == "end":
-            # TODO: time delay & newconv()
-            pass
-        elif status_tag == "search":
-            #TODO: show_search_result(state["search_result"]) 
-            #TODO: save_user_evals(); save state["generated_sru_query"]
-            pass
         
         # Just return the state - let process_chat_message handle the emission
         return state

@@ -405,9 +405,36 @@ def register_socketio_events():
 def process_chat_message(user_input, user_id, chat_id, session_id, socket_session_id):
     """Process chat message with simple workflow"""
     try:
-        # Create and execute workflow
+        # Refresh chat from database to ensure we have latest data
+        chat = Chat.query.get(chat_id)
+        if not chat:
+            socketio.emit('error', {'error': 'Chat not found'}, to=socket_session_id)
+            return
+        
+        # Force refresh to ensure we have the latest chat history
+        db.session.refresh(chat)
+        
+        # Build full conversation history for the graph
+        conv_history = []
+        if chat.chat_history:
+            for msg in chat.chat_history:
+                # Include both user and assistant messages
+                conv_history.append({
+                    'role': msg['role'],
+                    'content': msg['content']
+                })
+        
+        # Debug logging
+        print(f"[process_chat_message] Processing message for chat {chat_id}")
+        print(f"[process_chat_message] Current history length: {len(conv_history)}")
+        print(f"[process_chat_message] History: {[f'{m['role']}: {m['content'][:30]}...' for m in conv_history]}")
+        
+        # Create and execute workflow with FULL history
         graph = build_graph(socketio)
-        state = graph.invoke({"conv_history": [user_input]})
+        state = graph.invoke({
+            "conv_history": conv_history,
+            "current_input": user_input  # Pass current input separately if needed by your graph
+        })
         
         # Get assistant response
         assistant_response = state.get("response", "No response generated")
@@ -415,7 +442,9 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
         # Save assistant response to database
         success, error = ChatManager.add_message_to_chat(chat_id, 'assistant', assistant_response)
         if not success:
-            print(f"Failed to save assistant response: {error}")
+            print(f"[process_chat_message] Failed to save assistant response: {error}")
+            socketio.emit('error', {'error': f'Failed to save response: {error}'}, to=socket_session_id)
+            return
         
         # Send complete response to frontend
         socketio.emit('assistant_response', {
@@ -424,17 +453,28 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
             'status': state.get("status", "completed")
         }, to=socket_session_id)
         
-        # Handle special statuses (search results, etc.)
+        # Handle special statuses
         status_tag = state.get("status", "").split(':')[0]
         if status_tag == "search":
-            # Handle search results if needed
-            pass
+            # Process search results
+            result_data, error = process_search_results(user_input, chat_id, user_id)
+            if result_data:
+                socketio.emit('results_data', result_data, to=socket_session_id)
+            elif error:
+                socketio.emit('results_error', {'error': error}, to=socket_session_id)
+                
         elif status_tag == "end":
-            # Handle chat ending if needed
+            # Handle chat ending
             ChatManager.end_chat(chat_id, state.get("status"), user_id)
-        
+            socketio.emit('chat_ended', {
+                'chat_id': chat_id,
+                'reason': state.get("status")
+            }, to=socket_session_id)
+
     except Exception as e:
-        print(f"Error in process_chat_message: {str(e)}")
+        print(f"[process_chat_message] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         socketio.emit('error', {
             'error': str(e)
         }, to=socket_session_id)
