@@ -1,0 +1,51 @@
+/* ChatArea.css */
+
+.chat-area {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    /* border: 3px solid blue; */
+    font-family: monospace;
+    color: black;
+}
+
+.message-list {
+    position: relative;
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 1%;
+    width: 100%;
+    height: 20%;
+    /* border: 3px solid #ac0c0c; */
+    font-size: 1.1rem;
+}
+
+.message-input {
+    /* position: relative; */
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 0;
+    margin: 1%;
+    font-family: monospace;
+    color: white;
+    height: 5%;
+    width: 90%;
+    left: 3%;
+    font-family: monospace;
+    font-size: 1rem;
+    /* border: 3px solid blueviolet; */
+}
+
+.topic-info {
+    font-family: monospace;
+    color: black;
+    font-size: 0.9rem;    
+}
+
+.status-indicator {
+    font-family: monospace;
+    color: black;
+    font-size: 1rem;
+}

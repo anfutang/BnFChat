@@ -30,7 +30,7 @@ const Login = () => {
     setIsLoading(true);
 
     if (!username || !password) {
-      setError('Please enter both username and password');
+      setError("Veuillez entrer à la fois le nom d'utilisateur et le mot de passe.");
       setIsLoading(false);
       return;
     }
@@ -41,10 +41,10 @@ const Login = () => {
       if (result.success) {
         // The redirection will now be handled by the useEffect
       } else {
-        setError(result.message || 'Login failed');
+        setError(result.message || 'Échec de la connexion');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError("Une erreur inattendue s'est produite.");
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -54,13 +54,13 @@ const Login = () => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>Login</h2>
+        <h2>Connexion</h2>
         
         {error && <div className="auth-error">{error}</div>}
         
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">Identifiant</label>
             <input
               type="text"
               id="username"
@@ -72,7 +72,7 @@ const Login = () => {
           </div>
           
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">Mot de Passe</label>
             <input
               type="password"
               id="password"
@@ -88,13 +88,13 @@ const Login = () => {
             className="auth-button"
             disabled={isLoading}
           >
-            {isLoading ? 'Logging in...' : 'Login'}
+            {isLoading ? 'Connexion en cours...' : 'Se connecter'}
           </button>
         </form>
         
         <div className="auth-links">
           <p>
-            Don't have an account? <Link to="/register">Register</Link>
+            Vous n'avez pas de compte ? <Link to="/register">S'inscrire</Link>
           </p>
         </div>
       </div>

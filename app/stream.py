@@ -301,6 +301,38 @@ def register_socketio_events():
             print(f"Error in handle_get_chat_state: {str(e)}")
             emit('error', {'message': 'Error getting chat state'})
 
+    @socketio.on('erase_chat')
+    @socketio_auth_required
+    def erase_chat():
+        user_id = socket_user_sessions.get(request.sid)
+        
+        # Get user session info
+        user = User.query.get(user_id)
+        if not user:
+            emit('error', {'message': 'User not found'})
+            return
+        
+        session_id = user.session_id
+        
+        # Validate topic selection for sessions > 1
+        if session_id > 1:
+            topic_id = user.exercise_topic_id if session_id == 2 else user.test_topic_id
+            if topic_id <= 0:
+                emit('error', {
+                    'message': 'Please select a topic before starting conversation',
+                    'error_type': 'topic_required'
+                })
+                return
+        
+        # Check for ongoing chat or create new one
+        existing_chat, error = ChatManager.get_ongoing_chat(user_id, session_id)
+        
+        if not existing_chat:
+            emit('error', {'message': 'Erase an empty chat.'})
+            return
+        ChatManager.end_chat(existing_chat.id, "end:user_restart", user_id)
+        return
+
     @socketio.on('session_change')
     @socketio_auth_required
     def handle_session_change(data):
@@ -308,7 +340,7 @@ def register_socketio_events():
             new_session_id = data.get('session_id')
             user_id = socket_user_sessions.get(request.sid)
             
-            if new_session_id not in [1, 2, 3]:
+            if new_session_id not in [1, 2, 3, 4]:
                 emit('error', {'error': 'Invalid session ID'})
                 return
             
@@ -319,18 +351,18 @@ def register_socketio_events():
             
             old_session_id = user.session_id
             
-            if old_session_id == new_session_id:
-                emit('session_change_success', {
-                    'session_id': new_session_id,
-                    'message': f'Already in session {new_session_id}'
-                })
-                return
+            # if old_session_id == new_session_id:
+            #     emit('session_change_success', {
+            #         'session_id': new_session_id,
+            #         'message': f'Already in session {new_session_id}'
+            #     })
+            #     return
             
             # End ongoing chats
             Chat.query.filter_by(
                 user_id=user_id,
                 status="ongoing"
-            ).update({"status": "ended_by_session_change"})
+            ).update({"status": "end:user_session_change"})
             
             # Update user session
             user.session_id = new_session_id
@@ -412,12 +444,12 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
         conv_history = []
         if chat.chat_history:
             for msg in chat.chat_history:
-                if msg['role'] == 'user':
-                    conv_history.append(msg['content'])
+                conv_history.append(msg['content'])
         
         # Create and execute workflow with expected format
         graph = build_graph(socketio)
-        state = graph.invoke({"conv_history": conv_history})
+        print(f"##### {chat_id}; {type(chat_id)}")
+        state = graph.invoke({"conv_history": conv_history, "chat_id":chat_id})
         
         # Get assistant response
         assistant_response = state.get("response", "No response generated")
@@ -428,13 +460,6 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
             print(f"[process_chat_message] Failed to save assistant response: {error}")
             socketio.emit('error', {'error': f'Failed to save response: {error}'}, to=socket_session_id)
             return
-        
-        # Send complete response to frontend
-        socketio.emit('assistant_response', {
-            'chat_id': chat_id,
-            'content': assistant_response,
-            'status': state.get("status", "completed")
-        }, to=socket_session_id)
         
         # Handle special statuses
         status_tag = state.get("status", "").split(':')[0]

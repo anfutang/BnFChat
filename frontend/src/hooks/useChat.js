@@ -1,4 +1,5 @@
 // src/hooks/useChat.js - With Result Events
+import { Message } from '@chatscope/chat-ui-kit-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
@@ -10,6 +11,7 @@ export const useChat = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(null);
   const [assistantStatus, setAssistantStatus] = useState('');
+  const [detectedUserIntent, setDetectedUserIntent] = useState('');
   
   // Session and topic data (via SocketIO)
   const [sessionData, setSessionData] = useState(null);
@@ -120,11 +122,19 @@ export const useChat = () => {
         });
 
         socket.on('graph_update', (data) => {
-          setAssistantStatus(data.info);
+          if (data.node === "finalize") {
+            setIsStreaming(false);
+          } else {
+            setAssistantStatus(data.info);
+          }
         });
 
         socket.on('assistant_response', (data) => {
-          setIsStreaming(false);
+          console.log("📩 assistant_response received:", data);
+
+          // if (data.status.split(':')[0] !== "search") {
+          //   setIsStreaming(false);
+          // }
           setCurrentChatId(data.chat_id);
           
           // Add assistant message
@@ -135,8 +145,20 @@ export const useChat = () => {
             timestamp: new Date().toISOString()
           };
           
-          setMessages(prev => [...prev, assistantMessage]);
+          setMessages(prev => {
+            if (prev[prev.length - 1].role === 'user') {
+              const updated = [...prev, assistantMessage];
+              return updated;
+            } else {
+              console.warn("⚠️ repeatitive adding message");
+              return prev;
+            }
+          });
         });
+
+        socket.on('user_intent', (data) => {
+          setDetectedUserIntent(data.user_intent);
+        })
 
         // ========== RESULT EVENTS ==========
         socket.on('results_triggered', (data) => {
@@ -173,6 +195,7 @@ export const useChat = () => {
           console.log('Chat ended:', data.reason);
           setCurrentChatId(null);
           setMessages([]);
+          setDetectedUserIntent('');
         });
 
         socket.on('ongoing_chats_terminated', (data) => {
@@ -239,11 +262,18 @@ export const useChat = () => {
     socketRef.current.emit('get_chat_state');
   }, [isConnected]);
 
+  // Erase chat
+  const eraseChat = () => {
+    socketRef.current.emit('erase_chat');
+  };
+
   // Change session
-  const changeSession = useCallback((sessionId) => {
+  const changeSession = useCallback(() => {
     if (!socketRef.current || !isConnected) return;
     
-    socketRef.current.emit('session_change', { session_id: sessionId });
+    socketRef.current.emit('session_change', { session_id: sessionData.sessionId+1 });
+    console.log(typeof sessionData.sessionId); 
+    sessionData.sessionId += 1;
   }, [isConnected]);
 
   // Select topic
@@ -297,6 +327,8 @@ export const useChat = () => {
     isStreaming,
     error,
     assistantStatus,
+    detectedUserIntent,
+    setDetectedUserIntent,
     
     // Session and topic data
     sessionData,
@@ -314,6 +346,9 @@ export const useChat = () => {
     getSessionData,
     getTopics,
     clearError,
+    setCurrentChatId,
+    setMessages,
+    eraseChat,
     
     // ADD RESULT EVENT HANDLERS
     onResultsTriggered,

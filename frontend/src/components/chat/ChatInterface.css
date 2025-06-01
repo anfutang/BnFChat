@@ -9,16 +9,18 @@
 .chat-layout {
   display: flex;
   height: 100%;
+  /* border: 3px solid yellow; */
 }
 
 /* Sidebar styles */
 .sidebar {
-  width: 260px;
+  width: 15%;
   background-color: #f5f7fa;
   border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* border: 3px solid crimson; */
 }
 
 .sidebar-header {
@@ -213,24 +215,24 @@
 }
 
 .next-session-btn {
-  background-color: #3b82f6;
+  background-color: #6093e5;
   border: 1px solid #3b82f6;
   color: white;
 }
 
 .next-session-btn:hover {
-  background-color: #2563eb;
+  background-color: #4e7ee6;
 }
 
 .logout-btn {
-  background-color: white;
+  background-color: rgb(241, 123, 123);
   border: 1px solid #d1d5db;
   color: #4b5563;
 }
 
 .logout-btn:hover {
-  background-color: #f9fafb;
-  border-color: #9ca3af;
+  background-color: #f55448;
+  border-color: #e4462d;
 }
 
 /* Main chat container */
@@ -238,6 +240,7 @@
   flex: 1;
   height: 100%;
   overflow: hidden;
+  /* border: 3px solid greenyellow; */
 }
 
 .test-session-title {

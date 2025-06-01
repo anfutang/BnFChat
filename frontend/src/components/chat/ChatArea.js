@@ -10,11 +10,14 @@ import {
   TypingIndicator
 } from '@chatscope/chat-ui-kit-react';
 
+import "./ChatArea.css"
+
 const ChatArea = ({
   sessionData,
   selectedTopic,
   messages,
   assistantStatus,
+  detectedUserIntent,
   userInput,
   setUserInput,
   onSendMessage,
@@ -40,10 +43,10 @@ const ChatArea = ({
 
   const getSessionTitle = () => {
     switch (sessionData?.sessionId) {
-      case 1: return "BNF Assistant - Tutorial";
-      case 2: return "BNF Assistant - Exercise Session";
-      case 3: return "BNF Assistant - Test Session";
-      default: return "BNF Assistant";
+      case 1: return "Tutoriel";
+      case 2: return "Exercise";
+      case 3: return "Test Officiel";
+      default: return "BnFChat";
     }
   };
 
@@ -66,59 +69,57 @@ const ChatArea = ({
 
   return (
     <div className="chat-area">
-      <ChatContainer>
-        <ConversationHeader>
-          <ConversationHeader.Content>
-            <div className="header-content">
-              <h4>{getSessionTitle()}</h4>
-              {selectedTopic && (
-                <div className="topic-info">
-                  Topic: {selectedTopic.name}
-                </div>
-              )}
+      <ConversationHeader>
+        <ConversationHeader.Content>
+          <div className="header-content">
+            <div className="topic-info">
+              <strong>SUJET</strong> - {selectedTopic && (selectedTopic.name)}
             </div>
-          </ConversationHeader.Content>
-          
-          <ConversationHeader.Actions>
-            <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
-              {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+            <div className="topic-info">
+              <strong>Intention détectée</strong>:{detectedUserIntent}
             </div>
-          </ConversationHeader.Actions>
-        </ConversationHeader>
+          </div>
+        </ConversationHeader.Content>
         
-        <MessageList>
-          
-          {/* Chat messages */}
-          {processedMessages.map((msgModel, index) => (
-            <Message 
-              key={index} 
-              model={msgModel}
-            ></Message>
-          ))}
-          
-          {/* Typing indicator */}
-          {isStreaming && (
-            <TypingIndicator 
-              content={assistantStatus}
-              avatar={
-                <Avatar
-                  src="https://ui-avatars.com/api/?name=BNF&background=007bff&color=fff"
-                  name="BNF Assistant"
-                />
-              }
-            />
-          )}
-        </MessageList>
+        {/* <ConversationHeader.Actions>
+          <div className="status-indicator">
+            {isConnected ? '🟢 Connecté' : '🔴 Déconnecté'}
+          </div>
+        </ConversationHeader.Actions> */}
+      </ConversationHeader>
+      
+      <MessageList className="message-list">
+        {/* Chat messages */}
+        {processedMessages.map((msgModel, index) => (
+          <Message 
+            key={index} 
+            model={msgModel}
+          ></Message>
+        ))}
         
-        <MessageInput 
-          placeholder={getPlaceholder()}
-          value={userInput}
-          onChange={setUserInput}
-          onSend={handleSend}
-          disabled={!isConnected || isStreaming || (sessionData?.sessionId > 1 && !selectedTopic)}
-          attachButton={false}
-        />
-      </ChatContainer>
+        {/* Typing indicator */}
+        {isStreaming && (
+          <TypingIndicator 
+            content={assistantStatus}
+            avatar={
+              <Avatar
+                src="https://ui-avatars.com/api/?name=BNF&background=000&color=fff"
+                name="BNF Assistant"
+              />
+            }
+          />
+        )}
+      </MessageList>
+      
+      <MessageInput 
+        className="message-input"
+        placeholder={getPlaceholder()}
+        value={userInput}
+        onChange={setUserInput}
+        onSend={handleSend}
+        disabled={!isConnected || isStreaming || (sessionData?.sessionId > 1 && !selectedTopic)}
+        attachButton={false}
+      />
     </div>
   );
 };

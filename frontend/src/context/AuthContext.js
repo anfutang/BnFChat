@@ -15,10 +15,10 @@ export const AuthProvider = ({ children }) => {
         const response = await axios.get('/api/auth/check-auth');
         if (response.data.authenticated) {
           setCurrentUser({
-            username: response.data.username,
-            avatarSeed: response.data.avatarSeed,
-            permissionLevel: response.data.permissionLevel,
-            profileCompleted: response.data.profileCompleted || false
+            username: response.data.user.username,
+            avatarSeed: response.data.user.avatarSeed,
+            permissionLevel: response.data.user.permissionLevel,
+            profileCompleted: response.data.user.profileCompleted || false
           });
         } else {
           setCurrentUser(null);

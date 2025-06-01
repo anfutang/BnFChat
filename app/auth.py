@@ -24,7 +24,7 @@ def login_required(f):
 @bp.route('/check-auth', methods=['GET'])
 def check_auth():
     """Check if user is authenticated and return user details including profile completion status"""
-    user_id = session.get("user_id")
+    user_id = session.get("user_id")    
     if user_id is None:
         return jsonify({"authenticated": False})
     
@@ -95,6 +95,7 @@ def profile_submit():
     return jsonify({
         "success": True,
         "username": user.username,
+        "avatarSeed":user.avatar_seed,
         "profileCompleted": True
     })
 

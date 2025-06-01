@@ -42,7 +42,8 @@ def is_fisrt_input(conv_history: list):
 # --- State definition ---
 def build_graph(socketio): # socketio instance
     class State(TypedDict, total=False):
-        conv_history: str
+        conv_history: List[str]
+        chat_id: int
         last_user_intent: Optional[str]
 
         # intermediate variables
@@ -90,7 +91,7 @@ def build_graph(socketio): # socketio instance
             state["user_intent"] = call_llm_result[1]
             state["status"] = "search:user"
 
-            socketio.emit("show_user_intent", {
+            socketio.emit("user_intent", {
                 "user_intent": state["user_intent"]
             })
         elif conv_action == "continue":
@@ -126,7 +127,7 @@ def build_graph(socketio): # socketio instance
             state["user_intent"] = call_llm_result[1]
             state["status"] = "advance"
             
-            socketio.emit("show_user_intent", {
+            socketio.emit("user_intent", {
                 "user_intent": state["user_intent"]
             })
         
@@ -198,10 +199,6 @@ def build_graph(socketio): # socketio instance
         return state
 
     def search(state: State) -> State:
-        socketio.emit("graph_update", {
-            "node": "search",
-            "info": "Préparation de la recherche : génération de la requête SRU en cours…"
-        })
         user_intent = state.get("user_intent")
         knn_result = knn(user_intent,1)
         if not knn_result:
@@ -214,6 +211,17 @@ def build_graph(socketio): # socketio instance
             sru_hint = knn_result["sru_statements"][0]
         else:
             sru_hint = ""
+
+        socketio.emit('assistant_response', {
+                'chat_id': state["chat_id"],
+                'content': state["response"],
+                'status': state["status"]
+            })
+
+        socketio.emit("graph_update", {
+            "node": "search",
+            "info": "Préparation de la recherche : génération de la requête SRU en cours…"
+        })
         
         # generate SRU and parse from the raw LLM result
         call_llm_result = call_nl2sru(user_intent, sru_hint)
@@ -247,9 +255,16 @@ def build_graph(socketio): # socketio instance
             return state
 
     def finalize(state: State) -> State:
+        if state["status"] != "search":
+            socketio.emit('assistant_response', {
+                'chat_id': state["chat_id"],
+                'content': state["response"],
+                'status': state.get("status", "completed")
+            })
+        
         socketio.emit("graph_update", {
             "node": "finalize",
-            "info": "Sauvegarde de la conversation…"
+            "info": "finalize"
         })
         return state
 
