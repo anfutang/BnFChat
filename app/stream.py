@@ -14,22 +14,6 @@ bp = Blueprint('stream', __name__)
 socketio = None
 socket_user_sessions = {}
 
-# Topic definitions
-TOPICS = {
-    2: [  # Exercise topics
-        {"id": 1, "name": "Voltaire", "description": "Philosophe des Lumières", "category": "Littérature"},
-        {"id": 2, "name": "Napoléon III", "description": "Empereur des Français", "category": "Histoire"},
-        {"id": 3, "name": "Watteau", "description": "Peintre rococo", "category": "Arts visuels"},
-        {"id": 4, "name": "Foucault", "description": "Philosophe contemporain", "category": "Philosophie"}
-    ],
-    3: [  # Test topics
-        {"id": 5, "name": "Mozart", "description": "Compositeur classique", "category": "Musique"},
-        {"id": 6, "name": "Chopin", "description": "Compositeur et pianiste", "category": "Musique"},
-        {"id": 7, "name": "Victor Hugo", "description": "Écrivain romantique", "category": "Littérature"},
-        {"id": 8, "name": "Rembrandt", "description": "Peintre hollandais", "category": "Arts visuels"}
-    ]
-}
-
 def init_socketio(socketio_instance):
     global socketio
     socketio = socketio_instance
@@ -113,8 +97,8 @@ def register_socketio_events():
                 'sessionId': user.session_id,
                 'currentTopicId': current_topic_id,
                 'currentTopicInfo': current_topic_info,
-                'timerExercise': user.timer_exercise,
-                'timerTest': user.timer_test
+                'timerExercise': user.timer_exercise or None,
+                'timerTest': user.timer_test or None
             })
             
         except Exception as e:
@@ -215,6 +199,42 @@ def register_socketio_events():
             db.session.rollback()
             print(f"Error selecting topic: {str(e)}")
             emit('error', {'message': 'Error selecting topic'})
+
+    # ========== TIMER OPERATIONS =========
+    @socketio.on('update_timer')
+    @socketio_auth_required
+    def handle_update_timer(data):
+        try:
+            session_id = data.get('sessionId',0)
+            timer_value = data.get('timerValue',-1)
+
+            if session_id < 1 or timer_value < 0:
+                emit('error', {'message': 'Invalid session id or timer value.'})
+                return 
+            
+            user_id = socket_user_sessions.get(request.sid)
+            user = User.query.get(user_id)
+            if not user:
+                emit('error', {'message': 'User not found'})
+                return
+            
+            # Update the appropriate timer based on session
+            if session_id == 2:
+                user.timer_exercise = timer_value
+            elif session_id == 3:
+                user.timer_test = timer_value
+            
+            db.session.commit()
+            
+            emit('timer_updated', {
+                "success": True,
+                "sessionId": session_id,
+                "timerValue": timer_value
+            })
+
+        except Exception as e:
+            print(f"Error in handle_update_timer: {str(e)}")
+            emit('error', {'message': 'Error updating timer'})
 
     # ========== CHAT OPERATIONS ==========
     @socketio.on('send_message')
@@ -387,16 +407,12 @@ def register_socketio_events():
 
     @socketio.on('submit_conv_feedback')
     @socketio_auth_required
-    def handle_submit_feedback(data):
+    def handle_submit_conv_feedback(data):
         try:
             chat_id = data.get('chatId')
             feedback_data = {
-                'preferenceType': data.get('preferenceType'),
-                'qualityRating': data.get('qualityRating'),
-                'conversationRating': data.get('conversationRating'),
-                'comment': data.get('comment'),
-                'resultId': data.get('resultId'),
-                'timestamp': datetime.datetime.utcnow().isoformat()
+                **data.get('formData'),
+                'timestamp': datetime.datetime.now().isoformat()
             }
             
             # Save feedback and end chat
@@ -404,7 +420,7 @@ def register_socketio_events():
             if chat:
                 chat.feedback = feedback_data
                 chat.status = "end_by_user_feedback"
-                chat.updated_at = datetime.datetime.utcnow()
+                chat.updated_at = datetime.datetime.now()
                 db.session.commit()
                 
                 # Emit feedback saved first
@@ -424,6 +440,33 @@ def register_socketio_events():
                     'reason': 'feedback_submitted',
                     'message': 'Chat ended after feedback submission'
                 })
+        except Exception as e:
+            emit('error', {'message': str(e)})
+
+    @socketio.on('submit_final_feedback')
+    @socketio_auth_required
+    def handle_submit_final_feedback(data):
+        try:
+            user_id = data.get('userId')
+            feedback_data = {
+                **data.get('formData'),
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+            
+            # Save feedback and end chat
+            chat = User.query.get(user_id)
+            if chat:
+                chat.feedback = feedback_data
+                db.session.commit()
+                
+                # Emit feedback saved first
+                emit('final_feedback_saved', {
+                    'success': True,
+                    'userId': user_id
+                })
+                
+                # Then end the chat
+                emit('test_ended_success', {})
         except Exception as e:
             emit('error', {'message': str(e)})
 
@@ -479,7 +522,7 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
                     'originalQuery': state.get("original_sru_query", ""),
                     'wcResults': wc_results,
                     'wocResults': woc_results,
-                    'timestamp': datetime.datetime.utcnow().isoformat()
+                    'timestamp': datetime.datetime.now().isoformat()
                 }
                 
                 socketio.emit('results_data', result_data, to=socket_session_id)

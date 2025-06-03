@@ -1,16 +1,19 @@
 // src/components/chat/ChatInterface.js - With Result Modal Integration
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '@chatscope/chat-ui-kit-react';
 
 import { useAuth } from '../../context/AuthContext';
 import useChat from '../../hooks/useChat';
+import useTimer from '../../hooks/useTimer';
 
 import SessionSelector from './SessionSelector';
 import ChatArea from './ChatArea';
+
 import ResultModal from '../feedback/ResultModal';
 import FeedbackForm from '../feedback/FeedbackForm';
+import MessageModal from "../feedback/MessageModal"; 
 
 import "./ChatInterface.css"
 
@@ -20,12 +23,22 @@ const ChatInterface = () => {
   
   const [userInput, setUserInput] = useState('');
   
+  // ADD MESSAGE MODAL STATE
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageModalType, setMessageModalType] = useState('');
+  const [messageModalTitle, setMessageModalTitle] = useState('');
+  const [messageModalContent, setMessageModalContent] = useState('');
+  const [messageModalConfirmButtonText, setMessageModalConfirmButtonText] = useState('');
+  const [messageModalCloseButtonText, setMessageModalCloseButtonText] = useState('');
+  const [onConfirmMessageModalFunc, setOnConfirmMessageModalFunc] = useState(() => () => {});
+  const setMessageModalRef = useRef(() => {});
+
   // ADD RESULT MODAL STATE
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [resultData, setResultData] = useState(null);
   const [isResultLoading, setIsResultLoading] = useState(false);
 
-  // add feedback form state
+  // ADD FEEDBACK FORM STATE
   const [isFeedbackFormOpen, setIsFeedbackFormOpen] = useState(false);
   
   const {
@@ -40,20 +53,104 @@ const ChatInterface = () => {
     sessionData,
     topics,
     selectedTopic,
+    // ACTIONS
     sendMessage,
     getChatState,
+    getSessionData,
     changeSession,
     selectTopic,
     clearError,
     setCurrentChatId,
     setMessages,
     eraseChat,
+    updateTimer,
     // ADD RESULT EVENT HANDLERS
     onResultsTriggered,
     onResultsData,
     onResultsError,
     socketRef
   } = useChat();
+
+  // Chat related
+  const handleSendMessage = useCallback((message) => {
+    if (!message?.trim()) return;
+    
+    sendMessage(message);
+    setUserInput('');
+  }, [sendMessage]);
+
+  const handleEraseConv = useCallback(() => {
+    setCurrentChatId(null);
+    setMessages([]);
+    setDetectedUserIntent('');
+    eraseChat();
+  }, []);
+
+  // Session related
+  const handleSessionChange = useCallback((newSessionId) => {
+    changeSession(newSessionId);
+  }, [changeSession]);
+
+  // session id to session name
+  const getSessionStatus = () => {
+    switch (sessionData?.sessionId) {
+      case 1: return "[Tutoriel] en cours..";
+      case 2: return "[Exercise] en cours..";
+      case 3: return "[Test Officiel] en cours..";
+      case 4: return "Test Terminé."
+      default: return "BnFChat";
+    }
+  };
+
+  const getNextSessionInfo = (sessionId) => {
+    if (sessionId === 1) {
+      return "Vous allez être dirigé vers : Exercise. Pourriez-vous confirmer ?";
+    } else if (sessionId === 2) {
+      return "Vous allez être dirigé vers : Test Officiel. Pourriez-vous confirmer ?";
+    } else if (sessionId === 3) {
+      return "Voulez-vous terminer le test ?";
+    }
+  };
+
+  // timer
+  const {
+    formattedTime,
+    isTimerRunning,
+    startTimer,
+    pauseTimer,
+    resetTimer
+  } = useTimer({
+    sessionData,
+    getSessionData,
+    updateTimer,
+    handleSessionChange,
+    setMessageModal: (...args) => setMessageModalRef.current(...args),
+    setShowMessageModal
+  });
+
+  useEffect(() => {
+    setMessageModalRef.current = (type, title, content, closeButtonText, confirmButtonText = '', onConfirmFunc = () => {}) => {
+      // pause timer automatically when a modal popped-up
+      if (isTimerRunning) {
+        pauseTimer();
+      }
+  
+      setMessageModalType(type);
+      setMessageModalTitle(title);
+      setMessageModalContent(content);
+      setMessageModalConfirmButtonText(confirmButtonText);
+      setMessageModalCloseButtonText(closeButtonText);
+      setOnConfirmMessageModalFunc(() => onConfirmFunc);
+      setShowMessageModal(true);
+    };
+  }, [isTimerRunning, pauseTimer]);
+
+  
+  // Topic related
+  const handleTopicSelect = useCallback((topic) => {
+    selectTopic(topic.id);
+    setMessageModalRef.current('info','Changement du sujet',`Votre sujet actuel: ${topic.name}`,'OK');
+  }, [selectTopic]);
 
   // ADD RESULT EVENT HANDLERS
   useEffect(() => {
@@ -69,7 +166,7 @@ const ChatInterface = () => {
 
   useEffect(() => {
     if (onResultsData) {
-      onResultsData((data) => {
+        onResultsData((data) => {
         console.log("⭐ Results data received:", data);
         setResultData(data);
         setIsResultLoading(false);
@@ -79,7 +176,7 @@ const ChatInterface = () => {
 
   useEffect(() => {
     if (onResultsError) {
-      onResultsError((error) => {
+        onResultsError((error) => {
         console.log("⭐ Results error:", error);
         setIsResultLoading(false);
         // Keep modal open but show error state
@@ -87,28 +184,7 @@ const ChatInterface = () => {
     }
   }, [onResultsError]);
 
-  const handleSendMessage = useCallback((message) => {
-    if (!message?.trim()) return;
-    
-    sendMessage(message);
-    setUserInput('');
-  }, [sendMessage]);
-
-  const handleEraseConv = useCallback(() => {
-    setCurrentChatId(null);
-    setMessages([]);
-    setDetectedUserIntent('');
-    eraseChat();
-  }, []);
-
-  const handleSessionChange = useCallback((newSessionId) => {
-    changeSession(newSessionId);
-  }, [changeSession]);
-
-  const handleTopicSelect = useCallback((topic) => {
-    selectTopic(topic.id);
-  }, [selectTopic]);
-
+  // logout
   const handleLogout = useCallback(async () => {
     try {
       await logout();
@@ -119,27 +195,15 @@ const ChatInterface = () => {
     }
   }, [logout, navigate]);
 
-  // ADD RESULT MODAL CLOSE HANDLER
   const handleCloseResultModal = useCallback(() => {
     setIsResultModalOpen(false);
     setResultData(null);
     setIsResultLoading(false);
   }, []);
 
-  // session id to session name
-  const getSessionStatus = () => {
-    switch (sessionData?.sessionId) {
-      case 1: return "[Tutoriel] en cours..";
-      case 2: return "[Exercise] en cours..";
-      case 3: return "[Test Officiel] en cours..";
-      case 4: return "Test Terminé."
-      default: return "BnFChat";
-    }
-  };
-
   // Show loading while waiting for session data
   if (!sessionData) {
-    return <div className="loading">Loading session...</div>;
+    return <div className="loading">Chargement...</div>;
   }
 
   return (
@@ -165,6 +229,11 @@ const ChatInterface = () => {
             selectedTopic={selectedTopic}
             onSessionChange={handleSessionChange}
             onTopicSelect={handleTopicSelect}
+            formattedTime={formattedTime}
+            isTimerRunning={isTimerRunning}
+            startTimer={startTimer}
+            pauseTimer={pauseTimer}
+            resetTimer={resetTimer}
           />
           
           <div className="sidebar-footer">
@@ -175,8 +244,10 @@ const ChatInterface = () => {
               <strong>Effacer</strong>
           </button>
           <button 
-              onClick={handleSessionChange} 
+              onClick={() => setMessageModalRef.current('warning','Changement de session',getNextSessionInfo(sessionData.sessionId),'non','oui', handleSessionChange)} 
+              // onClick={handleSessionChange}
               className="next-session-btn"
+              disabled={sessionData.sessionId>=4}
             >
               <strong>Session Prochaine</strong>
             </button>
@@ -202,6 +273,7 @@ const ChatInterface = () => {
             onSendMessage={handleSendMessage}
             isConnected={isConnected}
             isStreaming={isStreaming}
+            isTimerRunning={isTimerRunning}
             currentChatId={currentChatId}
           />
         </div>
@@ -218,7 +290,23 @@ const ChatInterface = () => {
 
       <FeedbackForm 
         isOpen={sessionData.sessionId===4}
+        sessionData={sessionData}
+        socketRef={socketRef}
       />
+
+      {/* Message Display */}
+      {showMessageModal && <MessageModal
+        type={messageModalType}
+        title={messageModalTitle}
+        content={messageModalContent}
+        confirmButtonText={messageModalConfirmButtonText}
+        closeButtonText={messageModalCloseButtonText}
+        onConfirmFunc={onConfirmMessageModalFunc}
+        setShowMessageModal={setShowMessageModal}
+        isTimerRunning={isTimerRunning}
+        startTimer={startTimer}
+        pauseTimer={pauseTimer}
+      />}
 
       {/* Error Display */}
       {error && (

@@ -4,12 +4,13 @@ import click
 import os
 import sqlite3
 import datetime
+from .utils.constant import DEFAULT_USERS
 
 db = SQLAlchemy()
 
 def init_app(app):
     # Generate a new database path with timestamp for each run
-    timestamp = "20250520_143000"
+    timestamp = "20250603"
     #timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") # for production and keep previous experiments
     db_dir = app.instance_path
     db_file = f"bnf_chat_{timestamp}.sqlite"
@@ -43,35 +44,27 @@ def create_default_users():
         current_app.logger.info("Users already exist, skipping default user creation")
         return
     
-    # Define default users with username/password
-    # TODO: Add your users
-    default_users = [
-        {'username': 'dev', 'password': '123456', 'profile_created': True},
-        {'username': 'racousin', 'password': 'qwe', 'profile_created': True},
-        {'username': 'user1', 'password': 'password1', 'profile_created': False},
-        {'username': 'user2', 'password': 'password2', 'profile_created': False},
-        {'username': 'researcher', 'password': 'research123', 'profile_created': False},
-        {'username': 'student', 'password': 'student123', 'profile_created': False},
-        {'username': 'librarian', 'password': 'library123', 'profile_created': False},
-        {'username': 'guest', 'password': 'guest123', 'profile_created': False}
-    ]
+    # Define default users with username/passwor
     
-    # Create users
-    for user_data in default_users:
+    
+    # Create users using a list of default users
+    for user_data in DEFAULT_USERS:
         username = user_data.get('username')
         password = user_data.get('password')
+        user_level = user_data.get('user_level')
         profile_created = user_data.get('profile_created', False)
         # Create user with appropriate permissions
         new_user = User(
             username=username, 
             password=password,
+            user_level=user_level,
             profile_created=profile_created
         )
         db.session.add(new_user)
     
     # Commit to database
     db.session.commit()
-    current_app.logger.info(f"Created {len(default_users)} default users")
+    current_app.logger.info(f"Created {len(DEFAULT_USERS)} default users")
 
 @click.command('init-db')
 def init_db_command():

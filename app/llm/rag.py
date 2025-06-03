@@ -36,14 +36,14 @@ def knn(query,k):
 
 def find_facets(similarity_scores,target_ids):
     # db = get_rag_db()
-    db = sqlite3.connect("./instance/kv_mapping.db")
-    c = db.cursor()
+    with sqlite3.connect("./instance/kv_mapping.db") as db:
+        c = db.cursor()
 
-    placeholders = ', '.join(['?'] * len(target_ids))
-    search_query = f"SELECT id, key, value FROM kv_mapping WHERE id IN ({placeholders})"
-    c.execute(search_query, target_ids)
-    rows = c.fetchall()
-    id_to_kv = {row[0]: (row[1], row[2]) for row in rows}
+        placeholders = ', '.join(['?'] * len(target_ids))
+        search_query = f"SELECT id, key, value FROM kv_mapping WHERE id IN ({placeholders})"
+        c.execute(search_query, target_ids)
+        rows = c.fetchall()
+        id_to_kv = {row[0]: (row[1], row[2]) for row in rows}
 
     ordered_kv_dict = {"facet":[],"sru_statements":[],"score":[]}
     for score, id_ in zip(similarity_scores,target_ids):

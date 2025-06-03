@@ -34,26 +34,36 @@
 
 .result-modal-header h2 {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   color: #333;
 }
 
-.close-button {
+.close-btn {
   background: none;
-  border: none;
+  border: 2px solid rgb(111, 111, 111);
+  border-radius: 5px;
   font-size: 1.2rem;
   cursor: pointer;
-  color: #666;
+  color: black;
 }
 
-.close-button:hover {
-  color: #333;
+.close-btn:hover {
+  background-color: rgb(233, 203, 128);
 }
 
 .result-modal-content {
   padding: 20px;
+  font-size: 1.2rem;
   overflow-y: auto;
   flex: 1;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.result-modal-footer {
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .result-loading {

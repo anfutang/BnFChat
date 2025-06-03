@@ -121,6 +121,10 @@ export const useChat = () => {
           setMessages(prev => [...prev, userMessage]);
         });
 
+        socket.on('timer_updated', (data) => {
+          console.log('Timer value updated:', data);
+        });
+
         socket.on('graph_update', (data) => {
           if (data.node === "finalize") {
             setIsStreaming(false);
@@ -190,6 +194,10 @@ export const useChat = () => {
           }
         });
 
+        socket.on('final_feedback_saved', (data) => {
+          console.log('Final feedback saved successfully', data);
+        })
+
         // ========== CHAT END EVENTS ==========
         socket.on('chat_ended', (data) => {
           console.log('Chat ended:', data.reason);
@@ -212,6 +220,10 @@ export const useChat = () => {
           
           // Request fresh data
           socket.emit('get_session_data');
+        });
+
+        socket.on('test_ended_success', () => {
+          console.log('🎉 Test ended successfully: quit.')
         });
 
         // ========== ERROR HANDLING ==========
@@ -272,7 +284,6 @@ export const useChat = () => {
     if (!socketRef.current || !isConnected) return;
     
     socketRef.current.emit('session_change', { session_id: sessionData.sessionId+1 });
-    console.log(typeof sessionData.sessionId); 
     sessionData.sessionId += 1;
   }, [isConnected]);
 
@@ -296,6 +307,16 @@ export const useChat = () => {
     
     socketRef.current.emit('get_topics');
   }, [isConnected]);
+
+  // Update Timer
+  const updateTimer = useCallback((sessionId, timerValue) => {
+    if (!socketRef.current || !isConnected) return;
+    
+    socketRef.current.emit('update_timer',{
+      sessionId,
+      timerValue
+    });
+  }, [isConnected])
 
   // Clear error
   const clearError = useCallback(() => {
@@ -349,6 +370,7 @@ export const useChat = () => {
     setCurrentChatId,
     setMessages,
     eraseChat,
+    updateTimer,
     
     // ADD RESULT EVENT HANDLERS
     onResultsTriggered,

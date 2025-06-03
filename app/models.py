@@ -13,6 +13,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+    user_level = db.Column(db.Integer,nullable=False)
     session_id = db.Column(db.Integer, nullable=False, default=1)
     exercise_topic_id = db.Column(db.Integer, nullable=False, default=0)
     test_topic_id = db.Column(db.Integer, nullable=False, default=0)
@@ -20,20 +21,22 @@ class User(db.Model):
     timer_test = db.Column(db.Integer, nullable=False, default=30)
     avatar_seed = db.Column(db.Integer, nullable=True)
     profile_created = db.Column(db.Boolean, nullable=True, default=False)
+    feedback = db.Column(db.JSON, nullable=True)
     
     # Relationship
     chats = db.relationship('Chat', backref='user', lazy=True)
     
-    def __init__(self, username, password, profile_created=False):
+    def __init__(self, username, password, user_level, profile_created=False):
         self.username = username
         self.password = generate_password_hash(password)
+        self.user_level = user_level
         self.profile_created = profile_created
         self.avatar_seed = random.randint(1, 1000000)
         self.session_id = 1
         self.exercise_topic_id = 0
         self.test_topic_id = 0
-        self.timer_exercise = 30
-        self.timer_test = 30
+        self.timer_exercise = 300
+        self.timer_test = 2100
     
     def check_password(self, password):
         """Check if provided password matches stored hash"""
@@ -57,8 +60,8 @@ class Chat(db.Model):
     status = db.Column(db.String(20), nullable=False, default='ongoing')
     user_intent = db.Column(db.Text, nullable=True)
     chat_history = db.Column(db.JSON, nullable=False, default=list)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
     feedback = db.Column(db.JSON, nullable=True) # replace with multiple columns instead when you know what you will have inside
     
     def __init__(self, user_id, session_id, topic_id, status='ongoing'):
@@ -67,15 +70,15 @@ class Chat(db.Model):
         self.topic_id = topic_id
         self.status = status
         self.chat_history = []
-        self.created_at = datetime.datetime.utcnow()
-        self.updated_at = datetime.datetime.utcnow()
+        self.created_at = datetime.datetime.now()
+        self.updated_at = datetime.datetime.now()
     
     def add_message(self, role, content):
         """Add a message to the chat history"""
         message = {
             'role': role,
             'content': content,
-            'timestamp': datetime.datetime.utcnow().isoformat()
+            'timestamp': datetime.datetime.now().isoformat()
         }
         
         if self.chat_history is None:
@@ -87,7 +90,7 @@ class Chat(db.Model):
         new_history.append(message)
         self.chat_history = new_history
         
-        self.updated_at = datetime.datetime.utcnow()
+        self.updated_at = datetime.datetime.now()
         
         # Explicitly mark the attribute as modified
         # from sqlalchemy.orm.attributes import flag_modified

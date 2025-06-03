@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import './FeedbackForm.css';
+import MultiTypeForm from './MultiTypeForm';
 
-const FeedbackForm = ({ isOpen }) => {
+const FeedbackForm = ({ isOpen, sessionData, socketRef }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -19,26 +20,49 @@ const FeedbackForm = ({ isOpen }) => {
       }
     }, [isOpen]);
   
-  const [formData, setFormData] = useState({
-    overall_satisfaction: 3,
-    ease_of_use: 3,
-    usefulness: 3,
-    would_use_again: 'maybe',
-    improvement_suggestions: '',
-    general_comments: ''
-  });
+ const questions = [
+     {
+       id: 'chat-level-q1',
+       text: 'Quel(s) mot(s)définit le mieux votre état d’esprit après cette session de test (3 mots max)',
+       type: 'text',
+       required: true,
+     },
+     {
+       id: 'chat-level-q2',
+       text: 'En l’état cet outil vous est-il -Utile ? par exemple, il répond à votre besoin, résout votre difficulté…(choix multiples ; Merci de justifier votre réponse à chaque item.)',
+       type: 'multiple+explanation',
+       required: true,
+       explanationRequired: true,
+       options: ['Utilisable (simple d’utilisation en autonomie) ', 'Désirable (vous avez envie de l’utiliser, vous le manipuler avec plaisir) + champ texte libre'],
+     },
+     {
+       id: 'chat-level-q3',
+       text: 'Le niveau de finesse des résultats vous semble-t-il adapté à (choix multiples)',
+       type: 'multiple',
+       required: true,
+       options: ['un néo utilisateur', 'un « usager lambda »', 'pour orienter l’utilisateur dans la richesse de Gallica', 'pour une première utilisation de Gallica', 'pour montrer les grandes tendances de la collection Gallica'],
+     },
+     {
+       id: 'chat-level-q4',
+       text: 'Commentaire libre — N’hésitez pas à partager vos impressions, idées d’amélioration ou toute autre réflexion concernant votre expérience avec l’outil.',
+       type: 'text',
+       required: false,
+     }
+   ];
+ 
+   // manage all responses states to intermediate questions
+   const [formData, setFormData] = useState(null);
+   // Check if all mandatory fields are filled
+   const [isMandatoryFilled, setIsMandatoryFilled] = useState(false);
+ 
+   const handleFormChange = (data, valid) => {
+     setFormData(data);
+     setIsMandatoryFilled(valid);
+   };
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,13 +70,16 @@ const FeedbackForm = ({ isOpen }) => {
     setError('');
     
     try {
-      await axios.post('/api/dev/submit-feedback', formData);
+      socketRef.current.emit('submit_final_feedback', {
+        formData: formData,
+        userId: sessionData.userId
+      });
       setSuccess(true);
       
       // Rediriger après un court délai
-      setTimeout(() => {
-        navigate('/chat');
-      }, 3000);
+      // setTimeout(() => {
+      //   navigate('/login');
+      // }, 3000);
       
     } catch (error) {
       console.error('Échec de soumission du feedback:', error);
@@ -88,157 +115,12 @@ const FeedbackForm = ({ isOpen }) => {
               {error && <div className="error-message">{error}</div>}
               
               <div className="form-section">
-                <h3>Évaluation globale</h3>
-                
-                <div className="rating-item">
-                  <label>Satisfaction générale</label>
-                  <div className="rating-scale">
-                    <span>Pas satisfait</span>
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <label key={value} className="rating-option">
-                        <input
-                          type="radio"
-                          name="overall_satisfaction"
-                          value={value}
-                          checked={parseInt(formData.overall_satisfaction) === value}
-                          onChange={handleChange}
-                        />
-                        <span>{value}</span>
-                      </label>
-                    ))}
-                    <span>Très satisfait</span>
-                  </div>
-                </div>
-                
-                <div className="rating-item">
-                  <label>Facilité d'utilisation</label>
-                  <div className="rating-scale">
-                    <span>Difficile</span>
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <label key={value} className="rating-option">
-                        <input
-                          type="radio"
-                          name="ease_of_use"
-                          value={value}
-                          checked={parseInt(formData.ease_of_use) === value}
-                          onChange={handleChange}
-                        />
-                        <span>{value}</span>
-                      </label>
-                    ))}
-                    <span>Très facile</span>
-                  </div>
-                </div>
-                
-                <div className="rating-item">
-                  <label>Utilité pour la recherche bibliographique</label>
-                  <div className="rating-scale">
-                    <span>Pas utile</span>
-                    {[1, 2, 3, 4, 5].map((value) => (
-                      <label key={value} className="rating-option">
-                        <input
-                          type="radio"
-                          name="usefulness"
-                          value={value}
-                          checked={parseInt(formData.usefulness) === value}
-                          onChange={handleChange}
-                        />
-                        <span>{value}</span>
-                      </label>
-                    ))}
-                    <span>Très utile</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="form-section">
-                <h3>Utilisation future</h3>
-                
-                <div className="radio-group">
-                  <label>Utiliseriez-vous à nouveau cet outil pour vos recherches?</label>
-                  <div className="radio-options">
-                    <label className="radio-option">
-                      <input
-                        type="radio"
-                        name="would_use_again"
-                        value="yes"
-                        checked={formData.would_use_again === 'yes'}
-                        onChange={handleChange}
-                      />
-                      <span>Oui, certainement</span>
-                    </label>
-                    
-                    <label className="radio-option">
-                      <input
-                        type="radio"
-                        name="would_use_again"
-                        value="maybe"
-                        checked={formData.would_use_again === 'maybe'}
-                        onChange={handleChange}
-                      />
-                      <span>Peut-être</span>
-                    </label>
-                    
-                    <label className="radio-option">
-                      <input
-                        type="radio"
-                        name="would_use_again"
-                        value="no"
-                        checked={formData.would_use_again === 'no'}
-                        onChange={handleChange}
-                      />
-                      <span>Non</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="form-section">
-                <h3>Commentaires</h3>
-                
-                <div className="textarea-group">
-                  <label htmlFor="improvement_suggestions">
-                    Suggestions d'amélioration (Optionnel)
-                  </label>
-                  <textarea
-                    id="improvement_suggestions"
-                    name="improvement_suggestions"
-                    value={formData.improvement_suggestions}
-                    onChange={handleChange}
-                    placeholder="Avez-vous des suggestions pour améliorer cet outil?"
-                    rows={4}
-                  />
-                </div>
-                
-                <div className="textarea-group">
-                  <label htmlFor="general_comments">
-                    Commentaires généraux (Optionnel)
-                  </label>
-                  <textarea
-                    id="general_comments"
-                    name="general_comments"
-                    value={formData.general_comments}
-                    onChange={handleChange}
-                    placeholder="Souhaitez-vous partager d'autres commentaires sur votre expérience?"
-                    rows={4}
-                  />
-                </div>
-              </div>
-              
-              <div className="form-actions">
-                <button 
-                  type="button" 
-                  className="cancel-btn"
-                  onClick={handleCancel}
-                  disabled={isSubmitting}
-                >
-                  Annuler
-                </button>
-                
+                <MultiTypeForm questions={questions} onChange={handleFormChange} />
+                <br></br>
                 <button 
                   type="submit" 
                   className="submit-btn"
-                  disabled={isSubmitting}
+                  disabled={!isMandatoryFilled}
                 >
                   {isSubmitting ? 'Envoi en cours...' : 'Soumettre le feedback'}
                 </button>

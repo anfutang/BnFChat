@@ -2,16 +2,63 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { FaStar, FaRegStar, FaTimes } from 'react-icons/fa';
 import './ResultModal.css';
+import MultiTypeForm from './MultiTypeForm';
 
 const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
   // State for storing feedback
-  const [preferenceType, setPreferenceType] = useState(''); // 'avec' or 'sans'
-  const [qualityRating, setQualityRating] = useState(0); // for question 2
-  const [conversationRating, setConversationRating] = useState(0); // for question 3
-  const [comment, setComment] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [renderKey, setRenderKey] = useState(0);
   const prevOpenRef = useRef(isOpen);
+
+  // intermediate question definitions
+  const questions = [
+    {
+      id: 'chat-level-q1',
+      text: 'Quel résultat préférez-vous ?',
+      type: 'single',
+      required: true,
+      options: ['Avec conversation', 'Sans conversation', 'Aussi bien', 'Aussi mal'],
+    },
+    {
+      id: 'chat-level-q2',
+      text: 'Évaluez la qualité des résultats de recherche AVEC conversation.',
+      type: 'single',
+      required: true,
+      options: ['Mauvais', 'Moyen', 'Très bien'],
+    },
+    {
+      id: 'chat-level-q3',
+      text: 'Les résultats de recherche (AVEC conversation) vous ont - ils parues :',
+      type: 'single',
+      required: true,
+      options: ['Aucun résultat', 'Non pertinents', 'Partiellement pertinents', 'Tous Pertinents'],
+    },
+    {
+      id: 'chat-level-q4',
+      text: 'La catégorisation des propositions et les questions formulées par l’outil aident-elle à progresser dans la désambiguïsation de votre requête ? Merci de justifier votre choix (optionnel).',
+      type: 'single+explanation',
+      required: true,
+      options: ['satisfaction', 'non satisfaction'],
+      explanationRequired: false,
+    },
+    {
+      id: 'chat-level-q5',
+      text: 'Quelles mots utiliseriez-vous caractériser vos interactions avec l’outils ? (choix multiples ; tous les champs sont possibles)',
+      type: 'multiple',
+      required: true,
+      options: ['Naturelles', 'Utiles', 'Informatives', 'Cohérentes', 'Engageantes', 'Surprenantes', 'Hors sujet', 'Fausses', 'Répétitives', 'Confuses', 'Trop générales']
+    }
+  ];
+
+  // manage all responses states to intermediate questions
+  const [formData, setFormData] = useState(null);
+  // Check if all mandatory fields are filled
+  const [isMandatoryFilled, setIsMandatoryFilled] = useState(false);
+
+  const handleFormChange = (data, valid) => {
+    setFormData(data);
+    setIsMandatoryFilled(valid);
+  };
   
   // Force re-render when modal open state changes
   useEffect(() => {
@@ -26,10 +73,10 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
   useEffect(() => {
     if (isOpen && resultData && !resultData.feedbackSaved) {
       console.log("⭐ Resetting feedback state with new data");
-      setPreferenceType('');
-      setQualityRating(0);
-      setConversationRating(0);
-      setComment('');
+      // setPreferenceType('');
+      // setQualityRating(0);
+      // setConversationRating(0);
+      // setComment('');
       setFeedbackSubmitted(false);
     }
   }, [isOpen, resultData]);
@@ -43,10 +90,7 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
       feedbackSubmitted
     });
   }, [isOpen, isLoading, resultData, renderKey, feedbackSubmitted]);
-  
-  // Check if all mandatory fields are filled
-  const isMandatoryFilled = preferenceType !== '' && qualityRating > 0 && conversationRating > 0;
-  
+
   // If modal is closed, don't render anything
   if (!isOpen) return null;
 
@@ -59,11 +103,10 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
     // Use the passed socketRef instead of window.socket
     if (socketRef?.current) {
       console.log("⭐ Submitting feedback...");
+      console.log(formData);
+
       socketRef.current.emit('submit_conv_feedback', {
-        preferenceType,
-        qualityRating,
-        conversationRating,
-        comment,
+        formData: formData,
         resultId: resultData?.id,
         chatId: resultData?.chatId
       });
@@ -88,37 +131,6 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
       onClose();
     }
     // Don't allow closing if we have results - user must submit feedback
-  };
-
-  // Render star rating with labels
-  const renderRatingStars = (currentValue, setValueFunction, ratingId) => {
-    const ratingLabels = ["Très mauvais", "Mauvais", "Moyen", "Bon", "Parfait"];
-    
-    return (
-      <div className="rating-container">
-        <div className="stars-container">
-          {Array(5).fill(0).map((_, i) => (
-            <span 
-              key={`${ratingId}-${i}`} 
-              onClick={() => setValueFunction(i + 1)}
-              className="star-icon"
-            >
-              {i < currentValue ? <FaStar className="filled" /> : <FaRegStar />}
-            </span>
-          ))}
-        </div>
-        <div className="rating-labels">
-          {ratingLabels.map((label, i) => (
-            <span 
-              key={`label-${ratingId}-${i}`} 
-              className={`rating-label ${currentValue === i + 1 ? 'selected' : ''}`}
-            >
-              {label}
-            </span>
-          ))}
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -214,35 +226,8 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
               
               {!feedbackSubmitted ? (
                 <div className="feedback-section">
-                  <h4>Q1. Quel résultat préférez-vous ? <span className="mandatory">*</span></h4>
-                  <div className="preference-selector">
-                    <div 
-                      className={`preference-option ${preferenceType === 'avec' ? 'selected' : ''}`}
-                      onClick={() => setPreferenceType('avec')}
-                    >
-                      Avec conversation
-                    </div>
-                    <div 
-                      className={`preference-option ${preferenceType === 'sans' ? 'selected' : ''}`}
-                      onClick={() => setPreferenceType('sans')}
-                    >
-                      Sans conversation
-                    </div>
-                  </div>
-
-                  <h4>Q2. Évaluez la qualité du résultat avec conversation. <span className="mandatory">*</span></h4>
-                  {renderRatingStars(qualityRating, setQualityRating, 'quality')}
-
-                  <h4>Q3. Évaluez la qualité globale de la conversation. <span className="mandatory">*</span></h4>
-                  {renderRatingStars(conversationRating, setConversationRating, 'conversation')}
-
-                  <h4>Q4. (optionnel) Si vous connaissez le format SRU, comment formuleriez-vous une requête SRU pour votre intention de recherche ?</h4>
-                  <textarea
-                    placeholder="Requête SRU que vous souhaiteriez utiliser"
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    rows={3}
-                  />
+                  <MultiTypeForm questions={questions} onChange={handleFormChange} />
+                  <br></br>
                   <button 
                     className={`submit-feedback ${!isMandatoryFilled ? 'disabled' : ''}`}
                     onClick={handleSubmitConvFeedback}

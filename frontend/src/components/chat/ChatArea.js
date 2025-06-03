@@ -23,6 +23,7 @@ const ChatArea = ({
   onSendMessage,
   isConnected,
   isStreaming,
+  isTimerRunning,
   currentChatId
 }) => {
 
@@ -51,19 +52,20 @@ const ChatArea = ({
   };
 
   const getPlaceholder = () => {
-    if (!isConnected) return "Connecting...";
-    if (isStreaming) return "Processing your request...";
+    if (!isConnected) return "Connexion...";
+    if (isStreaming) return "Traitement en cours...";
+    if (!isTimerRunning) return "Le minuteur est en pause. Relancez-le pour continuer.";
     
     // Check if topic is required but not selected
     if (sessionData?.sessionId > 1 && !selectedTopic) {
-      return "Please select a topic first...";
+      return "Veuillez d'abord sélectionner un sujet pour continuer.";
     }
     
     switch (sessionData?.sessionId) {
-      case 1: return "Ask a question to start the tutorial...";
-      case 2: return "Try a search query (exercise session)...";
-      case 3: return "Search the BNF collections...";
-      default: return "Type your message...";
+      case 1: return "Zone de saisie : veuillez entrer votre texte ici.";
+      case 2: return "Commencez par un message pour vous échauffer !";
+      case 3: return "Entrez votre message…";
+      default: return "Entrez votre message…";
     }
   };
 
@@ -117,7 +119,7 @@ const ChatArea = ({
         value={userInput}
         onChange={setUserInput}
         onSend={handleSend}
-        disabled={!isConnected || isStreaming || (sessionData?.sessionId > 1 && !selectedTopic)}
+        disabled={!isConnected || isStreaming || (sessionData?.sessionId > 1 && !selectedTopic) || !isTimerRunning}
         attachButton={false}
       />
     </div>
