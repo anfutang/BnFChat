@@ -1,7 +1,8 @@
 import time
 import json
-from flask import Blueprint, request, session
-from flask_socketio import emit, disconnect
+from flask import Blueprint, request
+from flask import session
+from flask_socketio import emit, disconnect, join_room, leave_room
 from .chat_manager import ChatManager
 from .db import db
 from .models import User, Chat
@@ -12,7 +13,7 @@ import datetime
 
 bp = Blueprint('stream', __name__)
 socketio = None
-socket_user_sessions = {}
+# REMOVED: socket_user_sessions = {}
 
 def init_socketio(socketio_instance):
     global socketio
@@ -21,7 +22,8 @@ def init_socketio(socketio_instance):
 
 def socketio_auth_required(f):
     def decorated_function(*args, **kwargs):
-        user_id = socket_user_sessions.get(request.sid)
+        # Use Flask-SocketIO's session instead of global dict
+        user_id = session.get('user_id')
         if not user_id:
             emit('error', {'message': 'Not authenticated'})
             return
@@ -37,7 +39,13 @@ def register_socketio_events():
         user_id = None
         if auth and 'userId' in auth:
             user_id = auth['userId']
-            socket_user_sessions[request.sid] = user_id
+            
+            # IMPORTANT: Store the user_id in the session for this socket connection
+            session['user_id'] = user_id  # Add this line!
+            
+            # Join a room specific to this user for targeted messaging
+            join_room(f'user_{user_id}')
+            
             print(f'User {user_id} authenticated via socket')
             
             # Auto-trigger session data retrieval after authentication
@@ -63,15 +71,18 @@ def register_socketio_events():
     @socketio.on('disconnect')
     def handle_disconnect():
         print(f'Client disconnected: {request.sid}')
-        if request.sid in socket_user_sessions:
-            del socket_user_sessions[request.sid]
+        user_id = session.get('user_id')
+        if user_id:
+            leave_room(f'user_{user_id}')
+            # Optionally clear the session data
+            session.pop('user_id', None)
     
     # ========== SESSION DATA (moved from HTTP) ==========
     @socketio.on('get_session_data')
     @socketio_auth_required
     def handle_get_session_data():
         try:
-            user_id = socket_user_sessions.get(request.sid)
+            user_id = session.get('user_id')
             user = User.query.get(user_id)
             
             if not user:
@@ -110,7 +121,7 @@ def register_socketio_events():
     @socketio_auth_required
     def handle_get_topics():
         try:
-            user_id = socket_user_sessions.get(request.sid)
+            user_id = session.get('user_id')
             user = User.query.get(user_id)
             
             if not user:
@@ -141,7 +152,7 @@ def register_socketio_events():
     @socketio_auth_required
     def handle_select_topic(data):
         try:
-            user_id = socket_user_sessions.get(request.sid)
+            user_id = session.get('user_id')
             topic_id = data.get('topicId')
             
             if topic_id is None or topic_id < 0:
@@ -212,7 +223,7 @@ def register_socketio_events():
                 emit('error', {'message': 'Invalid session id or timer value.'})
                 return 
             
-            user_id = socket_user_sessions.get(request.sid)
+            user_id = session.get('user_id')
             user = User.query.get(user_id)
             if not user:
                 emit('error', {'message': 'User not found'})
@@ -242,7 +253,7 @@ def register_socketio_events():
     def handle_send_message(data):
         try:
             user_input = data.get('message', '').strip()
-            user_id = socket_user_sessions.get(request.sid)
+            user_id = session.get('user_id')
             
             if not user_input:
                 emit('error', {'message': 'Empty message'})
@@ -291,7 +302,7 @@ def register_socketio_events():
             })
             
             # Process message with workflow
-            process_chat_message(user_input, user_id, chat.id, session_id, request.sid)
+            process_chat_message(user_input, user_id, chat.id, session_id)
             
         except Exception as e:
             print(f"Error in handle_send_message: {str(e)}")
@@ -301,7 +312,7 @@ def register_socketio_events():
     @socketio_auth_required
     def handle_get_chat_state():
         try:
-            user_id = socket_user_sessions.get(request.sid)
+            user_id = session.get('user_id')
             user = User.query.get(user_id)
             
             if not user:
@@ -324,7 +335,7 @@ def register_socketio_events():
     @socketio.on('erase_chat')
     @socketio_auth_required
     def erase_chat():
-        user_id = socket_user_sessions.get(request.sid)
+        user_id = session.get('user_id')
         
         # Get user session info
         user = User.query.get(user_id)
@@ -358,7 +369,7 @@ def register_socketio_events():
     def handle_session_change(data):
         try:
             new_session_id = data.get('session_id')
-            user_id = socket_user_sessions.get(request.sid)
+            user_id = session.get('user_id')
             
             if new_session_id not in [1, 2, 3, 4]:
                 emit('error', {'error': 'Invalid session ID'})
@@ -370,13 +381,6 @@ def register_socketio_events():
                 return
             
             old_session_id = user.session_id
-            
-            # if old_session_id == new_session_id:
-            #     emit('session_change_success', {
-            #         'session_id': new_session_id,
-            #         'message': f'Already in session {new_session_id}'
-            #     })
-            #     return
             
             # End ongoing chats
             Chat.query.filter_by(
@@ -454,9 +458,9 @@ def register_socketio_events():
             }
             
             # Save feedback and end chat
-            chat = User.query.get(user_id)
-            if chat:
-                chat.feedback = feedback_data
+            user = User.query.get(user_id)
+            if user:
+                user.feedback = feedback_data
                 db.session.commit()
                 
                 # Emit feedback saved first
@@ -470,13 +474,13 @@ def register_socketio_events():
         except Exception as e:
             emit('error', {'message': str(e)})
 
-def process_chat_message(user_input, user_id, chat_id, session_id, socket_session_id):
+def process_chat_message(user_input, user_id, chat_id, session_id):
     """Process chat message with simple workflow"""
     try:
         # Refresh chat from database to ensure we have latest data
         chat = Chat.query.get(chat_id)
         if not chat:
-            socketio.emit('error', {'error': 'Chat not found'}, to=socket_session_id)
+            socketio.emit('error', {'error': 'Chat not found'}, room=f'user_{user_id}')
             return
         
         # Force refresh to ensure we have the latest chat history
@@ -490,7 +494,7 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
                 conv_history.append(msg['content'])
         
         # Create and execute workflow with expected format
-        graph = build_graph(socketio)
+        graph = build_graph(socketio, user_id)  # Pass user_id to build_graph
         print(f"##### {chat_id}; {type(chat_id)}")
         state = graph.invoke({"conv_history": conv_history, "chat_id":chat_id})
         
@@ -501,7 +505,7 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
         success, error = ChatManager.add_message_to_chat(chat_id, 'assistant', assistant_response)
         if not success:
             print(f"[process_chat_message] Failed to save assistant response: {error}")
-            socketio.emit('error', {'error': f'Failed to save response: {error}'}, to=socket_session_id)
+            socketio.emit('error', {'error': f'Failed to save response: {error}'}, room=f'user_{user_id}')
             return
         
         # Handle special statuses
@@ -509,7 +513,7 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
         if status_tag == "search":
             socketio.emit("results_triggered", {
                 "info": "Recherche déclenchée"
-            }, to=socket_session_id)
+            }, room=f'user_{user_id}')
 
             # Process search results
             try:
@@ -525,10 +529,10 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
                     'timestamp': datetime.datetime.now().isoformat()
                 }
                 
-                socketio.emit('results_data', result_data, to=socket_session_id)
+                socketio.emit('results_data', result_data, room=f'user_{user_id}')
             except Exception as e:
                 print(f"[process_chat_message] Error processing results: {str(e)}")
-                socketio.emit('results_error', {'error': str(e)}, to=socket_session_id)
+                socketio.emit('results_error', {'error': str(e)}, room=f'user_{user_id}')
                 
         elif status_tag == "end":
             # Handle chat ending
@@ -536,14 +540,14 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
             socketio.emit('chat_ended', {
                 'chat_id': chat_id,
                 'reason': state.get("status")
-            }, to=socket_session_id)
+            }, room=f'user_{user_id}')
         elif status_tag == "error":
             # Handle error state
             error_msg = state.get("error_message", "Unknown error occurred")
             print(f"[process_chat_message] Graph error: {error_msg}")
             socketio.emit('error', {
                 'error': error_msg
-            }, to=socket_session_id)
+            }, room=f'user_{user_id}')
 
     except Exception as e:
         print(f"[process_chat_message] Error: {str(e)}")
@@ -551,4 +555,4 @@ def process_chat_message(user_input, user_id, chat_id, session_id, socket_sessio
         traceback.print_exc()
         socketio.emit('error', {
             'error': str(e)
-        }, to=socket_session_id)
+        }, room=f'user_{user_id}')

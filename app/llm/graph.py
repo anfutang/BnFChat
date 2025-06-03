@@ -40,7 +40,7 @@ def is_fisrt_input(conv_history: list):
 # change topic
 
 # --- State definition ---
-def build_graph(socketio): # socketio instance
+def build_graph(socketio, user_id):
     class State(TypedDict, total=False):
         conv_history: List[str]
         chat_id: int
@@ -66,7 +66,7 @@ def build_graph(socketio): # socketio instance
         socketio.emit("graph_update", {
             "node": "conv_action_detection",
             "info": "Le système oriente la conversation…"
-        })
+        }, room=f'user_{user_id}') 
 
         conv_history = state["conv_history"]
 
@@ -93,7 +93,7 @@ def build_graph(socketio): # socketio instance
 
             socketio.emit("user_intent", {
                 "user_intent": state["user_intent"]
-            })
+            }, room=f'user_{user_id}') 
         elif conv_action == "continue":
             state["status"] = "advance"
         return state
@@ -102,7 +102,7 @@ def build_graph(socketio): # socketio instance
         socketio.emit("graph_update", {
             "node": "ambiguity_detection",
             "info": "Analyse de l’ambiguïté en cours… "
-        })
+        }, room=f'user_{user_id}') 
         conv_history = state["conv_history"]
         if is_fisrt_input(conv_history) or not state.get("last_user_intent"):
             call_llm_result = call_entity_disambiguation(conv_history)
@@ -129,7 +129,7 @@ def build_graph(socketio): # socketio instance
             
             socketio.emit("user_intent", {
                 "user_intent": state["user_intent"]
-            })
+            }, room=f'user_{user_id}')
         
         return state
 
@@ -137,7 +137,7 @@ def build_graph(socketio): # socketio instance
         socketio.emit("graph_update", {
             "node": "knn_relevance_check",
             "info": "Recherche en cours de contenus pertinents…"
-        })
+        }, room=f'user_{user_id}')
         
         user_intent = state["user_intent"]
         knn_result = knn(user_intent,20)
@@ -171,7 +171,7 @@ def build_graph(socketio): # socketio instance
         socketio.emit("graph_update", {
             "node": "rac",
             "info": "Analyse pour déterminer si une clarification est requise…"
-        })
+        }, room=f'user_{user_id}')
 
         conv_history = state["conv_history"]
         relevant_facets = state.get("relevant_facets", [])
@@ -216,12 +216,12 @@ def build_graph(socketio): # socketio instance
                 'chat_id': state["chat_id"],
                 'content': state["response"],
                 'status': state["status"]
-            })
+            }, room=f'user_{user_id}')
 
         socketio.emit("graph_update", {
             "node": "search",
             "info": "Préparation de la recherche : génération de la requête SRU en cours…"
-        })
+        }, room=f'user_{user_id}')
         
         # generate SRU and parse from the raw LLM result
         call_llm_result = call_nl2sru(user_intent, sru_hint)
@@ -239,7 +239,7 @@ def build_graph(socketio): # socketio instance
         socketio.emit("graph_update", {
             "node": "search",
             "info": "Préparation de la recherche : Interaction avec Gallica en cours…"
-        })
+        }, room=f'user_{user_id}')
 
         # fetch results w/ and w/o conversation using Gallica API
         first_user_query = state["conv_history"][0]
@@ -260,12 +260,12 @@ def build_graph(socketio): # socketio instance
                 'chat_id': state["chat_id"],
                 'content': state["response"],
                 'status': state.get("status", "completed")
-            })
+            }, room=f'user_{user_id}')
         
         socketio.emit("graph_update", {
             "node": "finalize",
             "info": "finalize"
-        })
+        }, room=f'user_{user_id}')
         return state
 
     # --- build LangGraph ---
