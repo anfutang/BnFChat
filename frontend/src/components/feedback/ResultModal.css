@@ -12,30 +12,34 @@
 }
 
 .result-modal {
+  position: relative;
   background: white;
   border-radius: 8px;
-  padding: 20px;
-  width: 90%;
+  padding: 0;
+  width: 60%;
   height: 90%;
-  max-width: 60vw;
-  max-height: 80vh;
-  overflow-y: auto;
+  overflow: hidden;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   z-index: 1001;
+  /* border: 3px solid orange; */
 }
 
 .result-modal-header {
+  position: relative;
+  height: 2%;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
   border-bottom: 1px solid #e0e0e0;
+  /* border: 3px solid blue; */
+  background-color: black;
 }
 
 .result-modal-header h2 {
   margin: 0;
   font-size: 1.2rem;
-  color: #333;
+  color: white;
 }
 
 .close-btn {
@@ -52,11 +56,14 @@
 }
 
 .result-modal-content {
+  position: relative;
+  height: 100%;
   padding: 20px;
   font-size: 1.2rem;
   overflow-y: auto;
-  flex: 1;
+  overflow-x: hidden;
   border-bottom: 1px solid #e0e0e0;
+  /* border: 3px solid sandybrown; */
 }
 
 .result-modal-footer {
@@ -95,6 +102,7 @@
   border-radius: 4px;
   padding: 10px;
   font-family: monospace;
+  font-size: 0.9rem;
   margin-bottom: 20px;
   overflow-x: auto;
   white-space: pre-wrap;
@@ -105,6 +113,8 @@
   display: flex;
   flex-direction: row;
   justify-content: space-between;
+  text-align: left;
+  /* border: 3px solid green; */
 }
 
 .result-data {
@@ -124,7 +134,7 @@
   flex-direction: column;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   width: 100%;
-  max-height: 20vh;
+  max-height: 30vh;
   gap: 20px;
   overflow-y: auto;
   border: #dcdcdc 3px solid;
@@ -137,7 +147,8 @@
   padding: 15px;
   background-color: #fafafa;
   transition: box-shadow 0.3s ease;
-  width: 100%;
+  width: 90%;
+  font-size: 1rem;
 }
 
 .result-item:hover {
@@ -193,15 +204,11 @@
 .no-results {
   padding: 20px;
   text-align: center;
+  font-family: monospace;
+  font-size: 0.9rem;
   background-color: #f9f9f9;
   border-radius: 5px;
-  color: #666;
-}
-
-.feedback-section {
-  margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
+  color: black;
 }
 
 .stars-container {
@@ -231,30 +238,57 @@ textarea {
   font-family: inherit;
 }
 
-.submit-feedback, .close-after-feedback {
-  background-color: #4caf50;
+.feedback-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+  /* border: 3px solid red; */
+  height: 95%;
+  text-align: left;
+}
+
+.feedback-footer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 5%;
+  margin-top: 2px;
+  padding: 15px;
+  border-top: 1px solid #eee;
+  /* border: 2px solid red; */
+}
+
+.submit-feedback-btn {
+  background-color: black;
   color: white;
+  font-size: 0.9rem;
+  font-family: monospace;
   border: none;
-  padding: 10px 20px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
   transition: background-color 0.3s;
+  height: 100%;
+  margin: 5px;
 }
 
-.submit-feedback:hover, .close-after-feedback:hover {
-  background-color: #45a049;
+.submit-feedback-btn:hover, .close-after-feedback:hover {
+  opacity: 1.2;
 }
 
-.submit-feedback:disabled {
-  background-color: #cccccc;
+.submit-feedback-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .feedback-thank-you {
   text-align: center;
   padding: 20px;
-  background-color: #f0f7f0;
+  background-color: #3a3a3a;
   border-radius: 5px;
   margin-top: 20px;
 }
@@ -262,7 +296,7 @@ textarea {
 .feedback-thank-you p {
   font-size: 1.1rem;
   margin-bottom: 15px;
-  color: #4caf50;
+  color: white;
 }
 
 /* New CSS styles for the updated feedback section */

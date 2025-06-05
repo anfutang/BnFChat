@@ -51,31 +51,31 @@ const Register = () => {
 
     // Validate inputs
     if (!username || !password || !confirmPassword) {
-      setError('All fields are required');
+      setError('Veuillez remplir tous les champs');
       setIsLoading(false);
       return;
     }
 
     if (username.length < 3) {
-      setError('Username must be at least 3 characters');
+      setError("Le nom d'utilisateur doit comporter au moins 3 caractères");
       setIsLoading(false);
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError("Le mot de passe doit comporter exactement 6 caractères alphanumériques");
       setIsLoading(false);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError('Les mots de passe ne correspondent pas');
       setIsLoading(false);
       return;
     }
 
     if (usernameAvailable === false) {
-      setError('Username is already taken');
+      setError("L'utilisateur existe déjà");
       setIsLoading(false);
       return;
     }
@@ -86,7 +86,7 @@ const Register = () => {
       if (result.success) {
         navigate('/profile');
       } else {
-        setError(result.message || 'Registration failed');
+        setError(result.message || "Échec de l'inscription");
       }
     } catch (err) {
       setError('An unexpected error occurred');
@@ -99,13 +99,17 @@ const Register = () => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>Register</h2>
+        <div className="auth-logo-container">
+          <div className="img-container"><img src="/blossom.png" alt="Logo" /></div>
+          <h1>BnFChat</h1>
+        </div>
+        <h2>Inscriptioin</h2>
         
         {error && <div className="auth-error">{error}</div>}
         
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">Identifiant</label>
             <input
               type="text"
               id="username"
@@ -114,14 +118,15 @@ const Register = () => {
               disabled={isLoading}
               required
               minLength={3}
+              style={{ width:"90%" }}
             />
-            {isCheckingUsername && <small>Checking availability...</small>}
-            {usernameAvailable === true && <small className="text-success">Username is available</small>}
-            {usernameAvailable === false && <small className="text-danger">Username is already taken</small>}
+            {isCheckingUsername && <small>Vérification de la disponibilité...</small>}
+            {usernameAvailable === true && <small className="text-success">Nom d'utilisateur disponible</small>}
+            {usernameAvailable === false && <small className="text-danger">Nom d'utilisateur déjà pris</small>}
           </div>
           
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">Mot de Passe</label>
             <input
               type="password"
               id="password"
@@ -130,11 +135,12 @@ const Register = () => {
               disabled={isLoading}
               required
               minLength={6}
+              style={{ width:"90%" }}
             />
           </div>
           
           <div className="form-group">
-            <label htmlFor="confirmPassword">Confirm Password</label>
+            <label htmlFor="confirmPassword">Confirmer le mot de passe</label>
             <input
               type="password"
               id="confirmPassword"
@@ -142,6 +148,7 @@ const Register = () => {
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={isLoading}
               required
+              style={{ width:"90%" }}
             />
           </div>
           
@@ -149,14 +156,15 @@ const Register = () => {
             type="submit" 
             className="auth-button"
             disabled={isLoading || isCheckingUsername || usernameAvailable === false}
+            style={{ width:"50%" }}
           >
-            {isLoading ? 'Registering...' : 'Register'}
+            {isLoading ? 'Inscription en cours...' : "S'inscrire"}
           </button>
         </form>
         
         <div className="auth-links">
           <p>
-            Already have an account? <Link to="/login">Login</Link>
+            Already have an account? <Link to="/login" style={{ color:"black", fontWeight:"800" }}>Se connecter</Link>
           </p>
         </div>
       </div>

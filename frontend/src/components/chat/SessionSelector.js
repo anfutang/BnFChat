@@ -6,6 +6,7 @@ import "./SessionSelector.css"
 const SessionSelector = ({ 
   sessionData, 
   topics, 
+  isStreaming,
   selectedTopic, 
   onSessionChange, 
   onTopicSelect,
@@ -21,13 +22,13 @@ const SessionSelector = ({
       case 1: return "Tutoriel";
       case 2: return "Exercise";
       case 3: return "Test Officiel";
-      default: return "Unknown";
+      default: return "--";
     }
   };
 
   return (
-    <div className="session-selector">
-      <div className="session-info">
+    <div className="session-selector" id="session-selector">
+      <div className="session-info" id="session-progression">
         <h3>Progression</h3>
         
         {/* Session Navigation */}
@@ -44,7 +45,7 @@ const SessionSelector = ({
       <br></br>
       
       <h3>Temps restant</h3>
-      <div className="timer-container">
+      <div className="timer-container" id="timer">
         <div className="timer">{formattedTime}</div>
         {isTimerRunning ? (
           <button className="timer-controller-btn" onClick={pauseTimer} disabled={sessionData.sessionId === 1 || sessionData.sessionId >= 4}><FaPause style={{ verticalAlign: 'middle' }}/></button>
@@ -58,12 +59,13 @@ const SessionSelector = ({
       <h3>Liste de Sujets</h3>
       {/* Topic Selection for Exercise/Test Sessions */}
       {sessionData?.sessionId < 4 && (
-        <div className="topic-list">
+        <div className="topic-list" id="topic-list">
           {topics.map(topic => (
             <button
               key={topic.id}
               className={`topic-btn ${selectedTopic?.id === topic.id ? 'selected' : 'unselected'}`}
               onClick={() => onTopicSelect(topic)}
+              disabled={isStreaming}
             >
               <div className="topic-name"><strong>{topic.name} {selectedTopic?.id === topic.id ? '✔️' : ''}</strong></div>
               <div className="topic-category" style={{ fontStyle: 'italic' }}>{topic.category}</div>

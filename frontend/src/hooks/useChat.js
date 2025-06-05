@@ -3,7 +3,7 @@ import { Message } from '@chatscope/chat-ui-kit-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
-export const useChat = () => {
+export const useChat = ({setMessageModal}) => {
   // Single source of truth states
   const [currentChatId, setCurrentChatId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -134,7 +134,7 @@ export const useChat = () => {
         });
 
         socket.on('assistant_response', (data) => {
-          console.log("📩 assistant_response received:", data);
+          // console.log("📩 assistant_response received:", data);
 
           // if (data.status.split(':')[0] !== "search") {
           //   setIsStreaming(false);
@@ -204,12 +204,17 @@ export const useChat = () => {
           setCurrentChatId(null);
           setMessages([]);
           setDetectedUserIntent('');
+          setAssistantStatus();
+          setIsStreaming(false);
         });
 
         socket.on('ongoing_chats_terminated', (data) => {
           console.log('Ongoing chats terminated:', data.reason);
           setCurrentChatId(null);
           setMessages([]);
+          setDetectedUserIntent('');
+          setAssistantStatus();
+          setIsStreaming(false);
         });
 
         // ========== SESSION CHANGE EVENTS ==========
@@ -228,7 +233,8 @@ export const useChat = () => {
 
         // ========== ERROR HANDLING ==========
         socket.on('error', (data) => {
-          setError(data.message);
+          // setError(data.message);
+          setMessageModal('warning',"Une erreur s'est produite",data["error"],'OK');
           console.error('Socket error:', data);
         });
 
@@ -346,6 +352,7 @@ export const useChat = () => {
     messages,
     isConnected,
     isStreaming,
+    setIsStreaming,
     error,
     assistantStatus,
     detectedUserIntent,
@@ -353,8 +360,11 @@ export const useChat = () => {
     
     // Session and topic data
     sessionData,
+    setSessionData,
     topics,
     selectedTopic,
+    setSelectedTopic,
+    setAssistantStatus,
     
     // Refs
     socketRef,

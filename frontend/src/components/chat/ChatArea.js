@@ -9,8 +9,22 @@ import {
   Avatar,
   TypingIndicator
 } from '@chatscope/chat-ui-kit-react';
+// import { ThemeProvider, defaultTheme } from '@chatscope/chat-ui-kit-styles/';
 
+// import '@chatscope/chat-ui-kit-styles/dist/default/styles.min.css';
 import "./ChatArea.css"
+
+// const myCustomTheme = {
+//   ...defaultTheme,
+//   messageInput: {
+//     ...defaultTheme.messageInput,
+//     background: "#000000",       
+//     textColor: "#ffffff",       
+//     placeholderColor: "#888888", 
+//     border: "1px solid #444",
+//     borderRadius: "8px",
+//   }
+// };
 
 const ChatArea = ({
   sessionData,
@@ -70,10 +84,10 @@ const ChatArea = ({
   };
 
   return (
-    <div className="chat-area">
+    <div className="chat-area" id="chat-area">
       <ConversationHeader>
         <ConversationHeader.Content>
-          <div className="header-content">
+          <div className="header-content" id="conv-info-area">
             <div className="topic-info">
               <strong>SUJET</strong> - {selectedTopic && (selectedTopic.name)}
             </div>
@@ -90,12 +104,16 @@ const ChatArea = ({
         </ConversationHeader.Actions> */}
       </ConversationHeader>
       
-      <MessageList className="message-list">
+      <MessageList className="message-list" id="message-area">
         {/* Chat messages */}
         {processedMessages.map((msgModel, index) => (
           <Message 
             key={index} 
             model={msgModel}
+            style={{
+              textAlign: msgModel.direction === "incoming" ? "left" : "right",
+              marginBottom: "20px"
+            }}
           ></Message>
         ))}
         
@@ -115,12 +133,19 @@ const ChatArea = ({
       
       <MessageInput 
         className="message-input"
+        id="message-input"
         placeholder={getPlaceholder()}
         value={userInput}
         onChange={setUserInput}
         onSend={handleSend}
-        disabled={!isConnected || isStreaming || (sessionData?.sessionId > 1 && !selectedTopic) || !isTimerRunning}
+        disabled={sessionData.sessionId === 1 ? false : (!isConnected || isStreaming || (sessionData?.sessionId > 1 && !selectedTopic) || !isTimerRunning)}
         attachButton={false}
+        style={{ textAlign:"left" }}
+        textareaProps={{
+          style: {
+            backgroundColor: 'black',
+          },
+        }}
       />
     </div>
   );

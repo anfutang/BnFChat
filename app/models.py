@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import Column, Integer, String, Boolean, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from .db import db
+from .utils.constant import PROFILE_KEYS
 
 class User(db.Model):
     __tablename__ = 'user'
@@ -13,7 +14,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    user_level = db.Column(db.Integer,nullable=False)
+    permission_level = db.Column(db.Integer,nullable=False)
     session_id = db.Column(db.Integer, nullable=False, default=1)
     exercise_topic_id = db.Column(db.Integer, nullable=False, default=0)
     test_topic_id = db.Column(db.Integer, nullable=False, default=0)
@@ -22,21 +23,22 @@ class User(db.Model):
     avatar_seed = db.Column(db.Integer, nullable=True)
     profile_created = db.Column(db.Boolean, nullable=True, default=False)
     feedback = db.Column(db.JSON, nullable=True)
+    profile = db.Column(db.JSON, nullable=True)
     
     # Relationship
     chats = db.relationship('Chat', backref='user', lazy=True)
     
-    def __init__(self, username, password, user_level, profile_created=False):
+    def __init__(self, username, password, permission_level=1, profile_created=False):
         self.username = username
         self.password = generate_password_hash(password)
-        self.user_level = user_level
-        self.profile_created = profile_created
-        self.avatar_seed = random.randint(1, 1000000)
+        self.permission_level = permission_level
         self.session_id = 1
         self.exercise_topic_id = 0
         self.test_topic_id = 0
         self.timer_exercise = 300
         self.timer_test = 2100
+        self.avatar_seed = 1
+        self.profile_created = profile_created
     
     def check_password(self, password):
         """Check if provided password matches stored hash"""
@@ -111,8 +113,8 @@ def create_user(username, password):
 def update_user(user, profile_data):
     """Update user profile with provided data"""
     # Update avatar seed if provided
-    if 'avatarSeed' in profile_data:
-        user.avatar_seed = profile_data['avatarSeed']
+    if 'avatar_seed' in profile_data:
+        user.avatar_seed = profile_data['avatar_seed']
     
     # Update exercise topic if provided
     if 'exerciseTopicId' in profile_data:
@@ -132,6 +134,9 @@ def update_user(user, profile_data):
     # Update session ID if provided
     if 'sessionId' in profile_data:
         user.session_id = profile_data['sessionId']
+
+    # Profile question answers
+    user.profile = {ky:profile_data[ky] for ky in PROFILE_KEYS}    
     
     # Mark profile as created
     user.profile_created = True

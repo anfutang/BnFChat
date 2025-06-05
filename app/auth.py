@@ -37,6 +37,7 @@ def check_auth():
         "user": {
             "id": user.id,
             "username": user.username,
+            "permission_level": user.permission_level,
             "avatarSeed": user.avatar_seed,
             "profileCompleted": user.profile_created
         }
@@ -52,21 +53,23 @@ def register():
     
     # Check if username already exists
     if User.query.filter_by(username=username).first() is not None:
-        return jsonify({"error": "Username already exists"}), 400
+        return jsonify({"error": "L'utilisateur existe déjà"}), 400
     
     # Create the user in the database
     user = create_user(username, password)
     
+    print("========USER CREATED")
+
     # Store user ID in session
     session["user_id"] = user.id
     session["username"] = username
-    session["avatar-seed"] = user.avatar_seed
+    session["avatar-seed"] = 1
     
     return jsonify({
         "success": True,
         "username": username,
-        "avatarSeed": user.avatar_seed,
-        "profileCompleted": user.profile_created
+        "avatarSeed": 1,
+        "profileCompleted": False
     })
 
 @bp.route('/check-username', methods=['POST'])
@@ -81,20 +84,21 @@ def check_username_availability():
 @login_required
 def profile_submit():
     """Update user profile data for authenticated user"""
-    profile_data = request.json.get('userProfileData', {})
+    user_profile_data = request.json.get('userProfileData', {})
     
     # User must be authenticated to reach this point due to @login_required
     user = g.user
     
     # Update user with profile data
-    update_user(user, profile_data)
+    update_user(user, user_profile_data)
     
     # Update session data
-    session["avatar-seed"] = user.avatar_seed
+    session["avatar_seed"] = user.avatar_seed
     
     return jsonify({
         "success": True,
         "username": user.username,
+        "permissionLevel": user.permission_level,
         "avatarSeed":user.avatar_seed,
         "profileCompleted": True
     })
@@ -117,12 +121,13 @@ def login():
     # Login success
     session["user_id"] = user.id
     session["username"] = username
-    session["avatar-seed"] = user.avatar_seed
-    session["first_input"] = True
-    session["annotation_submitted"] = True
-    session["chat_mode"] = "respond"
-    session["process"] = []
-    session["dev_mode"] = IS_DEV_MODE
+    session["permission_level"] = user.permission_level
+    session["avatar_seed"] = user.avatar_seed
+    # session["first_input"] = True
+    # session["annotation_submitted"] = True
+    # session["chat_mode"] = "respond"
+    # session["process"] = []
+    # session["dev_mode"] = IS_DEV_MODE
     clear_current_turn()
 
     # Return user data
@@ -130,6 +135,7 @@ def login():
         'success': True,
         'username': username,
         'avatarSeed': user.avatar_seed,
+        'userLevel': user.permission_level,
         'profileCompleted': user.profile_created
     })
 

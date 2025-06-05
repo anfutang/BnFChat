@@ -44,20 +44,17 @@ def create_default_users():
         current_app.logger.info("Users already exist, skipping default user creation")
         return
     
-    # Define default users with username/passwor
-    
-    
     # Create users using a list of default users
     for user_data in DEFAULT_USERS:
         username = user_data.get('username')
         password = user_data.get('password')
-        user_level = user_data.get('user_level')
+        permission_level = user_data.get('permission_level')
         profile_created = user_data.get('profile_created', False)
         # Create user with appropriate permissions
         new_user = User(
             username=username, 
             password=password,
-            user_level=user_level,
+            permission_level=permission_level,
             profile_created=profile_created
         )
         db.session.add(new_user)

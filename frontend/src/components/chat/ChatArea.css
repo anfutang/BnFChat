@@ -19,6 +19,7 @@
     height: 20%;
     /* border: 3px solid #ac0c0c; */
     font-size: 1.1rem;
+    gap: 50px,
 }
 
 .message-input {
@@ -42,6 +43,7 @@
     font-family: monospace;
     color: black;
     font-size: 0.9rem;    
+    text-align: left;
 }
 
 .status-indicator {

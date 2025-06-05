@@ -54,6 +54,10 @@ const Login = () => {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        <div className="auth-logo-container">
+          <div className="img-container"><img src="/blossom.png" alt="Logo" /></div>
+          <h1>BnFChat</h1>
+        </div>
         <h2>Connexion</h2>
         
         {error && <div className="auth-error">{error}</div>}
@@ -68,6 +72,7 @@ const Login = () => {
               onChange={(e) => setUsername(e.target.value)}
               disabled={isLoading}
               required
+              style={{ width:"90%" }}
             />
           </div>
           
@@ -80,6 +85,7 @@ const Login = () => {
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
               required
+              style={{ width:"90%" }}
             />
           </div>
           
@@ -87,6 +93,7 @@ const Login = () => {
             type="submit" 
             className="auth-button"
             disabled={isLoading}
+            style={{ width:"50%" }}
           >
             {isLoading ? 'Connexion en cours...' : 'Se connecter'}
           </button>
@@ -94,7 +101,7 @@ const Login = () => {
         
         <div className="auth-links">
           <p>
-            Vous n'avez pas de compte ? <Link to="/register">S'inscrire</Link>
+            Vous n'avez pas de compte ? <Link to="/register" style={{ color:"black", fontWeight:"800" }}>S'inscrire</Link>
           </p>
         </div>
       </div>

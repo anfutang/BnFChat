@@ -62,13 +62,13 @@ const useTimer = ({
     let timerValue;
 
     if (sessionData.sessionId === 1) {
-      timerValue = 300;
+      timerValue = null;
     } else if (sessionData.sessionId === 2) {
       timerValue = sessionData?.timerExercise ?? 300;
     } else if (sessionData.sessionId === 3) {
       timerValue = sessionData?.timerTest ?? 2100;
     } else {
-      timerValue = 0;
+      timerValue = null;
     }
 
     if (

@@ -21,9 +21,10 @@ const ProfileWizard = () => {
     'recherche_academique': false,
     'recherche_amateur': false,
     'utilise_gallica': false,
+    'usage_gallica': '',
     'frequence_gallica': '',
     'contact_autorise': false,
-    'avatar_id': null
+    'avatar_seed': null
   });
   
   const [error, setError] = useState('');
@@ -76,7 +77,7 @@ const ProfileWizard = () => {
       // Formatage des données pour le backend
       const completeProfileData = {
         ...profileData,
-        'avatar-seed': profileData.avatar_id || Math.floor(Math.random() * 1000),
+        'avatar_seed': profileData.avatar_seed || Math.floor(Math.random() * 1000),
         'profile_created': true
       };
 
@@ -153,7 +154,7 @@ const ProfileWizard = () => {
 
   // Show loading or not found message if not authenticated
   if (!currentUser) {
-    return <div className="auth-container">Loading...</div>;
+    return <div className="auth-container">Chargement...</div>;
   }
 
   return (
@@ -192,7 +193,7 @@ const ProfileWizard = () => {
           {currentStep === 1 && (
             <button
               type="button"
-              className="wizard-button text-only"
+              className="wizard-button secondary"
               onClick={handleCancel}
               disabled={isLoading}
             >

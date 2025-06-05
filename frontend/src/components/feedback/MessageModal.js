@@ -14,11 +14,11 @@ const MessageModal = ({ setShowMessageModal, type, title, content, closeButtonTe
                 </div>
                 <div className="message-modal-content">{content}</div>
                 <div className="message-modal-footer">
-                    {needsConfirmation && <button className="close-btn" onClick={() => {
+                    {needsConfirmation && <button className="modal-confirm-btn" onClick={() => {
                         setShowMessageModal(false);
                         onConfirmFunc?.();
                       }}>{confirmButtonText}</button>}
-                    {closeButtonText != '' && <button className="close-btn" onClick={() => {
+                    {closeButtonText != '' && <button className="modal-close-btn" onClick={() => {
                         if (!isTimerRunning) {startTimer();}
                         setShowMessageModal(false);
                     }}>{closeButtonText}</button>}

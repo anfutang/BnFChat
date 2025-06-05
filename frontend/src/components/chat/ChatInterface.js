@@ -1,5 +1,5 @@
 // src/components/chat/ChatInterface.js - With Result Modal Integration
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '@chatscope/chat-ui-kit-react';
@@ -15,12 +15,15 @@ import ResultModal from '../feedback/ResultModal';
 import FeedbackForm from '../feedback/FeedbackForm';
 import MessageModal from "../feedback/MessageModal"; 
 
+import FullTutorial from '../tutorial/fullTutorial';
+
 import "./ChatInterface.css"
 
 const ChatInterface = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   
+  // ADD USER INPUT STATE
   const [userInput, setUserInput] = useState('');
   
   // ADD MESSAGE MODAL STATE
@@ -31,7 +34,10 @@ const ChatInterface = () => {
   const [messageModalConfirmButtonText, setMessageModalConfirmButtonText] = useState('');
   const [messageModalCloseButtonText, setMessageModalCloseButtonText] = useState('');
   const [onConfirmMessageModalFunc, setOnConfirmMessageModalFunc] = useState(() => () => {});
-  const setMessageModalRef = useRef(() => {});
+  const setMessageModalRef = useRef((...args) => {
+    console.warn("setMessageModal called too early", ...args);
+  });
+  const setMessageModal = (...args) => setMessageModalRef.current(...args);
 
   // ADD RESULT MODAL STATE
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
@@ -40,19 +46,27 @@ const ChatInterface = () => {
 
   // ADD FEEDBACK FORM STATE
   const [isFeedbackFormOpen, setIsFeedbackFormOpen] = useState(false);
+
+  // ADD TUTORIAL STATE
+  const [tutorialDone, setTutorialDone] = useState(false);
+  const [backgroundBlur, setBackgroundBlur] = useState(false);
   
   const {
     currentChatId,
     messages,
     isConnected,
     isStreaming,
+    setIsStreaming,
     error,
     assistantStatus,
     detectedUserIntent,
     setDetectedUserIntent,
     sessionData,
+    setSessionData,
     topics,
     selectedTopic,
+    setSelectedTopic,
+    setAssistantStatus,
     // ACTIONS
     sendMessage,
     getChatState,
@@ -69,7 +83,9 @@ const ChatInterface = () => {
     onResultsData,
     onResultsError,
     socketRef
-  } = useChat();
+  } = useChat({
+    setMessageModal
+  });
 
   // Chat related
   const handleSendMessage = useCallback((message) => {
@@ -83,12 +99,16 @@ const ChatInterface = () => {
     setCurrentChatId(null);
     setMessages([]);
     setDetectedUserIntent('');
+    setAssistantStatus();
+    setIsStreaming(false);
     eraseChat();
   }, []);
 
   // Session related
-  const handleSessionChange = useCallback((newSessionId) => {
-    changeSession(newSessionId);
+  const handleSessionChange = useCallback(() => {
+    console.log("sessionChange",isResultModalOpen);
+    handleCloseResultModal();
+    changeSession();
   }, [changeSession]);
 
   // session id to session name
@@ -98,7 +118,7 @@ const ChatInterface = () => {
       case 2: return "[Exercise] en cours..";
       case 3: return "[Test Officiel] en cours..";
       case 4: return "Test Terminé."
-      default: return "BnFChat";
+      default: return "";
     }
   };
 
@@ -124,11 +144,11 @@ const ChatInterface = () => {
     getSessionData,
     updateTimer,
     handleSessionChange,
-    setMessageModal: (...args) => setMessageModalRef.current(...args),
+    setMessageModal,
     setShowMessageModal
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setMessageModalRef.current = (type, title, content, closeButtonText, confirmButtonText = '', onConfirmFunc = () => {}) => {
       // pause timer automatically when a modal popped-up
       if (isTimerRunning) {
@@ -145,7 +165,6 @@ const ChatInterface = () => {
     };
   }, [isTimerRunning, pauseTimer]);
 
-  
   // Topic related
   const handleTopicSelect = useCallback((topic) => {
     selectTopic(topic.id);
@@ -208,24 +227,24 @@ const ChatInterface = () => {
 
   return (
     <div className="chat-page">
-      <div className="chat-layout">
-        
+      <div className="chat-layout">        
         {/* Sidebar */}
-        <div className="sidebar">
+        <div className="sidebar" id="sidebar">
           <div className="sidebar-header">
           <div className="user-info">
               <Avatar 
-                src={`https://api.dicebear.com/7.x/micah/svg?seed=${sessionData?.avatarSeed || 'default'}`} 
+                src={`https://api.dicebear.com/7.x/micah/svg?seed=${currentUser?.avatarSeed || 'default'}`} 
                 name={currentUser?.username} 
                 status={isConnected ? 'available' : 'away'}
               />
-              <span style={{ fontStyle: 'bold' }}>{currentUser?.username} <br></br><span style={{ fontStyle: 'italic' }}>{getSessionStatus()}</span></span>
+              <span style={{ fontStyle: 'bold', textAlign: 'left' }}>{currentUser?.username} <br></br><span style={{ fontStyle: 'italic' }}>{getSessionStatus()}</span></span>
             </div>
           </div>
           
           <SessionSelector 
             sessionData={sessionData}
             topics={topics}
+            isStreaming={isStreaming}
             selectedTopic={selectedTopic}
             onSessionChange={handleSessionChange}
             onTopicSelect={handleTopicSelect}
@@ -236,10 +255,12 @@ const ChatInterface = () => {
             resetTimer={resetTimer}
           />
           
-          <div className="sidebar-footer">
+          <div className="sidebar-footer" id="sidebar-button-area">
           <button 
               onClick={handleEraseConv} 
               className="restart-btn"
+              id="restart-btn"
+              disabled={!isTimerRunning}
             >
               <strong>Effacer</strong>
           </button>
@@ -247,16 +268,18 @@ const ChatInterface = () => {
               onClick={() => setMessageModalRef.current('warning','Changement de session',getNextSessionInfo(sessionData.sessionId),'non','oui', handleSessionChange)} 
               // onClick={handleSessionChange}
               className="next-session-btn"
+              id="next-session-btn"
               disabled={sessionData.sessionId>=4}
             >
-              <strong>Session Prochaine</strong>
-            </button>
-            <button 
-              onClick={handleLogout} 
-              className="logout-btn"
-            >
-              <strong>Se Déconncter</strong>
-            </button>
+              <strong>{sessionData.sessionId < 3 ? "Session Prochaine" : "Terminer"}</strong>
+          </button>
+          <button 
+            onClick={handleLogout}
+            id="logout-btn" 
+            className="logout-btn"
+          >
+            <strong>Se Déconncter</strong>
+          </button>
           </div>
         </div>
         
@@ -307,6 +330,21 @@ const ChatInterface = () => {
         startTimer={startTimer}
         pauseTimer={pauseTimer}
       />}
+
+      {/* Tutorial display */}
+      {sessionData.sessionId === 1 && !tutorialDone && (
+        <div className="tutorial-overlay" style={ (backgroundBlur ? { backdropFilter: "blur(3px)" } : {})}>
+          <FullTutorial 
+            onTutorialComplete={() => {setTutorialDone(true); document.querySelector('#next-session-btn')?.click();}}
+            setBackgroundBlur={setBackgroundBlur} 
+            setUserInput={setUserInput}
+            setMessages={setMessages}
+            setSelectedTopic={setSelectedTopic}
+            setDetectedUserIntent={setDetectedUserIntent}
+            setSessionData
+          />
+        </div>
+      )}
 
       {/* Error Display */}
       {error && (

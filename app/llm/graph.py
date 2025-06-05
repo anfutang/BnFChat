@@ -61,6 +61,8 @@ def build_graph(socketio, user_id):
         generated_sru_query: Optional[str]
         original_sru_query: Optional[str]
 
+        # error
+        error_message: Optional[str]
 
     def conv_action_detection(state: State) -> State:
         socketio.emit("graph_update", {
@@ -104,7 +106,8 @@ def build_graph(socketio, user_id):
             "info": "Analyse de l’ambiguïté en cours… "
         }, room=f'user_{user_id}') 
         conv_history = state["conv_history"]
-        if is_fisrt_input(conv_history) or not state.get("last_user_intent"):
+        # if is_fisrt_input(conv_history) or not state.get("last_user_intent"):
+        if is_fisrt_input(conv_history):
             call_llm_result = call_entity_disambiguation(conv_history)
             if isinstance(call_llm_result,Exception):
                 state["status"] = "error"
@@ -119,18 +122,20 @@ def build_graph(socketio, user_id):
             state["response"] = cq
             state["status"] = "continue"
         else:
-            call_llm_result = call_conv_summarization(conv_history)
-            if isinstance(call_llm_result,Exception):
-                state["status"] = "error"
-                state["error_message"] = "node: conv_ambiguity_detection -> conv_summarization [LLM]. ✖️"+fetch_error(call_llm_result) 
-                return state   
-            state["user_intent"] = call_llm_result[1]
             state["status"] = "advance"
-            
-            socketio.emit("user_intent", {
-                "user_intent": state["user_intent"]
-            }, room=f'user_{user_id}')
+        call_llm_result = call_conv_summarization(conv_history)
+        if isinstance(call_llm_result,Exception):
+            state["status"] = "error"
+            state["error_message"] = "node: conv_ambiguity_detection -> conv_summarization [LLM]. ✖️"+fetch_error(call_llm_result) 
+            return state   
+        if state.get("user_intent",''):
+            state["last_user_intent"] = state["user_intent"]
+        state["user_intent"] = call_llm_result[1]
         
+        socketio.emit("user_intent", {
+            "user_intent": state["user_intent"]
+        }, room=f'user_{user_id}')
+    
         return state
 
     def knn_relevance_check(state: State) -> State:
@@ -242,24 +247,33 @@ def build_graph(socketio, user_id):
         }, room=f'user_{user_id}')
 
         # fetch results w/ and w/o conversation using Gallica API
-        first_user_query = state["conv_history"][0]
-        original_sru_query = f"gallica all {first_user_query}"
+        first_user_query = state["conv_history"][0].split(';')[0].strip() # treat queries like "...; cherche"
+        original_sru_query = f"gallica all {first_user_query}" 
         state["generated_sru_query"] = sru_query
         state["original_sru_query"] = original_sru_query
-        try:
-            state["search_result"] = retrieve_result_page(sru_query,original_sru_query)
-            return state
-        except Exception as e:
+        
+        search_result = retrieve_result_page(sru_query,original_sru_query)
+        if isinstance(search_result,Exception):
             state["status"] = "error"
-            state["error_message"] = "node: search -> retrieval [Gallica API]. ✖️"+fetch_error(call_llm_result) 
+            state["error_message"] = "node: search -> retrieval [Gallica API]. ✖️"+fetch_error(search_result) 
             return state
+        else:
+            state["search_result"] = search_result
+            return state
+            
 
     def finalize(state: State) -> State:
-        if state["status"] != "search":
+        if state["status"] not in ["search","error"]:
             socketio.emit('assistant_response', {
                 'chat_id': state["chat_id"],
                 'content': state["response"],
                 'status': state.get("status", "completed")
+            }, room=f'user_{user_id}')
+        
+        if state["status"] is "error":
+            #  print('>'*10+state["error_message"])
+            socketio.emit("error", {
+                "error": state["error_message"],
             }, room=f'user_{user_id}')
         
         socketio.emit("graph_update", {

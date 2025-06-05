@@ -9,10 +9,28 @@ const GallicaExperienceStep = ({ profileData, handleChange }) => {
   ];
 
   // Fonction pour afficher conditionnellement la question de fréquence
-  const renderFrequencyQuestion = () => {
+  const renderUsageDetailQuestion = () => {
     if (profileData.utilise_gallica) {
       return (
         <>
+          <div className="question-title">
+            Q7. Utilisez-vous Gallica :
+          </div>
+          <div className="option-container">
+            <select
+              className="select-field"
+              value={profileData.usage_gallica}
+              onChange={(e) => handleChange('usage_gallica', e.target.value)}
+            >
+              <option value="">Sélectionnez votre fréquence d'utilisation</option>
+              <option value="jamais">Jamais</option>
+              <option value="rarement">Rarement</option>
+              <option value="occasionnellement">Occasionnellement</option>
+              <option value="regulierement">Régulièrement</option>
+              <option value="quotidiennement">Quotidiennement</option>
+            </select>
+          </div>
+
           <div className="question-title">
             Q8. Depuis combien de temps utilisez-vous Gallica ?
           </div>
@@ -66,26 +84,7 @@ const GallicaExperienceStep = ({ profileData, handleChange }) => {
         </div>
       </div>
 
-      <div className="question-title">
-        Q7. Utilisez-vous Gallica :
-      </div>
-      <div className="option-container">
-        <select
-          className="select-field"
-          value={profileData.usage_gallica}
-          onChange={(e) => handleChange('usage_gallica', e.target.value)}
-          disabled={!profileData.utilise_gallica}
-        >
-          <option value="">Sélectionnez votre fréquence d'utilisation</option>
-          <option value="jamais">Jamais</option>
-          <option value="rarement">Rarement</option>
-          <option value="occasionnellement">Occasionnellement</option>
-          <option value="regulierement">Régulièrement</option>
-          <option value="quotidiennement">Quotidiennement</option>
-        </select>
-      </div>
-
-      {renderFrequencyQuestion()}
+      {renderUsageDetailQuestion()}
     </div>
   );
 };

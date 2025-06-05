@@ -25,7 +25,7 @@ def socketio_auth_required(f):
         # Use Flask-SocketIO's session instead of global dict
         user_id = session.get('user_id')
         if not user_id:
-            emit('error', {'message': 'Not authenticated'})
+            emit('error', {'error': 'Not authenticated'})
             return
         return f(*args, **kwargs)
     return decorated_function
@@ -86,7 +86,7 @@ def register_socketio_events():
             user = User.query.get(user_id)
             
             if not user:
-                emit('error', {'message': 'User not found'})
+                emit('error', {'error': 'User not found'})
                 return
             
             # Get current topic info
@@ -114,7 +114,7 @@ def register_socketio_events():
             
         except Exception as e:
             print(f"Error getting session data: {str(e)}")
-            emit('error', {'message': 'Error getting session data'})
+            emit('error', {'error': 'Error getting session data'})
 
     # ========== TOPICS (moved from HTTP) ==========
     @socketio.on('get_topics')
@@ -125,7 +125,7 @@ def register_socketio_events():
             user = User.query.get(user_id)
             
             if not user:
-                emit('error', {'message': 'User not found'})
+                emit('error', {'error': 'User not found'})
                 return
             
             session_topics = TOPICS.get(user.session_id, [])
@@ -145,7 +145,7 @@ def register_socketio_events():
             
         except Exception as e:
             print(f"Error getting topics: {str(e)}")
-            emit('error', {'message': 'Error getting topics'})
+            emit('error', {'error': 'Error getting topics'})
 
     # ========== TOPIC SELECTION (moved from HTTP) ==========
     @socketio.on('select_topic')
@@ -156,19 +156,19 @@ def register_socketio_events():
             topic_id = data.get('topicId')
             
             if topic_id is None or topic_id < 0:
-                emit('error', {'message': 'Valid topic ID required'})
+                emit('error', {'error': 'Valid topic ID required'})
                 return
             
             user = User.query.get(user_id)
             if not user:
-                emit('error', {'message': 'User not found'})
+                emit('error', {'error': 'User not found'})
                 return
             
             # Validate topic for current session
             if user.session_id in TOPICS and topic_id > 0:
                 topic_info = next((t for t in TOPICS[user.session_id] if t["id"] == topic_id), None)
                 if not topic_info:
-                    emit('error', {'message': 'Invalid topic for current session'})
+                    emit('error', {'error': 'Invalid topic for current session'})
                     return
             
             # End any ongoing chat before topic change
@@ -179,7 +179,7 @@ def register_socketio_events():
             ).first()
             
             if ongoing_chat:
-                ChatManager.end_chat(ongoing_chat.id, "ended_by_topic_change", user_id)
+                ChatManager.end_chat(ongoing_chat.id, "end:topic_change", user_id)
             
             # Update user's topic selection
             if user.session_id == 2:
@@ -209,7 +209,7 @@ def register_socketio_events():
         except Exception as e:
             db.session.rollback()
             print(f"Error selecting topic: {str(e)}")
-            emit('error', {'message': 'Error selecting topic'})
+            emit('error', {'error': 'Error selecting topic'})
 
     # ========== TIMER OPERATIONS =========
     @socketio.on('update_timer')
@@ -220,13 +220,13 @@ def register_socketio_events():
             timer_value = data.get('timerValue',-1)
 
             if session_id < 1 or timer_value < 0:
-                emit('error', {'message': 'Invalid session id or timer value.'})
+                emit('error', {'error': 'Invalid session id or timer value.'})
                 return 
             
             user_id = session.get('user_id')
             user = User.query.get(user_id)
             if not user:
-                emit('error', {'message': 'User not found'})
+                emit('error', {'error': 'User not found'})
                 return
             
             # Update the appropriate timer based on session
@@ -245,7 +245,7 @@ def register_socketio_events():
 
         except Exception as e:
             print(f"Error in handle_update_timer: {str(e)}")
-            emit('error', {'message': 'Error updating timer'})
+            emit('error', {'error': 'Error updating timer'})
 
     # ========== CHAT OPERATIONS ==========
     @socketio.on('send_message')
@@ -256,13 +256,13 @@ def register_socketio_events():
             user_id = session.get('user_id')
             
             if not user_input:
-                emit('error', {'message': 'Empty message'})
+                emit('error', {'error': 'Empty message'})
                 return
             
             # Get user session info
             user = User.query.get(user_id)
             if not user:
-                emit('error', {'message': 'User not found'})
+                emit('error', {'error': 'User not found'})
                 return
             
             session_id = user.session_id
@@ -272,7 +272,7 @@ def register_socketio_events():
                 topic_id = user.exercise_topic_id if session_id == 2 else user.test_topic_id
                 if topic_id <= 0:
                     emit('error', {
-                        'message': 'Please select a topic before starting conversation',
+                        'error': 'Please select a topic before starting conversation',
                         'error_type': 'topic_required'
                     })
                     return
@@ -284,14 +284,14 @@ def register_socketio_events():
                 # Add message to existing chat
                 success, error = ChatManager.add_message_to_chat(existing_chat.id, 'user', user_input)
                 if not success:
-                    emit('error', {'message': f'Failed to add message: {error}'})
+                    emit('error', {'error': f'Failed to add message: {error}'})
                     return
                 chat = existing_chat
             else:
                 # Create new chat with first message
                 chat, error = ChatManager.create_chat_with_first_message(user_id, session_id, user_input)
                 if error:
-                    emit('error', {'message': f'Failed to create chat: {error}'})
+                    emit('error', {'error': f'Failed to create chat: {error}'})
                     return
             
             # Emit message received
@@ -306,7 +306,7 @@ def register_socketio_events():
             
         except Exception as e:
             print(f"Error in handle_send_message: {str(e)}")
-            emit('error', {'message': 'Error processing message'})
+            emit('error', {'error': 'Error processing message'})
 
     @socketio.on('get_chat_state')
     @socketio_auth_required
@@ -316,7 +316,7 @@ def register_socketio_events():
             user = User.query.get(user_id)
             
             if not user:
-                emit('error', {'message': 'User not found'})
+                emit('error', {'error': 'User not found'})
                 return
             
             chat_state = ChatManager.get_chat_state(user_id, user.session_id)
@@ -330,7 +330,7 @@ def register_socketio_events():
             
         except Exception as e:
             print(f"Error in handle_get_chat_state: {str(e)}")
-            emit('error', {'message': 'Error getting chat state'})
+            emit('error', {'error': 'Error getting chat state'})
 
     @socketio.on('erase_chat')
     @socketio_auth_required
@@ -340,7 +340,7 @@ def register_socketio_events():
         # Get user session info
         user = User.query.get(user_id)
         if not user:
-            emit('error', {'message': 'User not found'})
+            emit('error', {'error': 'User not found'})
             return
         
         session_id = user.session_id
@@ -350,7 +350,7 @@ def register_socketio_events():
             topic_id = user.exercise_topic_id if session_id == 2 else user.test_topic_id
             if topic_id <= 0:
                 emit('error', {
-                    'message': 'Please select a topic before starting conversation',
+                    'error': 'Please select a topic before starting conversation',
                     'error_type': 'topic_required'
                 })
                 return
@@ -358,10 +358,11 @@ def register_socketio_events():
         # Check for ongoing chat or create new one
         existing_chat, error = ChatManager.get_ongoing_chat(user_id, session_id)
         
-        if not existing_chat:
-            emit('error', {'message': 'Erase an empty chat.'})
-            return
-        ChatManager.end_chat(existing_chat.id, "end:user_restart", user_id)
+        # if not existing_chat:
+        #     emit('error', {'message': 'Erase an empty chat.'})
+        #     return
+        if existing_chat:
+            ChatManager.end_chat(existing_chat.id, "end:user_restart", user_id)
         return
 
     @socketio.on('session_change')
@@ -445,7 +446,7 @@ def register_socketio_events():
                     'message': 'Chat ended after feedback submission'
                 })
         except Exception as e:
-            emit('error', {'message': str(e)})
+            emit('error', {'error': str(e)})
 
     @socketio.on('submit_final_feedback')
     @socketio_auth_required
@@ -472,7 +473,7 @@ def register_socketio_events():
                 # Then end the chat
                 emit('test_ended_success', {})
         except Exception as e:
-            emit('error', {'message': str(e)})
+            emit('error', {'error': str(e)})
 
 def process_chat_message(user_input, user_id, chat_id, session_id):
     """Process chat message with simple workflow"""
@@ -495,11 +496,11 @@ def process_chat_message(user_input, user_id, chat_id, session_id):
         
         # Create and execute workflow with expected format
         graph = build_graph(socketio, user_id)  # Pass user_id to build_graph
-        print(f"##### {chat_id}; {type(chat_id)}")
+        # print(f"##### {chat_id}; {type(chat_id)}")
         state = graph.invoke({"conv_history": conv_history, "chat_id":chat_id})
         
         # Get assistant response
-        assistant_response = state.get("response", "No response generated")
+        assistant_response = state.get("response", "Une erreur s'est produite. Veillez effacer la conversation.")
         
         # Save assistant response to database
         success, error = ChatManager.add_message_to_chat(chat_id, 'assistant', assistant_response)
@@ -537,6 +538,7 @@ def process_chat_message(user_input, user_id, chat_id, session_id):
         elif status_tag == "end":
             # Handle chat ending
             ChatManager.end_chat(chat_id, state.get("status"), user_id)
+            time.sleep(2)
             socketio.emit('chat_ended', {
                 'chat_id': chat_id,
                 'reason': state.get("status")

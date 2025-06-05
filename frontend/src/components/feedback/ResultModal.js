@@ -133,17 +133,20 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
     // Don't allow closing if we have results - user must submit feedback
   };
 
+  // avoid displaying too long texts
+  const truncateText = (text, maxLength = 200) => {
+    if (!text) return '';
+    return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
+  };
+  
+
   return (
     <div className="result-modal-overlay">
       <div className="result-modal">
         <div className="result-modal-header">
           <h2>Résultats de recherche</h2>
           {/* Only show close button during loading or if no results yet */}
-          {(isLoading || !resultData) && (
-            <button className="close-button" onClick={handleCloseModal}>
-              <FaTimes />
-            </button>
-          )}
+          {/* isLoading || !resultData */}
         </div>
         
         <div className="result-modal-content">
@@ -157,22 +160,22 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
               {resultData && (
                 <div className="result-container">
                   <div className="result-data">
-                    <h2>♠️ Avec Conversation</h2>
-                    <h3>Requête SRU générée</h3>
+                    <h3>♠️ Avec Conversation</h3>
+                    <h4>Requête SRU générée</h4>
                     <div className="sru-query-box">
                       {resultData.sruQuery}
                     </div>
                     
-                    <h3>Résultats</h3>
+                    <h4>Résultats</h4>
                     <div className="results-list">
                       {resultData.wcResults && resultData.wcResults.map((item, index) => (
                         <div className="result-item" key={index}>
                           <h4>{item.title}</h4>
-                          {item.creator && <p className="result-creator">creator: {String(item.creator)}</p>}
-                          {item.description && <p className="result-description">description: {String(item.description)}</p>}
-                          {item.subject && <p className="result-subject">subject: {String(item.subject)}</p>}
-                          {item.date && <p className="result-date">date: {String(item.date)}</p>}
-                          {item.type && <p className="result-type">type: {String(item.type)}</p>}
+                          {item.creator && <p className="result-creator">creator: {truncateText(String(item.creator))}</p>}
+                          {item.description && <p className="result-description">description: {truncateText(String(item.description))}</p>}
+                          {item.subject && <p className="result-subject">subject: {truncateText(String(item.subject))}</p>}
+                          {item.date && <p className="result-date">date: {truncateText(String(item.date))}</p>}
+                          {item.type && <p className="result-type">type: {truncateText(String(item.type))}</p>}
                           {item.link && (
                             <a href={item.link} target="_blank" rel="noopener noreferrer" className="result-link">
                               Voir dans Gallica
@@ -184,19 +187,20 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
                     
                     {resultData.wcResults && resultData.wcResults.length === 0 && (
                       <div className="no-results">
-                        <p>Aucun résultat. Mauvaise traduction SRU.</p>
+                        <p>Aucun résultat. Pour la question Q3, veuillez cocher « Aucun résultat ».</p>
+                        <p>Cela peut être dû à une mauvaise traduction en SRU ou à une traduction SRU trop stricte.</p>
                       </div>
                     )}
                   </div>
 
                   <div className="result-data">
-                  <h2>♣️ Sans Conversation</h2>
-                  <h3>Requête SRU utilisée</h3>
+                  <h3>♣️ Sans Conversation</h3>
+                  <h4>Requête SRU utilisée</h4>
                   <div className="sru-query-box">
                     {resultData.originalQuery}
                   </div>
 
-                  <h3>Résultats</h3>
+                  <h4>Résultats</h4>
                   <div className="results-list">
                     {resultData.wocResults && resultData.wocResults.map((item, index) => (
                       <div className="result-item" key={index}>
@@ -227,14 +231,15 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
               {!feedbackSubmitted ? (
                 <div className="feedback-section">
                   <MultiTypeForm questions={questions} onChange={handleFormChange} />
-                  <br></br>
-                  <button 
-                    className={`submit-feedback ${!isMandatoryFilled ? 'disabled' : ''}`}
-                    onClick={handleSubmitConvFeedback}
-                    disabled={!isMandatoryFilled}
-                  >
-                    Soumettre l'évaluation
-                  </button>
+                  <div className="feedback-footer">
+                    <button
+                      className="submit-feedback-btn" 
+                      onClick={handleSubmitConvFeedback}
+                      disabled={!isMandatoryFilled}
+                    >
+                      Soumettre
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="feedback-thank-you">

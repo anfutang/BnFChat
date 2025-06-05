@@ -2,11 +2,11 @@ import React from 'react';
 
 const SituationStep = ({ profileData, handleChange }) => {
   const situations = [
-    { value: 'exercant', label: 'exerçant une activité professionnelle (actifs, apprentis, stagiaire)' },
+    { value: 'exercant_activite_professionel', label: 'exerçant une activité professionnelle (actifs, apprentis, stagiaire)' },
     { value: 'recherche_emploi', label: 'à la recherche d\'un emploi' },
-    { value: 'retraite', label: 'à la retraite ou en pré-retraite' },
-    { value: 'etudiant', label: 'lycéen ou étudiant' },
-    { value: 'foyer', label: 'homme ou femme au foyer' },
+    { value: 'retraite_ou_pre-retraite', label: 'à la retraite ou en pré-retraite' },
+    { value: 'lyceen_etudiant', label: 'lycéen ou étudiant' },
+    { value: 'homme_ou_femme_foyer', label: 'homme ou femme au foyer' },
     { value: 'autre', label: 'dans une autre situation' }
   ];
 

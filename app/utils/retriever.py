@@ -70,9 +70,9 @@ def retrieve_result_page(sru_query_with_clarif,sru_query_without_clarif):
     success_wc, records_wc = build_search_result_single_page(url_wc)
     success_woc, records_woc = build_search_result_single_page(url_woc)
     if not success_wc:
-        return Exception("Error in communication uing Gallica API: w/ clarification.")
+        return Exception("Une erreur s'est produite lors de la communication avec l'API Gallica : avec clarification.")
     if not success_woc:
-        return Exception("Error in communication uing Gallica API: w/o clarification.")
+        return Exception("Une erreur s'est produite lors de la communication avec l'API Gallica : sans clarification.")
     return records_wc, records_woc
 
 # tentatively retrieving the first page and get the number of relevant documents

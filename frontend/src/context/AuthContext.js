@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Login failed:', error);
       return { 
         success: false, 
-        message: error.response?.data?.error || 'Login failed'
+        message: error.response?.data?.error || 'Échec de la connexion'
       };
     }
   };
@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Registration failed:', error);
       return { 
         success: false, 
-        message: error.response?.data?.error || 'Registration failed'
+        message: error.response?.data?.error || "Échec de l'inscription"
       };
     }
   };
@@ -81,6 +81,7 @@ export const AuthProvider = ({ children }) => {
         ...prev,
         username: response.data.username,
         permissionLevel: response.data.permissionLevel,
+        avatarSeed: response.data.avatarSeed,
         profileCompleted: response.data.profileCompleted
       }));
       
