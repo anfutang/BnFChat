@@ -164,7 +164,7 @@ const Register = () => {
         
         <div className="auth-links">
           <p>
-            Already have an account? <Link to="/login" style={{ color:"black", fontWeight:"800" }}>Se connecter</Link>
+            Vous avez déjà un compte ? <Link to="/login" style={{ color:"black", fontWeight:"800" }}>Se connecter</Link>
           </p>
         </div>
       </div>

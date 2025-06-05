@@ -45,7 +45,7 @@ export const useChat = ({setMessageModal}) => {
           return;
         }
 
-        const socket = io('http://127.0.0.1:5001/', {
+        const socket = io(process.env.REACT_APP_SOCKET_URL || '', {
           auth: {
             userId: authData.user.id
           }
