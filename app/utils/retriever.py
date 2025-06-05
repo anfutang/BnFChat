@@ -7,9 +7,9 @@ from collections import defaultdict, Counter
 import requests
 import xml.etree.ElementTree as ET
 import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from datasketch import MinHash
-from rapidfuzz import fuzz, process
+# from sklearn.feature_extraction.text import TfidfVectorizer
+# from datasketch import MinHash
+# from rapidfuzz import fuzz, process
 # import hdbscan
 # from sentence_transformers import SentenceTransformer
 from .constant import *
