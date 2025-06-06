@@ -116,11 +116,13 @@ const ChatArea = ({
             }}
           ></Message>
         ))}
-        
-        {/* Typing indicator */}
-        {isStreaming && (
+      </MessageList>
+
+       {/* Typing indicator */}
+       {isStreaming && (
           <TypingIndicator 
             content={assistantStatus}
+            className="status-indicator"
             avatar={
               <Avatar
                 src="https://ui-avatars.com/api/?name=BNF&background=000&color=fff"
@@ -129,7 +131,6 @@ const ChatArea = ({
             }
           />
         )}
-      </MessageList>
       
       <MessageInput 
         className="message-input"

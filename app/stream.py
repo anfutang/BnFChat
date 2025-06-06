@@ -424,7 +424,7 @@ def register_socketio_events():
             chat = Chat.query.get(chat_id)
             if chat:
                 chat.feedback = feedback_data
-                chat.status = "end_by_user_feedback"
+                chat.status = "end:user_feedback"
                 chat.updated_at = datetime.datetime.now()
                 db.session.commit()
                 
@@ -437,7 +437,7 @@ def register_socketio_events():
                 # Then end the chat
                 emit('chat_ended', {
                     'chat_id': chat_id,
-                    'reason': 'end_by_user_feedback'
+                    'reason': 'end:user_feedback'
                 })
                 
                 # Clear chat UI
@@ -538,7 +538,7 @@ def process_chat_message(user_input, user_id, chat_id, session_id):
         elif status_tag == "end":
             # Handle chat ending
             ChatManager.end_chat(chat_id, state.get("status"), user_id)
-            time.sleep(2)
+            time.sleep(3)
             socketio.emit('chat_ended', {
                 'chat_id': chat_id,
                 'reason': state.get("status")

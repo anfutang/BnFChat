@@ -8,8 +8,9 @@ from flask_cors import CORS
 from .utils.rag_db_utils import close_rag_db
 from dotenv import load_dotenv
 
-load_dotenv()
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE" # faiss-cpu + numpy may raise OMP-related error
 
+load_dotenv()
 
 def create_app():
     # Check if we're in production mode
@@ -34,7 +35,6 @@ def create_app():
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
     )
 
-
     os.makedirs(app.instance_path, exist_ok=True)
 
     app.teardown_appcontext(close_rag_db)
@@ -57,7 +57,7 @@ def create_app():
     stream.init_socketio(socketio)
     app.register_blueprint(stream.bp, url_prefix='/api/stream')
     
-    @app.route('/api/status')
+    @app.route('/status')
     def status():
         return jsonify({"status": "ok"})
 
@@ -74,5 +74,10 @@ def create_app():
                 return jsonify({"error": "API endpoint not found"}), 404
             # Otherwise serve React app for client-side routing
             return send_from_directory(app.static_folder, 'index.html')
+
+    # print("==== All Registered Routes ====")
+    # for rule in app.url_map.iter_rules():
+    #     print(f"{rule}  →  methods: {rule.methods}")
+
 
     return app, socketio

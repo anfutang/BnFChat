@@ -5,7 +5,6 @@ Main application runner for BNF Chatbot with SocketIO support
 
 from app import create_app
 
-
 # Create app with SocketIO
 app, socketio = create_app()
 

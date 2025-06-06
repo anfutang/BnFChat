@@ -106,6 +106,7 @@ def profile_submit():
 @bp.route('/login', methods=['POST'])
 def login():
     """User login endpoint"""
+    print("=======USER LOGIN")
     session.clear()
     data = request.json
     username = data.get("username")
