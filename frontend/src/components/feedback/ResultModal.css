@@ -57,13 +57,12 @@
 
 .result-modal-content {
   position: relative;
-  height: 100%;
+  height: calc(100% - 60px); /* CHANGE: account for header height */
   padding: 20px;
   font-size: 1.2rem;
   overflow-y: auto;
   overflow-x: hidden;
   border-bottom: 1px solid #e0e0e0;
-  /* border: 3px solid sandybrown; */
 }
 
 .result-modal-footer {
@@ -245,21 +244,20 @@ textarea {
   margin-top: 30px;
   padding-top: 20px;
   border-top: 1px solid #eee;
-  /* border: 3px solid red; */
-  height: 95%;
+  /* REMOVE: height: 95%; */
   text-align: left;
+  padding-bottom: 20px; /* ADD THIS */
 }
 
 .feedback-footer {
-  position: relative;
+  /* REMOVE: position: relative; */
+  /* REMOVE: height: 5%; */
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 5%;
-  margin-top: 2px;
+  margin-top: 20px; /* CHANGE from 2px to 20px */
   padding: 15px;
   border-top: 1px solid #eee;
-  /* border: 2px solid red; */
 }
 
 .submit-feedback-btn {
