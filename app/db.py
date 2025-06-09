@@ -10,10 +10,10 @@ db = SQLAlchemy()
 
 def init_app(app):
     # Generate a new database path with timestamp for each run
-    timestamp = "20250603"
+    # timestamp = "20250603"
     #timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") # for production and keep previous experiments
     db_dir = app.instance_path
-    db_file = f"bnf_chat_{timestamp}.sqlite"
+    db_file = f"bnfchat.sqlite"
     db_path = os.path.join(db_dir, db_file)
     
     # Update database configuration with the new path

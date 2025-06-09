@@ -102,6 +102,7 @@ Format:
 Rules:
 - For entities (e.g., names, titles), use the adj operator with quotation marks, e.g., dc.creator adj "Flaubert", dc.title adj "Le Figaro". In other cases, use 'all' (e.g. for topic-related keywords).
 - For dc.type, always use the all operator instead of adj.
+- For non-entity terms, avoid using the plural form. For example, use "correspondance" instead of "correspondances".
 - For date constraints (typically years), use gallicapublication_date, e.g., gallicapublication_date < "1900". Always enclose the date in quotation marks.
 - For topic-related queries, use the provided SRU queries hint as a reference. Choose SRU queries that are coherent with your reasoning as suggestions. 
 - Use dc.type and dc.date only when the user query directly concerns date or type conditions.

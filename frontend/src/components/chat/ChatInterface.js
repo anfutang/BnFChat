@@ -114,9 +114,9 @@ const ChatInterface = () => {
   // session id to session name
   const getSessionStatus = () => {
     switch (sessionData?.sessionId) {
-      case 1: return "[Tutoriel] en cours..";
-      case 2: return "[Exercise] en cours..";
-      case 3: return "[Test Officiel] en cours..";
+      case 1: return "[Tutoriel] en cours...";
+      case 2: return "[Exercise] en cours...";
+      case 3: return "[Test Officiel] en cours...";
       case 4: return "Test Terminé."
       default: return "";
     }
@@ -238,6 +238,7 @@ const ChatInterface = () => {
                 status={isConnected ? 'available' : 'away'}
               />
               <span style={{ fontStyle: 'bold', textAlign: 'left' }}>{currentUser?.username} <br></br><span style={{ fontStyle: 'italic' }}>{getSessionStatus()}</span></span>
+              {currentUser?.permissionLevel > 1 && <button className='admin-btn' onClick={() => {navigate('/admin');}}>admin</button>}
             </div>
           </div>
           

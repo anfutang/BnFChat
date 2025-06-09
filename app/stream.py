@@ -308,6 +308,20 @@ def register_socketio_events():
             print(f"Error in handle_send_message: {str(e)}")
             emit('error', {'error': 'Error processing message'})
 
+    # only for test
+    @socketio.on('demo_send_message')
+    # @socketio_auth_required
+    def handle_demo_send_message(data):
+        try:
+            message = data.get('message').strip()
+            user_id = data.get('user_id')
+            chat_id = data.get('chat_id')
+            # Process message with workflow
+            demo_process_chat_message(message.split('#'),user_id,chat_id)
+        except Exception as e:
+            print(f"===>>>Error demo_send_message")
+            emit('error', {'error': 'Error processing message'})
+
     @socketio.on('get_chat_state')
     @socketio_auth_required
     def handle_get_chat_state():
@@ -558,3 +572,20 @@ def process_chat_message(user_input, user_id, chat_id, session_id):
         socketio.emit('error', {
             'error': str(e)
         }, room=f'user_{user_id}')
+
+def demo_process_chat_message(conv_history,user_id,chat_id):
+    """Process chat message with simple workflow"""
+    try:
+
+        # Create and execute workflow with expected format
+        graph = build_graph(socketio, user_id)  # Pass user_id to build_graph
+        # print(f"##### {chat_id}; {type(chat_id)}")
+        state = graph.invoke({"conv_history": conv_history, "chat_id":chat_id})
+        
+        # Get assistant response
+        assistant_response = state.get("response", "Une erreur s'est produite. Veillez effacer la conversation.")
+        socketio.emit('demo_response', {"response":assistant_response,"id":user_id})
+        print(assistant_response)
+
+    except Exception as e:
+        print(f"[demo_process_chat_message] Error: {str(e)}")

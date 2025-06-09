@@ -77,7 +77,7 @@ def call_entity_disambiguation(chat_history:list):
         model=model_id,
         messages=messages,
         response_format=entityDisambiguation,
-        temperature=0.0
+        temperature=0.3
     )
     parsed_result = completion.choices[0].message.parsed
     return getattr(parsed_result,"conclusion"), getattr(parsed_result,"clarifying_question")

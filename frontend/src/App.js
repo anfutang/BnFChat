@@ -56,16 +56,20 @@ const AdminRoute = ({ children }) => {
     const checkAdmin = async () => {
       try {
         const authResponse = await axios.get('/api/auth/check-auth');
-        if (!authResponse.data.authenticated) {
-          setUserData({ isAdmin: false });
+        
+        if (authResponse.data.authenticated) {
+          setUserData({
+            isAdmin: authResponse.data.user.permissionLevel > 1,
+            permissionLevel: authResponse.data.user.permissionLevel
+          });
           return;
         }
 
-        const sessionResponse = await axios.get('/api/dev/session-data');
-        setUserData({
-          isAdmin: sessionResponse.data.permissionLevel > 0,
-          permissionLevel: sessionResponse.data.permissionLevel
-        });
+        // const sessionResponse = await axios.get('/api/dev/session-data');
+        // setUserData({
+        //   isAdmin: sessionResponse.data.permissionLevel > 1,
+        //   permissionLevel: sessionResponse.data.permissionLevel
+        // });
       } catch (error) {
         setUserData({ isAdmin: false });
       } finally {
@@ -75,6 +79,8 @@ const AdminRoute = ({ children }) => {
 
     checkAdmin();
   }, []);
+
+  // console.log(userData);
 
   if (isLoading) {
     return <div className="loading">Chargement...</div>;

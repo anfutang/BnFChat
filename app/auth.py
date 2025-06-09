@@ -37,7 +37,7 @@ def check_auth():
         "user": {
             "id": user.id,
             "username": user.username,
-            "permission_level": user.permission_level,
+            "permissionLevel": user.permission_level,
             "avatarSeed": user.avatar_seed,
             "profileCompleted": user.profile_created
         }
@@ -136,7 +136,7 @@ def login():
         'success': True,
         'username': username,
         'avatarSeed': user.avatar_seed,
-        'userLevel': user.permission_level,
+        'permissionLevel': user.permission_level,
         'profileCompleted': user.profile_created
     })
 

@@ -241,6 +241,19 @@
   background-color: #535353;
 }
 
+.admin-btn {
+  background-color: rgb(236, 236, 236);
+  border: 1px solid #aaa;
+  border-radius: 5px;
+  color: black;
+  font-family: monospace;
+  cursor: pointer;
+}
+
+.admin-btn:hover {
+  background-color: antiquewhite;
+}
+
 /* Main chat container */
 .chat-container {
   flex: 1;

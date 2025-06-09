@@ -1,9 +1,12 @@
 import os
+import time
 import sqlite3
 from dotenv import load_dotenv
 import openai
 import faiss
 import numpy as np
+from gevent.lock import Semaphore
+
 
 from ..utils.utils import normalize, get_cosine_sim
 from ..utils.constant import METADATA_DIR, RAG_EMBED_DIM
@@ -15,14 +18,25 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 faiss_index = faiss.read_index(os.path.join("./instance","hnsw_index.faiss"))
 faiss_index.hnsw.efSearch = 64
 
+faiss_lock = Semaphore(1)
+
+# COUNTER = 1
+
 def knn(query,k):
-    xq = normalize(np.array([openai.embeddings.create(
+    global COUNTER
+    query_emb = openai.embeddings.create(
         model="text-embedding-3-small",
         input=[query],
         dimensions=RAG_EMBED_DIM 
-    ).data[0].embedding]))
-
-    D, I = faiss_index.search(xq, k=k)
+    ).data[0].embedding
+    
+    with faiss_lock:
+        xq = normalize(np.array([query_emb]))
+        # print(f'🟡 start faiss {COUNTER}')
+        # start_time = time.time()
+        D, I = faiss_index.search(xq, k=k)
+        # print(f'🔵 end faiss {COUNTER}: {time.time()-start_time:.3f} s.')
+        # COUNTER += 1
     cosine_sim = get_cosine_sim(D)[0]
     if cosine_sim[0] < 0.5:
         return {}

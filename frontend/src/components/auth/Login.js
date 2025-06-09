@@ -16,7 +16,7 @@ const Login = () => {
     if (currentUser) {
       if (!currentUser.profileCompleted) {
         navigate('/profile');
-      } else if (currentUser.permissionLevel > 0) {
+      } else if (currentUser.permissionLevel > 1) {
         navigate('/admin');
       } else {
         navigate('/chat');

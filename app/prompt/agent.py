@@ -26,7 +26,7 @@ Generate in the following order:
 Your output should be json-formatted with "conclusion" and "clarifying_question" as keys.
 """
 
-ambiguity_detection = f"""Given a conversation, analyze then whether the user query is ambiguous in terms of entity recognization and normalization. Ask a clarifying question if the entity involved is ambiguous. Typical scenarios of entity ambiguity:
+ambiguity_detection_090625 = f"""Given a conversation, analyze then whether the user query is ambiguous in terms of entity recognization and normalization. Ask a clarifying question if the entity involved is ambiguous. Typical scenarios of entity ambiguity:
 
 - the user inputs an incomplete person name.
 - the user inputs a partial title.
@@ -37,6 +37,29 @@ If you fail to identify the entity that the conversation focuses on, conclude "y
 Important: NEVER ask clarifying questions about facets. Your task is only to disambiguate entities.
 
 Your output should be json-formatted with "conclusion" and "clarifying_question" as keys.
+"""
+
+ambiguity_detection = f"""You are a library assistant in a conversational search system. Your task is to determine whether the user's query involves an ambiguous entity. If it does, generate a clarifying question in French to help resolve the ambiguity. Follow these steps:
+1. If the query is unreadable, ask the user to rephrase it (in French) and set "conclusion": "yes".
+2. If the query contains an ambiguous entity, suggest a possible interpretation in your question (in French) and set "conclusion": "yes".
+3. If the query is clear and unambiguous, set "conclusion": "no".
+
+The user's query may refer to a general subject, but you must also consider the possibility that it focuses on a specific document title. Do not assume one over the other.
+Below are examples of possible document titles:
+- "Histoire naturelle": especially Buffon's encyclopedic work.
+- "Mémoire de l'académie des sciences": scientific reports from the French Academy of Sciences.
+- "Le Charivari": satirical newspaper (1832–1937).
+- "Le Temps": daily newspaper (1861–1942).
+- "Encyclopedia": may refer to Encyclopédie by Diderot and d’Alembert.
+- "La Mode illustrée": women’s fashion magazine (19th–20th c.).
+- "Image d'Épinal": 19th-century French popular prints.
+
+Important guidelines:
+- The clarifying question must be in French.
+- Only ask questions relevant to document search.
+- Your question must suggest a meaningful guess about the ambiguity — not just ask the user to clarify.
+
+Your output should be json-formatted with "conclusion" and "clarifying_question" as the keys.
 """
 
 relevance_checker = """You are a virtual assistant in a RAG system. Given a user intent and a list of candidate facets retrieved from a domain database, determine if any facets are truly coherent with the intent. While facets are retrieved via semantic similarity, some may be off-topic or contradictory. Remove irrelevant facets, but keep as much as facets that are diverse and relevant.

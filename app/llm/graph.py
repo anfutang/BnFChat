@@ -53,6 +53,7 @@ def build_graph(socketio, user_id):
         relevant: Optional[str]
         relevant_facets: Optional[List[str]]
         clarification_needed: Optional[str]
+        is_relevant_topic: Optional[bool]
 
         # output
         response: Optional[str]
@@ -85,7 +86,10 @@ def build_graph(socketio, user_id):
             state["status"] = "end:user_abandon"
         elif conv_action == "search":
             state["response"] = SEARCH_RESPONSE
-            call_llm_result = call_conv_summarization(conv_history)
+            if conv_history[-1] in ["cherche","cherchez","cherche le", "cherce", "cherches"]:
+                call_llm_result = call_conv_summarization(conv_history[:-2])
+            else:
+                call_llm_result = call_conv_summarization(conv_history)
             if isinstance(call_llm_result,Exception):
                 state["status"] = "error"
                 state["error_message"] = "node: conv_action_detection -> conv_summarization [LLM]. ✖️"+fetch_error(call_llm_result) 
@@ -101,13 +105,15 @@ def build_graph(socketio, user_id):
         return state
 
     def ambiguity_detection(state: State) -> State:
-        socketio.emit("graph_update", {
-            "node": "ambiguity_detection",
-            "info": "Analyse de l’ambiguïté en cours… "
-        }, room=f'user_{user_id}') 
         conv_history = state["conv_history"]
-        # if is_fisrt_input(conv_history) or not state.get("last_user_intent"):
+
         if is_fisrt_input(conv_history):
+            socketio.emit("graph_update", {
+                "node": "ambiguity_detection",
+                "info": "Analyse de l’ambiguïté en cours… "
+            }, room=f'user_{user_id}') 
+            # if is_fisrt_input(conv_history) or not state.get("last_user_intent"):
+        
             call_llm_result = call_entity_disambiguation(conv_history)
             if isinstance(call_llm_result,Exception):
                 state["status"] = "error"
@@ -116,6 +122,10 @@ def build_graph(socketio, user_id):
             ambiguous, cq = call_llm_result[1]  
             state["ambiguous"] = ambiguous
         else:
+            socketio.emit("graph_update", {
+                "node": "ambiguity_detection",
+                "info": "Résumé en cours de la conversation… "
+            }, room=f'user_{user_id}') 
             state["ambiguous"] = "no"    
         ambiguous = state["ambiguous"]
         if ambiguous == "yes":
@@ -146,6 +156,7 @@ def build_graph(socketio, user_id):
         
         user_intent = state["user_intent"]
         knn_result = knn(user_intent,20)
+
         if not knn_result:
             state["relevant"] = "no"
         else:
@@ -188,8 +199,11 @@ def build_graph(socketio, user_id):
             return state
         clarification_needed, filtered_facets = call_llm_result[1]
         # state["clarification_needed"] = clarification_needed
+
+        # if len(conv_history) >= random.sample(conv_length_limits):
+        #     clarification_needed = "no"
         
-        if clarification_needed:
+        if clarification_needed == "yes":
             call_llm_result = call_cq_generation(conv_history, filtered_facets)
             if isinstance(call_llm_result,Exception):
                 state["status"] = "error"

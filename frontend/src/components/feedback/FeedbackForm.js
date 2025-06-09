@@ -29,7 +29,7 @@ const FeedbackForm = ({ isOpen, sessionData, socketRef }) => {
      },
      {
        id: 'chat-level-q2',
-       text: 'Q2. En l’état cet outil vous est-il -Utile ? par exemple, il répond à votre besoin, résout votre difficulté…(choix multiples ; Merci de justifier votre réponse à chaque item.)',
+       text: 'Q2. En l’état cet outil vous est-il-utile ? par exemple, il répond à votre besoin, résout votre difficulté…(choix multiples ; Merci de justifier votre réponse à chaque item.)',
        type: 'multiple+explanation',
        required: true,
        explanationRequired: true,

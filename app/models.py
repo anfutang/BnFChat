@@ -1,5 +1,6 @@
 # app/models.py
 
+import json
 import datetime
 import random
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -145,3 +146,36 @@ def update_user(user, profile_data):
     db.session.commit()
     
     return user
+
+def get_all_user_chats():
+    result = []
+    users = User.query.all()
+    for user in users:
+        chats = Chat.query.filter_by(user_id=user.id).all()
+        result.append({
+            'user_id': user.id,
+            'username': user.username,
+            'chats': [{'chat_id': c.id, 'chat_history': [msg["content"] for msg in c.chat_history], 'feedback': c.feedback} for c in chats]
+        })
+    print(result[0])
+    return result
+
+def get_all_user_feedback():
+    users = User.query.all()
+    return [
+        {
+            'user_id': u.id,
+            'feedback': u.feedback,
+        }
+        for u in users
+    ]
+
+def reset_user_status(user_id):
+    user = User.query.filter_by(id=user_id).first()
+    if user:
+        user.session_id = 1
+        user.exercise_topic_id = 0
+        user.test_topic_id = 0
+        user.timer_exercise = 300
+        user.timer_test = 2100
+        db.session.commit()

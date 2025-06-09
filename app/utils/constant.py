@@ -16,9 +16,11 @@ chatmode2ky = {"select":"reformulated_queries",
                "select+respond":"clarification_questions"}
 
 DEFAULT_USERS = [
-    {'username': 'dev', 'password': '123456', 'permission_level': 2, 'profile_created': True},
+    {'username': 'atang', 'password': 'aft0609', 'permission_level': 2, 'profile_created': True},
+    {'username': 'admin', 'password': 'admin', 'permission_level': 2, 'profile_created': True},
     {'username': 'racousin', 'password': 'qwe', 'permission_level': 2, 'profile_created': True},
     {'username': 'guest', 'password': 'guest', 'permission_level': 1,  'profile_created': False},
+    {'username': 'tester', 'password': 'tester', 'permission_level': 1,  'profile_created': False},
     {'username': 'bnf-scai-1', 'password': '7atsua', 'permission_level': 1, 'profil_created': False}, 
     {'username': 'bnf-scai-2', 'password': 'sn6moj', 'permission_level': 1, 'profil_created': False}, 
     {'username': 'bnf-scai-3', 'password': 'a63u38', 'permission_level': 1, 'profil_created': False}, 
