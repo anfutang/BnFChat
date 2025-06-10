@@ -35,3 +35,8 @@ cd frontend/app_test/
 python -u  main.py > main.log 2>&1 
 node test.js
 ```
+
+##### Rate limits of Gallica
+Cannot change to send requests from the frontend to Gallica due to CORS limitation (Access to fetch at 'https://gallica.bnf.fr/SRU?version=1.2&operation=searchRetrieve&query=gallica%20all%20la%20bible&maximumRecords=5&startRecord=1' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.)
+
+All Gallica requests are still processed at backend; therefore risks being rate limited.
