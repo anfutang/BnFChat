@@ -261,7 +261,7 @@ const ChatInterface = () => {
               onClick={handleEraseConv} 
               className="restart-btn"
               id="restart-btn"
-              disabled={!isTimerRunning}
+              disabled={!isTimerRunning || isStreaming}
             >
               <strong>Effacer</strong>
           </button>
@@ -270,16 +270,17 @@ const ChatInterface = () => {
               // onClick={handleSessionChange}
               className="next-session-btn"
               id="next-session-btn"
-              disabled={sessionData.sessionId>=4}
+              disabled={sessionData.sessionId>=4 || isStreaming}
             >
-              <strong>{sessionData.sessionId < 3 ? "Session Prochaine" : "Terminer"}</strong>
+              <strong>{sessionData.sessionId < 3 ? "Session suivante" : "Terminer"}</strong>
           </button>
           <button 
             onClick={handleLogout}
             id="logout-btn" 
             className="logout-btn"
+            disabled={isStreaming}
           >
-            <strong>Se Déconncter</strong>
+            <strong>Se déconncter</strong>
           </button>
           </div>
         </div>

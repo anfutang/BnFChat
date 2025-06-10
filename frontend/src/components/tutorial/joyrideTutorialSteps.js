@@ -9,7 +9,7 @@ const joyrideTutorialSteps = [
             <Avatar 
                 src={`https://api.dicebear.com/7.x/thumbs/svg?seed=121`} 
             />
-            <p>Bienvenue ! Ceci est un tutoriel interactif, laissez-moi vous montrer comment l’utiliser !</p>
+            <p>Bienvenue ! Ceci est un tutoriel interactif, laissez-moi vous montrer comment utiliser notre application!</p>
         </div>
       ),
       placement: "center",

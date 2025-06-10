@@ -233,7 +233,7 @@ const AdminDashboard = () => {
                         onClick={() => handleResetUser(user.user_id)}
                         style={{ padding: '8px 12px' }}
                     >
-                    Reset user-{user.user_id}
+                    Reset {user.username}
                     </button>
                 ))}
             </div>

@@ -92,7 +92,7 @@ const ChatArea = ({
               <strong>SUJET</strong> - {selectedTopic && (selectedTopic.name)}
             </div>
             <div className="topic-info">
-              <strong>Intention détectée</strong>:{detectedUserIntent}
+              <strong>Intention détectée</strong> :{detectedUserIntent}
             </div>
           </div>
         </ConversationHeader.Content>

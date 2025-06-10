@@ -23,7 +23,7 @@ const FeedbackForm = ({ isOpen, sessionData, socketRef }) => {
  const questions = [
      {
        id: 'chat-level-q1',
-       text: 'Q1. Quel(s) mot(s)définit le mieux votre état d’esprit après cette session de test (3 mots max)',
+       text: 'Q1. Quel(s) mot(s) définit le mieux votre état d’esprit après cette session de test (3 mots max)',
        type: 'text',
        required: true,
      },
