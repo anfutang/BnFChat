@@ -14,28 +14,28 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
   const questions = [
     {
       id: 'chat-level-q1',
-      text: 'Quel résultat préférez-vous ?',
+      text: 'Q1. Quel résultat préférez-vous ?',
       type: 'single',
       required: true,
       options: ['Avec conversation', 'Sans conversation', 'Aussi bien', 'Aussi mal'],
     },
     {
       id: 'chat-level-q2',
-      text: 'Évaluez la qualité des résultats de recherche AVEC conversation.',
+      text: 'Q2. (Si vous connaissez SRU) Évaluez la qualité de la requête SRU générée.',
       type: 'single',
-      required: true,
+      required: false,
       options: ['Mauvais', 'Moyen', 'Très bien'],
     },
     {
       id: 'chat-level-q3',
-      text: 'Les résultats de recherche (AVEC conversation) vous ont - ils parues :',
+      text: 'Q3. Les résultats de recherche (AVEC conversation) vous ont - ils parues :',
       type: 'single',
       required: true,
       options: ['Aucun résultat', 'Non pertinents', 'Partiellement pertinents', 'Tous Pertinents'],
     },
     {
       id: 'chat-level-q4',
-      text: 'La catégorisation des propositions et les questions formulées par l’outil aident-elle à progresser dans la désambiguïsation de votre requête ? Merci de justifier votre choix (optionnel).',
+      text: 'Q4. La catégorisation des propositions et les questions formulées par l’outil aident-elle à progresser dans la désambiguïsation de votre requête ? Merci de justifier votre choix (optionnel).',
       type: 'single+explanation',
       required: true,
       options: ['satisfaction', 'non satisfaction'],
@@ -43,7 +43,7 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
     },
     {
       id: 'chat-level-q5',
-      text: 'Quelles mots utiliseriez-vous caractériser vos interactions avec l’outils ? (choix multiples ; tous les champs sont possibles)',
+      text: 'Q5. Quelles mots utiliseriez-vous caractériser vos interactions avec l’outils ? (choix multiples ; tous les champs sont possibles)',
       type: 'multiple',
       required: true,
       options: ['Naturelles', 'Utiles', 'Informatives', 'Cohérentes', 'Engageantes', 'Surprenantes', 'Hors sujet', 'Fausses', 'Répétitives', 'Confuses', 'Trop générales']

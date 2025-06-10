@@ -26,8 +26,6 @@ function createClient(id) {
     transports: ["websocket"],  
   });
 
-  console.log('✅');
-
   socket.on("connect", () => {
     socket.emit('demo_join', { room: `user_${id}`, id: id });
     // console.log(`Client ${id} connected`);
