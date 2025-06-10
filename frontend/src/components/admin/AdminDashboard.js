@@ -110,7 +110,7 @@ const AdminDashboard = () => {
       <div className="control-btn-container">
         <button className={`control-btn ${adminFunc === "chat-history" ? 'selected' : ''}`} onClick={() => {handleAdminFuncSelect('chat-history');}}>Chat History</button>
         <button className={`control-btn ${adminFunc === "user-feedback" ? 'selected' : ''}`} onClick={() => {handleAdminFuncSelect('user-feedback');}}>User Feedback</button>
-        <button className={`control-btn ${adminFunc === "reset-usera" ? 'selected' : ''}`} onClick={() => {handleAdminFuncSelect('reset-users');}}>Manage User Status </button>
+        <button className={`control-btn ${adminFunc === "reset-users" ? 'selected' : ''}`} onClick={() => {handleAdminFuncSelect('reset-users');}}>Manage User Status </button>
       </div>
       
         {adminFunc === "chat-history" && (<div className="admin-info-area">
