@@ -309,8 +309,16 @@ def register_socketio_events():
             emit('error', {'error': 'Error processing message'})
 
     # only for test
+    @socketio.on('demo_join')
+    @socketio_auth_required # UNCOMMENT THIS LINE FOR PRODUCTION 
+    def demo_join(data):
+        room = data['room']
+        user_id = data['id']
+        join_room(room) 
+        emit('demo_room_joined', {'msg': f'✅ Joined room {room}', 'id': user_id}, room=room)
+
     @socketio.on('demo_send_message')
-    # @socketio_auth_required
+    @socketio_auth_required # UNCOMMENT THIS LINE FOR PRODUCTION 
     def handle_demo_send_message(data):
         try:
             message = data.get('message').strip()
@@ -581,11 +589,32 @@ def demo_process_chat_message(conv_history,user_id,chat_id):
         graph = build_graph(socketio, user_id)  # Pass user_id to build_graph
         # print(f"##### {chat_id}; {type(chat_id)}")
         state = graph.invoke({"conv_history": conv_history, "chat_id":chat_id})
+
+        if state["status"] == "error":
+            socketio.emit('demo_error', {"error_message":"❌ "+state["error_message"], "id":user_id}, room=f'user_{user_id}')
+            return
         
         # Get assistant response
         assistant_response = state.get("response", "Une erreur s'est produite. Veillez effacer la conversation.")
-        socketio.emit('demo_response', {"response":assistant_response,"id":user_id})
-        print(assistant_response)
+        socketio.emit('demo_response', {"response":assistant_response,"id":user_id}, room=f'user_{user_id}')
+
+        status_tag = state.get("status", "").split(':')[0]
+        if status_tag == "search":
+            # Get search results
+            wc_results = state.get("search_result", [[], []])[0]  
+            woc_results = state.get("search_result", [[], []])[1]  
+
+            if not wc_results and not woc_results:
+                socketio.emit('demo_search_result', {"response":"🔴 no results both", "id":user_id}, room=f'user_{user_id}')
+            elif not wc_results:
+                socketio.emit('demo_search_result', {"response":"🟠 no results w/ clarification", "id":user_id}, room=f'user_{user_id}')
+            elif not woc_results:
+                socketio.emit('demo_search_result', {"response":"🟠 no results w/o clarification", "id":user_id}, room=f'user_{user_id}')
+            else:
+                socketio.emit('demo_search_result', {"response":"🟢 search results ok", "id":user_id}, room=f'user_{user_id}')
+
+        # print(assistant_response)
 
     except Exception as e:
         print(f"[demo_process_chat_message] Error: {str(e)}")
+

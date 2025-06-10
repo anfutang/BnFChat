@@ -26,10 +26,23 @@ function createClient(id) {
     transports: ["websocket"],  
   });
 
-  console.log('✅');
-
   socket.on("connect", () => {
-    console.log(`Client ${id} connected`);
+    socket.emit('demo_join', { room: `user_${id}`, id: id });
+    // console.log(`Client ${id} connected`);
+    
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`Client ${id} disconnected`);
+  });
+  
+  socket.on("connect_error", (err) => {
+    console.error(`Client ${id} connection error:`, err.message);
+  });
+
+  socket.on("demo_room_joined", (data) => {
+    console.log("✅ Socket connected:", data.msg);
+
     socket.emit("demo_send_message", {
       user_id: `${id}`,
       chat_id: `${id}`,
@@ -37,16 +50,8 @@ function createClient(id) {
     });
   });
 
-  socket.on("disconnect", () => {
-    console.log(`Client ${id} disconnected`);
-  });
-
-  socket.on('demo_response', (data) => {
-    console.log(`🔴${data.id} ${data.response}`);
-  });
-
-  socket.on("connect_error", (err) => {
-    console.error(`Client ${id} connection error:`, err.message);
+  socket.on("demo_response", (data) => {
+    console.log(`🔵${data.id} ${data.response}`);
   });
 }
 
