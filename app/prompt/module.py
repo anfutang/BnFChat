@@ -99,6 +99,13 @@ Query: critques sur les œuvres de Flaubert.
 #SRU-like: dc.subject adj "flaubert", dc.description adj "flaubert", dc.subject all "critique", dc.description all "critique", dc.title all "critique".
 #Reasoning: Both "flaubert" and "critique" should appear in the metadata.
 #SRU: (dc.subject adj "flaubert" or dc.description adj "flaubert") and (dc.subject all "critique" or dc.description all "critique" or dc.title all "critique")
+
+Query: notre dame de paris de victor hugo.
+#Analysis: The user focuses on the work "notre dame de paris" written by Victor Hugo. Therefore, "notre dame de paris" should appear in dc.title and "adj" should be used since it involves an entity (exact work title). Victor Hugo should appear in dc.creator. To improve matching accuracy, Victor Hugo could also appear in dc.title and dc.subject, in case the dc.creator field is missing.
+#Field: dc.creator, dc.subject, dc.title.
+#SRU-like: dc.title adj "notre dame de paris", dc.creator adj "victor hugo", dc.subject adj "victor hugo", dc.title adj "victor hugo"
+#Reasoning: Both "notre dame de paris" and "victor hugo" should be matched.
+#SRU: dc.title adj "notre dame de paris" and (dc.creator adj "victor hugo" or dc.subject adj "victor hugo" or dc.title adj "victor hugo")
 """
 
 nl2sru = f"""Task: Convert the following French natural language query into an SRU query.

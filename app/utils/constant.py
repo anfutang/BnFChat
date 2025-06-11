@@ -97,12 +97,10 @@ def get_topic_name(topic_id):
 # Topic definitions
 TOPICS = {
     1: [
-        {"id": 1, "name": "Victor Hugo", "category": "Personne"},
-        {'id': 2, 'name': 'Musée du Louvre', 'category': 'Organisation'}
+        {"id": 1, "name": "Victor Hugo", "category": "Personne"}
     ],
     2: [  # Exercise topics
-        {"id": 1, "name": "Victor Hugo", "category": "Personne"},
-        {'id': 2, 'name': 'Musée du Louvre', 'category': 'Organisation'}
+        {"id": 1, "name": "Victor Hugo", "category": "Personne"}
     ],
     3: [
         {"id": 1, "name": "Histoire naturelle", "category": "Œuvre / Sujet"},

@@ -280,7 +280,7 @@ const ChatInterface = () => {
             className="logout-btn"
             disabled={isStreaming}
           >
-            <strong>Se déconncter</strong>
+            <strong>Se déconnecter</strong>
           </button>
           </div>
         </div>
