@@ -158,6 +158,9 @@ const AdminDashboard = () => {
                     {selectedUser && selectedChat ? (
                     <div style={{ height:"100%", width:"100%" }}>
                         <p>{formatChatLevelAnswers(selectedChat.feedback)}</p>
+                        {selectedChat.user_intent && (<p>✔ user_intent: {selectedChat.user_intent}</p>)}
+                        {selectedChat.sru_query && (<p>✔ sru: {selectedChat.sru_query}</p>)}
+                        
                         {/* <h3>🧑 {selectedUser.username} 💬Chat - {selectedChat.chat_id}</h3> */}
                         <MessageList className="selected-user-chat-history-area">
                             {/* Chat messages */}

@@ -437,6 +437,8 @@ def register_socketio_events():
     def handle_submit_conv_feedback(data):
         try:
             chat_id = data.get('chatId')
+            user_intent = data.get('userIntent')
+            sru_query = data.get('sruQuery')
             feedback_data = {
                 **data.get('formData'),
                 'timestamp': datetime.datetime.now().isoformat()
@@ -446,6 +448,8 @@ def register_socketio_events():
             chat = Chat.query.get(chat_id)
             if chat:
                 chat.feedback = feedback_data
+                chat.user_intent = user_intent
+                chat.sru_query = sru_query
                 chat.status = "end:user_feedback"
                 chat.updated_at = datetime.datetime.now()
                 db.session.commit()
@@ -545,6 +549,7 @@ def process_chat_message(user_input, user_id, chat_id, session_id):
                 
                 result_data = {
                     'chatId': chat_id,  # Include chat ID for feedback submission
+                    'userIntent': state.get("user_intent",""),
                     'sruQuery': state.get("generated_sru_query", ""),
                     'originalQuery': state.get("original_sru_query", ""),
                     'wcResults': wc_results,

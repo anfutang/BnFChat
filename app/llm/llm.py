@@ -171,7 +171,7 @@ def call_nl2sru(query: str,sru_hint: str,stream_response=False):
         completion = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=messages,
-            temperature=0.0,
+            temperature=0.1,
         )
         # parsed_result = completion.choices[0].message.parsed
         # return (getattr(parsed_result,"reasoning"), getattr(parsed_result,"sru_query"))

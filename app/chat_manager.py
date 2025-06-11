@@ -90,7 +90,7 @@ class ChatManager:
                 return False, "Chat not found"
             
             chat.status = status
-            chat.updated_at = datetime.datetime.utcnow()
+            chat.updated_at = datetime.datetime.now()
             db.session.commit()
             
             return True, None

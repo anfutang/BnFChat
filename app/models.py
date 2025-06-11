@@ -62,6 +62,7 @@ class Chat(db.Model):
     topic_id = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='ongoing')
     user_intent = db.Column(db.Text, nullable=True)
+    sru_query = db.Column(db.Text, nullable=True)
     chat_history = db.Column(db.JSON, nullable=False, default=list)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
@@ -155,9 +156,13 @@ def get_all_user_chats():
         result.append({
             'user_id': user.id,
             'username': user.username,
-            'chats': [{'chat_id': c.id, 'chat_history': [msg["content"] for msg in c.chat_history], 'feedback': c.feedback} for c in chats]
+            'chats': [{'chat_id': c.id, 
+                       'chat_history': [msg["content"] for msg in c.chat_history], 
+                       'user_intent': c.user_intent,
+                       'sru_query': c.sru_query, 
+                       'feedback': c.feedback
+                       } for c in chats]
         })
-    print(result[0])
     return result
 
 def get_all_user_feedback():

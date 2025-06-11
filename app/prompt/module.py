@@ -74,23 +74,31 @@ Query: biographie de Flaubert.
 #Field: dc.title, dc.subject, dc.type.
 #SRU-like: dc.title adj flaubert, dc.subject adj flaubert, dc.type all monographie
 #Reasoning: "dc.type all monographie" is mandantory. "dc.title all flaubert" only is okay, but adding "dc.subject all flaubert" is more accurate. All conditions must be satisfied. 
-#SRU: dc.title adj flaubert and (dc.subject adj flaubert) and (dc.type all monographie)
+#SRU: dc.title adj "flaubert" and (dc.subject adj "flaubert") and (dc.type all "monographie")
 
 Query: estampes de Watteau.
 
-#Reason: The user query focuses on engraving prints of Watteau, the author should therefore be Jongkind. Since engraving prints are often visual works, the most appropriate document type keyword from the provided list is "image". The subject field is not involved, since the query does not involve specific subjects. Searching the keyword "estampe" in title is acceptable, which may help precise the search.
+#Analysis: The user query focuses on engraving prints of Watteau, the author should therefore be Jongkind. Since engraving prints are often visual works, the most appropriate document type keyword from the provided list is "image". The subject field is not involved, since the query does not involve specific subjects. Searching the keyword "estampe" in title is acceptable, which may help precise the search.
 #Field: dc.creator, dc.type, dc.title.
 #SRU-like: dc.creator adj jongkind, dc.type all image, dc.title all estampe
 #Reasoning: the two conditions should both be satisfied, therefore using and.
-#SRU: dc.creator adj watteau and (dc.type all image) and (dc.title all estampe) 
+#SRU: dc.creator adj "watteau" and (dc.type all "image") and (dc.title all "estampe") 
 
 Query: Le Figaro avant l'année 1900.
 
-#Reason: Since Le Figaro is a newspaper, therefore the most appropriate dc.type from the provided list should be "fascicule", and "le figaro" must appear in dc.title. Before the year of 1900 sets a time period of searching, gallicapublication_date should be used.
+#Analysis: Since Le Figaro is a newspaper, therefore the most appropriate dc.type from the provided list should be "fascicule", and "le figaro" must appear in dc.title. Before the year of 1900 sets a time period of searching, gallicapublication_date should be used.
 #Field: dc.title, dc.type, gallicapublication_date.
 #SRU-like: dc.title adj "le figaro" and (dc.type all fascicule) and (gallicapublication_date <= "1900")
 #Reasoning: all conditions must be satisfied.
 #SRU: dc.title adj "le figaro" and (dc.type all "fascicule") and (gallicapublication_date <= "1900")
+
+Query: critques sur les œuvres de Flaubert.
+
+#Analysis: The user searches for critical work on Flaubert, therefore Flaubert should not be the creator. "Flaubert" should appear in dc.subject or dc.description. The keyword "critique" could appear in dc.subject, dc.title or dc.description. Remove "s" from the keyword "critiques".
+#Field: dc.subject, dc.title, dc.description.
+#SRU-like: dc.subject adj "flaubert", dc.description adj "flaubert", dc.subject all "critique", dc.description all "critique", dc.title all "critique".
+#Reasoning: Both "flaubert" and "critique" should appear in the metadata.
+#SRU: (dc.subject adj "flaubert" or dc.description adj "flaubert") and (dc.subject all "critique" or dc.description all "critique" or dc.title all "critique")
 """
 
 nl2sru = f"""Task: Convert the following French natural language query into an SRU query.

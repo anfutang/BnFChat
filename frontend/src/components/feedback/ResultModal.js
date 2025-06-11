@@ -103,12 +103,15 @@ const ResultModal = ({ isOpen, onClose, resultData, isLoading, socketRef }) => {
     // Use the passed socketRef instead of window.socket
     if (socketRef?.current) {
       console.log("⭐ Submitting feedback...");
-      console.log(formData);
+      // console.log(formData);
+      console.log(">>>>",resultData);
 
       socketRef.current.emit('submit_conv_feedback', {
         formData: formData,
         resultId: resultData?.id,
-        chatId: resultData?.chatId
+        chatId: resultData?.chatId,
+        userIntent: resultData?.userIntent,
+        sruQuery: resultData?.sruQuery,
       });
       
       // Immediately show submitted state
