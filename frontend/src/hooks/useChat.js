@@ -1,5 +1,4 @@
 // src/hooks/useChat.js - With Result Events
-import { Message } from '@chatscope/chat-ui-kit-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
@@ -10,13 +9,14 @@ export const useChat = ({setMessageModal}) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(null);
+  const [explicitUserInputDisabled, setExplicitUserInputDisabled] = useState(false);
   const [assistantStatus, setAssistantStatus] = useState('');
   const [detectedUserIntent, setDetectedUserIntent] = useState('');
+  const [generatedSRU, setGeneratedSRU] = useState(null);
+  const [sruValidnessMessage, setSruValidnessMessage] = useState(null);
   
-  // Session and topic data (via SocketIO)
-  const [sessionData, setSessionData] = useState(null);
-  const [topics, setTopics] = useState([]);
-  const [selectedTopic, setSelectedTopic] = useState(null);
+  // User data 
+  const [userData, setUserData] = useState({});
   
   const socketRef = useRef(null);
 
@@ -27,10 +27,10 @@ export const useChat = ({setMessageModal}) => {
   const feedbackSavedCallbackRef = useRef(null);
 
   useEffect(() => {
-    if (socketRef.current && isConnected && sessionData) {
+    if (socketRef.current && isConnected && userData) {
       socketRef.current.emit('get_chat_state');
     }
-  }, [isConnected, sessionData]);
+  }, [isConnected, userData]);
   
   // Initialize socket connection
   useEffect(() => {
@@ -59,7 +59,7 @@ export const useChat = ({setMessageModal}) => {
           console.log('Socket connected');
           
           // Request initial data
-          socket.emit('get_session_data');
+          socket.emit('get_user_data');
         });
 
         socket.on('disconnect', () => {
@@ -67,37 +67,11 @@ export const useChat = ({setMessageModal}) => {
           console.log('Socket disconnected');
         });
 
-        // ========== SESSION DATA EVENTS ==========
-        socket.on('session_data_response', (data) => {
-          setSessionData(data);
-          // Also request topics for current session
-          socket.emit('get_topics');
+        // ==========  USER DATA EVENTS ==========
+        socket.on('user_data_response', (data) => {
+          setUserData(data);
+          console.log(userData);
           socket.emit('get_chat_state');
-        });
-
-        // ========== TOPIC EVENTS ==========
-        socket.on('topics_response', (data) => {
-          setTopics(data.topics);
-          
-          // Set current topic if available
-          if (data.currentTopicId > 0) {
-            const currentTopic = data.topics.find(t => t.id === data.currentTopicId);
-            setSelectedTopic(currentTopic);
-          } else {
-            setSelectedTopic(null);
-          }
-        });
-
-        socket.on('topic_selected', (data) => {
-          if (data.success) {
-            setSelectedTopic(data.topicInfo);
-            
-            // Clear chat state if chat was ended
-            if (data.chatEnded) {
-              setCurrentChatId(null);
-              setMessages([]);
-            }
-          }
         });
 
         // ========== CHAT EVENTS ==========
@@ -111,6 +85,10 @@ export const useChat = ({setMessageModal}) => {
           }
         });
 
+        socket.on('mode_change_success', (data) => {
+          console.log(`🟢 Success: ${data["message"]}`);
+        })
+
         socket.on('message_received', (data) => {
           const userMessage = {
             id: `user_${Date.now()}`,
@@ -119,10 +97,6 @@ export const useChat = ({setMessageModal}) => {
             timestamp: new Date().toISOString()
           };
           setMessages(prev => [...prev, userMessage]);
-        });
-
-        socket.on('timer_updated', (data) => {
-          console.log('Timer value updated:', data);
         });
 
         socket.on('graph_update', (data) => {
@@ -164,6 +138,32 @@ export const useChat = ({setMessageModal}) => {
           setDetectedUserIntent(data.user_intent);
         })
 
+        socket.on('generated_sru', (data) => {
+          setGeneratedSRU(data.sru);
+
+          // Add assistant message
+          const sruMessage = {
+            id: `sru_${Date.now()}`,
+            role: 'sru', 
+            content: data.sru,
+            timestamp: new Date().toISOString()
+          };
+          
+          setMessages(prev => {
+            if (prev[prev.length - 1].role === 'assistant') {
+              const updated = [...prev, sruMessage];
+              return updated;
+            } else {
+              console.warn("⚠️ repeatitive adding message");
+              return prev;
+            }
+          });
+        })
+
+        socket.on('tentative_retrieval_message', (data) => {
+          setSruValidnessMessage(data.message);
+        })
+
         // ========== RESULT EVENTS ==========
         socket.on('results_triggered', (data) => {
           console.log('⭐ Results triggered event received:', data);
@@ -201,6 +201,7 @@ export const useChat = ({setMessageModal}) => {
         // ========== CHAT END EVENTS ==========
         socket.on('chat_ended', (data) => {
           console.log('Chat ended:', data.reason);
+          setExplicitUserInputDisabled(false);
           setCurrentChatId(null);
           setMessages([]);
           setDetectedUserIntent('');
@@ -208,25 +209,21 @@ export const useChat = ({setMessageModal}) => {
           setIsStreaming(false);
         });
 
-        socket.on('ongoing_chats_terminated', (data) => {
-          console.log('Ongoing chats terminated:', data.reason);
-          setCurrentChatId(null);
-          setMessages([]);
-          setDetectedUserIntent('');
-          setAssistantStatus();
-          setIsStreaming(false);
+        socket.on('disable_user_input', () => {
+          console.log('User input temporarily disabled explicitly.');
+          setExplicitUserInputDisabled(true);
         });
+
+        // socket.on('ongoing_chats_terminated', (data) => {
+        //   console.log('Ongoing chats terminated:', data.reason);
+        //   setCurrentChatId(null);
+        //   setMessages([]);
+        //   setDetectedUserIntent('');
+        //   setAssistantStatus();
+        //   setIsStreaming(false);
+        // });
 
         // ========== SESSION CHANGE EVENTS ==========
-        socket.on('session_change_success', (data) => {
-          console.log('Session changed successfully:', data.session_id);
-          setCurrentChatId(null);
-          setMessages([]);
-          
-          // Request fresh data
-          socket.emit('get_session_data');
-        });
-
         socket.on('test_ended_success', () => {
           console.log('🎉 Test ended successfully: quit.')
         });
@@ -281,16 +278,16 @@ export const useChat = ({setMessageModal}) => {
   }, [isConnected]);
 
   // Erase chat
-  const eraseChat = () => {
-    socketRef.current.emit('erase_chat');
+  const startNewChat = (end_chat_reason) => {
+    socketRef.current.emit('start_new_chat', { end_chat_reason });
   };
 
   // Change session
-  const changeSession = useCallback(() => {
+  const changeMode = useCallback((mode) => {
     if (!socketRef.current || !isConnected) return;
     
-    socketRef.current.emit('session_change', { session_id: sessionData.sessionId+1 });
-    sessionData.sessionId += 1;
+    socketRef.current.emit('mode_change', { mode: mode });
+    setUserData(prev => ({ ...prev, mode }));
   }, [isConnected]);
 
   // Select topic
@@ -301,10 +298,10 @@ export const useChat = ({setMessageModal}) => {
   }, [isConnected]);
 
   // Get session data
-  const getSessionData = useCallback(() => {
+  const getUserData = useCallback(() => {
     if (!socketRef.current || !isConnected) return;
     
-    socketRef.current.emit('get_session_data');
+    socketRef.current.emit('get_user_data');
   }, [isConnected]);
 
   // Get topics
@@ -353,18 +350,18 @@ export const useChat = ({setMessageModal}) => {
     isConnected,
     isStreaming,
     setIsStreaming,
+    explicitUserInputDisabled,
     error,
     assistantStatus,
     detectedUserIntent,
     setDetectedUserIntent,
-    
-    // Session and topic data
-    sessionData,
-    setSessionData,
-    topics,
-    selectedTopic,
-    setSelectedTopic,
     setAssistantStatus,
+    generatedSRU,
+    setGeneratedSRU,
+    sruValidnessMessage,
+    setSruValidnessMessage,
+    userData,
+    setUserData,
     
     // Refs
     socketRef,
@@ -372,15 +369,12 @@ export const useChat = ({setMessageModal}) => {
     // Actions
     sendMessage,
     getChatState,
-    changeSession,
-    selectTopic,
-    getSessionData,
-    getTopics,
+    getUserData,
     clearError,
     setCurrentChatId,
     setMessages,
-    eraseChat,
-    updateTimer,
+    startNewChat,
+    changeMode,
     
     // ADD RESULT EVENT HANDLERS
     onResultsTriggered,

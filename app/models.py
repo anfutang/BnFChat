@@ -16,12 +16,11 @@ class User(db.Model):
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     permission_level = db.Column(db.Integer,nullable=False)
-    session_id = db.Column(db.Integer, nullable=False, default=1)
-    exercise_topic_id = db.Column(db.Integer, nullable=False, default=0)
-    test_topic_id = db.Column(db.Integer, nullable=False, default=0)
-    timer_exercise = db.Column(db.Integer, nullable=False, default=30)
-    timer_test = db.Column(db.Integer, nullable=False, default=30)
+    mode = db.Column(db.String(50),nullable=False,default="search")
     avatar_seed = db.Column(db.Integer, nullable=True)
+    online = db.Column(db.Boolean, nullable=False, default=False)
+    request_reset_password = db.Column(db.Boolean, nullable=False, default=False)
+    allowed_reset_password = db.Column(db.Boolean, nullable=False, default=False)
     profile_created = db.Column(db.Boolean, nullable=True, default=False)
     feedback = db.Column(db.JSON, nullable=True)
     profile = db.Column(db.JSON, nullable=True)
@@ -33,11 +32,6 @@ class User(db.Model):
         self.username = username
         self.password = generate_password_hash(password)
         self.permission_level = permission_level
-        self.session_id = 1
-        self.exercise_topic_id = 0
-        self.test_topic_id = 0
-        self.timer_exercise = 300
-        self.timer_test = 2100
         self.avatar_seed = 1
         self.profile_created = profile_created
     
@@ -58,20 +52,19 @@ class Chat(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    session_id = db.Column(db.Integer, nullable=False)
-    topic_id = db.Column(db.Integer, nullable=False)
+    mode = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='ongoing')
     user_intent = db.Column(db.Text, nullable=True)
-    sru_query = db.Column(db.Text, nullable=True)
+    generated_sru = db.Column(db.Text, nullable=True)
     chat_history = db.Column(db.JSON, nullable=False, default=list)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
-    feedback = db.Column(db.JSON, nullable=True) # replace with multiple columns instead when you know what you will have inside
+    result = db.Column(db.JSON,nullable=True)
+    feedback = db.Column(db.String(20), nullable=True) 
     
-    def __init__(self, user_id, session_id, topic_id, status='ongoing'):
+    def __init__(self, user_id, mode, status='ongoing'):
         self.user_id = user_id
-        self.session_id = session_id
-        self.topic_id = topic_id
+        self.mode = mode
         self.status = status
         self.chat_history = []
         self.created_at = datetime.datetime.now()
@@ -100,8 +93,17 @@ class Chat(db.Model):
         # from sqlalchemy.orm.attributes import flag_modified
         # flag_modified(self, 'chat_history')
     
+    def add_result(self, result, user_intent, generated_sru):
+        if result:
+            self.result = {"id":[int(ix) for ix in result["id"]]}
+        if user_intent:
+            self.user_intent = user_intent
+        if generated_sru:
+            self.generated_sru = generated_sru
+        self.updated_at = datetime.datetime.now()
+    
     def __repr__(self):
-        return f'<Chat {self.id} - User {self.user_id} - Session {self.session_id}>'
+        return f'<Chat {self.id} - User {self.user_id}>'
 
 
 def create_user(username, password):
@@ -111,31 +113,11 @@ def create_user(username, password):
     db.session.commit()
     return user
 
-
 def update_user(user, profile_data):
     """Update user profile with provided data"""
     # Update avatar seed if provided
     if 'avatar_seed' in profile_data:
         user.avatar_seed = profile_data['avatar_seed']
-    
-    # Update exercise topic if provided
-    if 'exerciseTopicId' in profile_data:
-        user.exercise_topic_id = profile_data['exerciseTopicId']
-    
-    # Update test topic if provided
-    if 'testTopicId' in profile_data:
-        user.test_topic_id = profile_data['testTopicId']
-    
-    # Update timers if provided
-    if 'timerExercise' in profile_data:
-        user.timer_exercise = profile_data['timerExercise']
-    
-    if 'timerTest' in profile_data:
-        user.timer_test = profile_data['timerTest']
-    
-    # Update session ID if provided
-    if 'sessionId' in profile_data:
-        user.session_id = profile_data['sessionId']
 
     # Profile question answers
     user.profile = {ky:profile_data[ky] for ky in PROFILE_KEYS}    
@@ -175,12 +157,8 @@ def get_all_user_feedback():
         for u in users
     ]
 
-def reset_user_status(user_id):
+def reset_user_password(user_id):
     user = User.query.filter_by(id=user_id).first()
     if user:
-        user.session_id = 1
-        user.exercise_topic_id = 0
-        user.test_topic_id = 0
-        user.timer_exercise = 300
-        user.timer_test = 2100
+        user.allowed_reset_password = True
         db.session.commit()

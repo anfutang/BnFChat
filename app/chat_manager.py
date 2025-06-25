@@ -7,12 +7,11 @@ import datetime
 class ChatManager:
     
     @staticmethod
-    def get_ongoing_chat(user_id, session_id):
+    def get_ongoing_chat(user_id):
         """Get ongoing chat for user in current session"""
         try:
             chat = Chat.query.filter_by(
                 user_id=user_id,
-                session_id=session_id,
                 status="ongoing"
             ).first()
             return chat, None
@@ -20,7 +19,7 @@ class ChatManager:
             return None, str(e)
     
     @staticmethod
-    def create_chat_with_first_message(user_id, session_id, message):
+    def create_chat_with_first_message(user_id, mode, message):
         """Create new chat with first user message"""
         try:
             # Get user's current topic
@@ -28,17 +27,10 @@ class ChatManager:
             if not user:
                 return None, "User not found"
             
-            topic_id = 0
-            if session_id == 2:
-                topic_id = user.exercise_topic_id
-            elif session_id == 3:
-                topic_id = user.test_topic_id
-            
             # Create new chat
             chat = Chat(
                 user_id=user_id,
-                session_id=session_id,
-                topic_id=topic_id,
+                mode=mode,
                 status="ongoing"
             )
             
@@ -82,6 +74,24 @@ class ChatManager:
             return False, str(e)
     
     @staticmethod
+    def save_search_result(chat_id, result={}, user_intent='', generated_sru=''):
+        """Save (facet, SRU) results to the existing chat"""
+        try:
+            chat = Chat.query.get(chat_id)
+            if not chat:
+                return False, "Chat not found"
+            
+            chat.add_result(result, user_intent, generated_sru)
+            db.session.commit()
+            
+            return True, None
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"[ChatManager] Error saving conversation result: {str(e)}")
+            return False, str(e)
+    
+    @staticmethod
     def end_chat(chat_id, status, user_id):
         """End ongoing chat"""
         try:
@@ -100,10 +110,10 @@ class ChatManager:
             return False, str(e)
     
     @staticmethod
-    def get_chat_state(user_id, session_id):
+    def get_chat_state(user_id):
         """Get current chat state for frontend"""
         try:
-            chat, error = ChatManager.get_ongoing_chat(user_id, session_id)
+            chat, error = ChatManager.get_ongoing_chat(user_id)
             
             if error:
                 return {'error': error}
@@ -124,15 +134,12 @@ class ChatManager:
                         'id': chat.id,
                         'messages': messages,
                         'status': chat.status,
-                        'topicId': chat.topic_id,
                         'userIntent': chat.user_intent
                     },
-                    'sessionId': session_id
                 }
             else:
                 return {
                     'chat': None,
-                    'sessionId': session_id
                 }
                 
         except Exception as e:

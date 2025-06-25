@@ -68,7 +68,7 @@ Utilisez les exemples fournis pour comprendre le raisonnement à suivre à chaqu
 """
 
 examples = """
-Query: biographie de Flaubert.
+User: biographie de Flaubert.
 
 #Analysis: The user query focuses on biographies of Flaubert, the author is therefore not necessarily Flaubert himself, so dc.creator should not be used. For a biography, it is very possible that the keyword "Flaubert" appears in both dc.title and dc.subject. The document type corresponding to a biography should be "monographie".
 #Field: dc.title, dc.subject, dc.type.
@@ -76,7 +76,7 @@ Query: biographie de Flaubert.
 #Reasoning: "dc.type all monographie" is mandantory. "dc.title all flaubert" only is okay, but adding "dc.subject all flaubert" is more accurate. All conditions must be satisfied. 
 #SRU: dc.title adj "flaubert" and (dc.subject adj "flaubert") and (dc.type all "monographie")
 
-Query: estampes de Watteau.
+User: estampes de Watteau.
 
 #Analysis: The user query focuses on engraving prints of Watteau, the author should therefore be Jongkind. Since engraving prints are often visual works, the most appropriate document type keyword from the provided list is "image". The subject field is not involved, since the query does not involve specific subjects. Searching the keyword "estampe" in title is acceptable, which may help precise the search.
 #Field: dc.creator, dc.type, dc.title.
@@ -84,7 +84,7 @@ Query: estampes de Watteau.
 #Reasoning: the two conditions should both be satisfied, therefore using and.
 #SRU: dc.creator adj "watteau" and (dc.type all "image") and (dc.title all "estampe") 
 
-Query: Le Figaro avant l'année 1900.
+User: Le Figaro avant l'année 1900.
 
 #Analysis: Since Le Figaro is a newspaper, therefore the most appropriate dc.type from the provided list should be "fascicule", and "le figaro" must appear in dc.title. Before the year of 1900 sets a time period of searching, gallicapublication_date should be used.
 #Field: dc.title, dc.type, gallicapublication_date.
@@ -92,7 +92,7 @@ Query: Le Figaro avant l'année 1900.
 #Reasoning: all conditions must be satisfied.
 #SRU: dc.title adj "le figaro" and (dc.type all "fascicule") and (gallicapublication_date <= "1900")
 
-Query: critques sur les œuvres de Flaubert.
+User: critques sur les œuvres de Flaubert.
 
 #Analysis: The user searches for critical work on Flaubert, therefore Flaubert should not be the creator. "Flaubert" should appear in dc.subject or dc.description. The keyword "critique" could appear in dc.subject, dc.title or dc.description. Remove "s" from the keyword "critiques".
 #Field: dc.subject, dc.title, dc.description.
@@ -100,7 +100,7 @@ Query: critques sur les œuvres de Flaubert.
 #Reasoning: Both "flaubert" and "critique" should appear in the metadata.
 #SRU: (dc.subject adj "flaubert" or dc.description adj "flaubert") and (dc.subject all "critique" or dc.description all "critique" or dc.title all "critique")
 
-Query: notre dame de paris de victor hugo.
+User: notre dame de paris de victor hugo.
 #Analysis: The user focuses on the work "notre dame de paris" written by Victor Hugo. Therefore, "notre dame de paris" should appear in dc.title and "adj" should be used since it involves an entity (exact work title). Victor Hugo should appear in dc.creator. To improve matching accuracy, Victor Hugo could also appear in dc.title and dc.subject, in case the dc.creator field is missing.
 #Field: dc.creator, dc.subject, dc.title.
 #SRU-like: dc.title adj "notre dame de paris", dc.creator adj "victor hugo", dc.subject adj "victor hugo", dc.title adj "victor hugo"

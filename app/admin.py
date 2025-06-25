@@ -1,6 +1,6 @@
 from flask import (Blueprint, Flask, jsonify, request)
 from .db import db
-from .models import get_all_user_chats, get_all_user_feedback, reset_user_status
+from .models import get_all_user_chats, get_all_user_feedback, reset_user_password
 
 bp = Blueprint('admin', __name__, url_prefix="/api/admin")
 
@@ -18,6 +18,6 @@ def api_reset_user():
     user_id = data.get('user_id')
     if not user_id:
         return jsonify({'error': 'user_id required'}), 400
-    reset_user_status(user_id)
+    reset_user_password(user_id)
     return jsonify({'success': True})
 

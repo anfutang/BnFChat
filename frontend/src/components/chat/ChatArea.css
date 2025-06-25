@@ -1,42 +1,284 @@
 /* ChatArea.css */
 
+:root {
+    --entity-modal-bg-color: #f5ebdf;
+}
+
+.user-area {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    width: 100%;
+    background-color: rgb(88, 88, 88);
+}
+
+.chat-sidebar {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 20%;
+    background-color: rgb(35, 35, 35);
+    /* border: 3px solid blue; */
+}
+
+.chat-sidebar-btn-container {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 10%;
+    /* border: 3px solid red; */
+}
+
+.new-chat-btn {
+    position: relative;
+    width: 60%;
+    height: 50%;
+    border-radius: 0.5rem;
+    font-family: monospace;
+    font-size: 1rem;
+    color: white;
+    background-color: #606060;
+    cursor: pointer;
+}
+
+.new-chat-btn:not(:disabled):hover {
+    background-color: rgb(137, 137, 137);
+}
+
+.new-chat-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.chat-history-container {
+    position: absolute;
+    height: 90%;
+    width: 100%;
+    top: 10%;
+    overflow-y: auto;
+    /* border: 1px solid yellow; */
+}
+
 .chat-area {
     position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
-    /* border: 3px solid blue; */
+    width: 80%;
     font-family: monospace;
     color: black;
+    background-color: rgb(50, 50, 50);
+    /* border: 3px solid green; */
 }
 
-.message-list {
+.mode-description-container {
     position: relative;
-    flex-grow: 1;
-    overflow-y: auto;
-    padding: 1%;
-    width: 100%;
-    height: 20%;
-    /* border: 3px solid #ac0c0c; */
-    font-size: 1.1rem;
-    gap: 50px,
-}
-
-.message-input {
-    /* position: relative; */
+    left: 2%;
+    width: 96%;
+    height: 85%;
     display: flex;
     flex-direction: row;
     align-items: center;
-    padding: 0;
-    margin: 1%;
-    font-family: monospace;
+    justify-content: center;
+    font-family: Arial;
+    font-size: 1.1rem;
     color: white;
+    opacity: 0.5;
+    /* border: 3px solid yellow; */
+}
+
+.mode-logo {
+    position: relative;
+    height: 20%;
+    margin: 1%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* border: 3px solid blue; */
+}
+
+.mode-description {
+    position: relative;
+    height: 20%;
+    /* width: 35%; */
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    text-align: left;
+    font-family: Arial;
+    font-size: 1.2rem;
+    color: white;
+    opacity: 0.7;
+    /* border: 3px solid green; */
+}
+
+.mode-description a {
+    font-weight: 500;
+    color: white;
+}
+
+.mode-name {
+    position: relative;
+    margin: 2px;
+    padding: 0;
+    font-size: 1.5rem;
+}
+
+.mode-text {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    font-size: 1.2rem;
+}
+
+.chat-header {
+    position: relative;
     height: 5%;
-    width: 90%;
-    left: 3%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 1rem;
+    font-family: monospace;
+    /* border: 3px solid yellowgreen; */
+}
+
+.intent-line {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-top: 0.25rem;
+}
+
+.message-area {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    /* padding: 1%; */
+    left: 2%;
+    width: 96%;
+    height: 85%;
+    /* border: 3px solid red; */
+    font-size: 1.1rem;
+    gap: 50px;
+}
+
+.message.user {
+    text-align: right;
+    max-width: 50%;
     font-family: monospace;
     font-size: 1rem;
-    border: 3px solid blueviolet;
+    color: white;
+    padding: 0.8rem;
+    margin: 5px;
+    margin-left: auto;
+    /* border: 3px solid orange; */
+    border-radius: 0.5rem;
+    background-color: #1a1a1a;
+}
+
+.message.assistant {
+    text-align: left;
+    max-width: 60%;
+    font-family: monospace;
+    font-size: 1rem;
+    color: white;
+    padding: 0.8rem;
+    margin-right: auto;
+    /* border: 3px solid yellowgreen; */
+    border-radius: 0.5rem;
+    background-color: #606060;
+}
+
+.message.sru {
+    text-align: left;
+    max-width: 60%;
+    font-family: monospace;
+    font-size: 1rem;
+    color: black;
+    padding: 0.8rem;
+    margin-right: auto;
+    border-radius: 0.5rem;
+    background-color: antiquewhite;
+}
+
+.message-time {
+    font-size: monospace;
+    font-size: 0.7rem;
+}
+
+.message-input-container {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 90%;
+    height: 10%;
+    left: 5%;  
+    /* border: 3px solid yellow; */
+  }
+
+.message-input {
+    position: absolute;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 1%;
+    margin: 0;
+    font-size: 1.1rem;
+    font-family: Arial, Helvetica, sans-serif;
+    color:black;
+    background-color: antiquewhite;
+    height: 30%;
+    width: 80%;
+    left: 10%;
+    border-radius: 5px;
+    outline: none;
+    /* border: 3px solid blueviolet; */
+}
+
+.message-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.send-button {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 5vh;
+    height: 5vh;
+    right: 2%;
+    background-color: antiquewhite;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.send-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.send-button:hover {
+    background-color: rgb(255, 255, 255);
+}
+
+.send-button:disabled {
+    background-color: antiquewhite;
+    cursor: not-allowed;
 }
 
 .topic-info {
@@ -44,6 +286,22 @@
     color: black;
     font-size: 0.9rem;    
     text-align: left;
+}
+
+.typing-indicator {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.typing-status {
+    position: relative;
+    font-family: monospace;
+    font-size: 1rem;
+    font-style: normal;
+    color: white;
 }
 
 .status-indicator {
@@ -55,4 +313,227 @@
     top: 5px;
     left: 3%;
     /* border: 2px solid orange; */
+}
+
+/* entity list modal */
+.entity-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+    /* border: 3px solid red; */
+}
+
+.entity-modal {
+    position: absolute;
+    background-color: var(--entity-modal-bg-color);
+    padding: 20px 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    width: 50%;
+    height: 70%;
+    text-align: center;
+}
+
+.entity-modal-header {
+    position: absolute;
+    background-color: #353535;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial;
+    font-size: 1.2rem;
+    color: white;
+    width: 100%;
+    height: 8%;
+    left: 0;
+    top: 0;
+    margin: 0;
+    padding: 0;
+    /* border: 3px solid orange; */
+}
+
+.entity-modal-content {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 96%;
+    height: 78%;
+    left: 2%;
+    top: 10%;
+    margin: 0;
+    padding: 0;
+    background-color: antiquewhite;
+    border: 2px solid black;
+    border-radius: 6px;
+}
+
+.scroll-area {
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+.entity-category {
+    position: relative;
+    display: inline-block;
+    text-align: center;
+    width: 90%;
+    font-size: 1.1rem;
+    font-weight: 1000;
+    font-family: Arial, sans-serif;
+    color: black;
+    padding: 2px;
+}
+
+.entity-list {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    color: black;
+    margin: 0;
+    border-top: 1px solid black;
+    border-bottom: 1px solid black;
+    gap: 15px;
+}
+
+.entity-list p {
+    position: relative;
+    font-size: 1rem;
+    font-family: Arial;
+    font-style: italic;
+    text-decoration: underline;
+}
+
+.entity-modal h3 {
+    position: absolute;
+    margin-top: 0;
+}
+
+.entity-modal-btn-container {
+    position: absolute;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 5%;
+    left: 0;
+    top: 89%;
+    margin: 0;
+    padding: 0;
+    /* border: 3px solid yellow; */
+}
+
+.entity-modal-btn-container p {
+    position: relative;
+    width: 6%;
+    /* left: 47%; */
+    margin: 0;
+}
+
+.entity-modal-page-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 5%;
+    height: 90%;
+    /* left: 30%; */
+    margin: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+}
+
+.entity-modal-page-btn:hover {
+    cursor: pointer;
+}
+
+.entity-modal-close-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    bottom: 0;
+    height: 100%;
+    margin-bottom: 1%;
+    padding: 8px 16px;
+    background-color: #000000;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.entity-modal-close-btn:hover {
+    background-color: #5b5b5b;
+}
+
+.sru {
+    position: relative;
+    text-align: left;
+    max-width: 60%;
+    font-family: monospace;
+    font-size: 1rem;
+    color: black;
+    padding: 0.8rem;
+    margin-right: auto;
+    /* border: 3px solid yellowgreen; */
+    border-radius: 0.5rem;
+    background-color: antiquewhite;
+}
+
+.sru-btn-container {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+    width: 100%;
+    height: 2vh;
+    margin: 0;
+    padding: 0;
+    gap: 10px;
+}
+
+
+.sru-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    aspect-ratio: 1;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    padding: 1rem 0.5rem;
+    background-color: antiquewhite;
+}
+
+.sru-btn:hover {
+    cursor: pointer;
+    background-color: rgb(247, 219, 181);
+}
+
+.sru-validness-msg {
+    position: relative;
+    height: 100%;
+    text-align: left;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.9rem;
+    /* text-decoration: underline; */
+    color: white;
+    background-color: transparent;
 }

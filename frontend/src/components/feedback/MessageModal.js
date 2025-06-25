@@ -3,7 +3,7 @@ import { AlertTriangle, Info } from "lucide-react";
 import { FaStar, FaRegStar, FaTimes } from 'react-icons/fa';
 import './MessageModal.css';
 
-const MessageModal = ({ setShowMessageModal, type, title, content, closeButtonText, confirmButtonText, onConfirmFunc, isTimerRunning, startTimer }) => {
+const MessageModal = ({ setShowMessageModal, type, title, content, closeButtonText, confirmButtonText, onConfirmFunc }) => {
     const needsConfirmation = confirmButtonText !== '';
   
     return (
@@ -19,7 +19,6 @@ const MessageModal = ({ setShowMessageModal, type, title, content, closeButtonTe
                         onConfirmFunc?.();
                       }}>{confirmButtonText}</button>}
                     {closeButtonText != '' && <button className="modal-close-btn" onClick={() => {
-                        if (!isTimerRunning) {startTimer();}
                         setShowMessageModal(false);
                     }}>{closeButtonText}</button>}
                 </div>

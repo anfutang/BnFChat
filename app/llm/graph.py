@@ -5,7 +5,7 @@ from typing import TypedDict, Optional, List, Tuple, Dict
 
 from .llm import *
 from .rag import knn
-from ..utils.retriever import retrieve_result_page
+from ..utils.retriever import retrieve_with_gallica
 from ..utils.constant import ABANDON_RESPONSE, SEARCH_RESPONSE, REFUSAL_RESPONSE, SEARCH_LAST_USER_INTENT_RESPONSE, NO_FURTHER_CLARIFICATION_RESPONSE
 from ..utils.utils import extract_sru_query, fetch_error
 
@@ -40,7 +40,7 @@ def is_fisrt_input(conv_history: list):
 # change topic
 
 # --- State definition ---
-def build_graph(socketio, user_id):
+def build_graph(socketio, user_id, mode):
     class State(TypedDict, total=False):
         conv_history: List[str]
         chat_id: int
@@ -60,7 +60,7 @@ def build_graph(socketio, user_id):
         status: Optional[str] # used as an argument for prompt chain routers
         search_result:  Optional[Tuple[List[Dict], List[Dict]]]
         generated_sru_query: Optional[str]
-        original_sru_query: Optional[str]
+        num_gallica_records: Optional[int]
 
         # error
         error_message: Optional[str]
@@ -218,18 +218,20 @@ def build_graph(socketio, user_id):
         return state
 
     def search(state: State) -> State:
+        socketio.emit("graph_update", {
+            "node": "search",
+            "info": "Recherche  : exploitation des sujets proches de votre intention…"
+        }, room=f'user_{user_id}')
+
         user_intent = state.get("user_intent")
-        knn_result = knn(user_intent,1)
+        knn_result = knn(user_intent,8)
+
         if not knn_result:
             # here, relevance check is only for cases when users instruct to search using the first user query, the query may not be relevant
             # If not the first query, relevance is checked in previous chain; no need to double check.
             state["response"] = REFUSAL_RESPONSE
             state["status"] = "end:refuse"
             return state
-        if knn_result["score"][0] > 0.9:
-            sru_hint = knn_result["sru_statements"][0]
-        else:
-            sru_hint = ""
 
         socketio.emit('assistant_response', {
                 'chat_id': state["chat_id"],
@@ -237,43 +239,100 @@ def build_graph(socketio, user_id):
                 'status': state["status"]
             }, room=f'user_{user_id}')
 
-        socketio.emit("graph_update", {
-            "node": "search",
-            "info": "Préparation de la recherche : génération de la requête SRU en cours…"
-        }, room=f'user_{user_id}')
+        state["search_result"] = knn_result
+
+        return state
         
-        # generate SRU and parse from the raw LLM result
-        call_llm_result = call_nl2sru(user_intent, sru_hint)
-        if isinstance(call_llm_result,Exception):
-            state["status"] = "error"
-            state["error_message"] = "node: search -> NL2SRU [LLM]. ✖️"+fetch_error(call_llm_result) 
-            return state
-        try: 
-            sru_query = extract_sru_query(call_llm_result[1])
-        except: 
-            state["status"] = "error"
-            state["error_message"] = "node: search -> NL2SRU [parsing]. ✖️Error parsing SRU query from LLM result."
-            return state
+    def nl2sru(state: State) -> State:
+        conv_history = state.get("conv_history")
         
         socketio.emit("graph_update", {
-            "node": "search",
-            "info": "Préparation de la recherche : Interaction avec Gallica en cours…"
+            "node": "nl2sru",
+            "info": "Analyse en cours…"
         }, room=f'user_{user_id}')
 
-        # fetch results w/ and w/o conversation using Gallica API
-        first_user_query = state["conv_history"][0].split(';')[0].strip() # treat queries like "...; cherche"
-        original_sru_query = f"gallica all {first_user_query}" 
-        state["generated_sru_query"] = sru_query
-        state["original_sru_query"] = original_sru_query
+        state["status"] = "nl2sru"
         
-        search_result = retrieve_result_page(sru_query,original_sru_query)
-        if isinstance(search_result,Exception):
+        # generate SRU and parse from the raw LLM result
+        call_llm_result = call_nl2sru(conv_history,True)
+        if isinstance(call_llm_result,Exception):
             state["status"] = "error"
-            state["error_message"] = "node: search -> retrieval [Gallica API]. ✖️"+fetch_error(search_result) 
+            state["error_message"] = "node:  NL2SRU [LLM]. ✖️"+fetch_error(call_llm_result) 
             return state
+        
+        stream = call_llm_result[1]
+
+        buffer = ""
+        current_section = None
+
+        for chunk in stream:
+            if chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                buffer += content
+
+                # check the current section of LLM-generated reasoning
+                if "#Analysis:" in buffer and current_section is None:
+                    current_section = "analysis"
+                    buffer = buffer.split("#Analysis:")[1]  
+                    buffer = "#Analysis:" + buffer  
+
+                if "#Field:" in buffer and current_section == "analysis":
+                    analysis_part, remaining = buffer.split("#Field:", 1)
+                    state["response"] = analysis_part.replace("#Analysis:","").strip()
+                    
+                    # extract analysis only and use it as assistant response that will be shown to users
+                    socketio.emit('assistant_response', {
+                            'chat_id': state["chat_id"],
+                            'content': state["response"],
+                            'status': state["status"]
+                        }, room=f'user_{user_id}')
+
+                    socketio.emit("graph_update", {
+                        "node": "search",
+                        "info": "Génération de la requête SRU…"
+                    }, room=f'user_{user_id}')
+
+                    buffer = "#Field:" + remaining  
+                    current_section = "field"
+
+                if "#SRU:" in buffer and current_section in ["analysis", "field"]:
+                    _, remaining = buffer.split("#SRU:", 1)
+                    buffer = "#SRU:" + remaining  
+                    current_section = "sru"
+
+        if current_section == "sru" and buffer:
+            generated_sru_query = buffer.replace("#SRU:","").strip()
+            state["generated_sru_query"] = generated_sru_query
+            socketio.emit('generated_sru', {
+                'chat_id': state["chat_id"],
+                'sru': state["generated_sru_query"],
+            }, room=f'user_{user_id}')
         else:
-            state["search_result"] = search_result
+            state["status"] = "error"
+            state["error_message"] = f"node: NL2SRU [parsing]. ✖️Error parsing SRU query from LLM response; possibly due to incorrect format. {current_section}; {buffer}"
             return state
+        
+        socketio.emit("graph_update", {
+            "node": "search",
+            "info": "Vérification du SRU…"
+        }, room=f'user_{user_id}')
+        
+        try:
+            num_records, _ = retrieve_with_gallica(generated_sru_query,True)
+            state["num_gallica_records"] = num_records
+            if not num_records:
+                tentative_retrieval_message = "🔴 Nul documents trouvé pour le SRU généré. Veuillez indiquer comment améliorer."
+            else:
+                tentative_retrieval_message = f"🟢 {num_records} résultats correspondants pour ce SRU."
+        except Exception as e:
+            state["status"] = "error"
+            state["error_message"] = "node: search -> retrieval [Gallica API]. ✖️"+fetch_error(e) 
+            tentative_retrieval_message = "🟡 Validation bloquée pour l'instant, mais vous pouvez cliquer pour voir sur Gallica."
+
+        socketio.emit("tentative_retrieval_message", {
+                "message": tentative_retrieval_message
+            }, room=f'user_{user_id}')
+        return state
             
 
     def finalize(state: State) -> State:
@@ -284,7 +343,7 @@ def build_graph(socketio, user_id):
                 'status': state.get("status", "completed")
             }, room=f'user_{user_id}')
         
-        if state["status"] is "error":
+        if state["status"] == "error":
             #  print('>'*10+state["error_message"])
             socketio.emit("error", {
                 "error": state["error_message"],
@@ -304,58 +363,66 @@ def build_graph(socketio, user_id):
     builder.add_node("ambiguity_detection", RunnableLambda(ambiguity_detection))
     builder.add_node("knn_relevance_check", RunnableLambda(knn_relevance_check))
     builder.add_node("rac", RunnableLambda(rac))
-    builder.add_node("finalize", RunnableLambda(finalize))
     builder.add_node("search", RunnableLambda(search))
+    builder.add_node("nl2sru", RunnableLambda(nl2sru))
+    builder.add_node("finalize", RunnableLambda(finalize))
 
-    # set entry
-    builder.set_entry_point("conv_action_detection")
+    if mode == "chat":
+        # set entry
+        builder.set_entry_point("conv_action_detection")
 
-    builder.add_conditional_edges(
-        "conv_action_detection",
-        lambda s: s["status"].split(':')[0],
-        {
-            "advance": "ambiguity_detection",
-            "end": "finalize",
-            "error": "finalize",
-            "search": "search",
-        }
-    )
+        builder.add_conditional_edges(
+            "conv_action_detection",
+            lambda s: s["status"].split(':')[0],
+            {
+                "advance": "ambiguity_detection",
+                "end": "finalize",
+                "error": "finalize",
+                "search": "search",
+            }
+        )
 
-    builder.add_conditional_edges(
-        "ambiguity_detection",
-        lambda s: s["status"].split(':')[0],
-        {
-            "advance": "knn_relevance_check",
-            "continue":"finalize",
-            "end": "finalize",
-            "error": "finalize",
-        }
-    )
+        builder.add_conditional_edges(
+            "ambiguity_detection",
+            lambda s: s["status"].split(':')[0],
+            {
+                "advance": "knn_relevance_check",
+                "continue":"finalize",
+                "end": "finalize",
+                "error": "finalize",
+            }
+        )
 
-    builder.add_conditional_edges(
-        "knn_relevance_check",
-        lambda s: s["status"].split(':')[0],
-        {
-            "advance": "rac",
-            "end": "finalize",
-            "error": "finalize",
-            "search": "search",
-        }
-    )
+        builder.add_conditional_edges(
+            "knn_relevance_check",
+            lambda s: s["status"].split(':')[0],
+            {
+                "advance": "rac",
+                "end": "finalize",
+                "error": "finalize",
+                "search": "search",
+            }
+        )
 
-    builder.add_conditional_edges(
-        "rac", 
-        lambda s: s["status"].split(':')[0],
-        {
-            "continue":"finalize",
-            "error":"finalize",
-            "search":"search",
-        }
-    )
+        builder.add_conditional_edges(
+            "rac", 
+            lambda s: s["status"].split(':')[0],
+            {
+                "continue":"finalize",
+                "error":"finalize",
+                "search":"search",
+            }
+        )
 
-    builder.add_edge("search", "finalize")
-        
-    builder.add_edge("finalize", END)
+        builder.add_edge("search", "finalize")
+            
+        builder.add_edge("finalize", END)
+    else:
+        builder.set_entry_point("nl2sru")
+
+        builder.add_edge("nl2sru", "finalize")
+            
+        builder.add_edge("finalize", END)
 
     # compile graph
     graph = builder.compile()

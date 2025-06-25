@@ -106,37 +106,6 @@ def is_valid_sru(sru_query):
     except:
         return False
 
-# tfidf
-def extract_tfidf_keywords(texts, top_n=10):
-    vectorizer = TfidfVectorizer(ngram_range=(2, 10))
-    tfidf_matrix = vectorizer.fit_transform(texts)
-    feature_names = vectorizer.get_feature_names_out()
-    
-    # Compute mean TF-IDF score for each word/phrase
-    scores = np.array(tfidf_matrix.mean(axis=0)).flatten()
-    sorted_indices = np.argsort(scores)[::-1]  # Sort by importance (descending)
-    
-    keywords = [(feature_names[i], scores[i]) for i in sorted_indices[:top_n * 2]]  # Get extra for filtering
-    return keywords
-
-# clustering + randomly sample titles from each cluster
-# def extract_titles_from_document_clusters(titles):
-#     if len(titles) < THRES_TITLE_SAMPLING:
-#         return titles, 0.0
-#     start_time = time.time()
-
-#     embeddings = model.encode(titles)
-
-#     clusterer = hdbscan.HDBSCAN(min_cluster_size=5, min_samples=1)
-#     labels = clusterer.fit_predict(embeddings)
-
-#     sampled_titles = []
-#     for l in range(max(labels)+1):
-#         sampled_titles.append(titles[np.random.choice(np.where(labels==l)[0])])
-
-#     end_time = time.time()
-#     return sampled_titles, end_time-start_time
-
 def remove_overlapping_keywords(keywords, top_n=10):
     """Removes overlapping keywords by keeping only the longest, highest-ranked ones."""
     selected_keywords = []
@@ -148,11 +117,6 @@ def remove_overlapping_keywords(keywords, top_n=10):
             break
     
     return selected_keywords
-
-def extract_non_overlapping_tfidf_keywords(texts, top_n=10):
-    """Pipeline: Extracts and filters non-overlapping TF-IDF keywords."""
-    keywords = extract_tfidf_keywords(texts, top_n * 5)  # Get extra for filtering
-    return remove_overlapping_keywords(keywords, top_n)
 
 def clean_string(text):
     text = re.sub(r'\s*\([^)]*\)', '', text)
@@ -169,93 +133,5 @@ def clean_texts(texts):
             res[s] += 1
     return list(list(zip(*res.most_common(20)))[0])
 
-def tfidf_extraction(records):
-    texts = {criterion:[record[criterion] for record in records if criterion in record] for criterion in target_dc_tags}
-    creator_description = clean_texts(texts['creator'])
-    contributor_description = clean_texts(texts['contributor'])
-    title_description = extract_non_overlapping_tfidf_keywords(texts['title'],30)
-    tfidf_kw_description = '\n'.join([f'dc.creator: {creator_description}',f'dc.contributor: {contributor_description}', f'dc.title: {title_description}'])
-    return tfidf_kw_description
-
-#=== Exact title matching===
-# DATA_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'instance')
-# titles = pickle.load(open(os.path.join(DATA_DIR, 'titles.pkl'), 'rb'))
-# lsh = pickle.load(open(os.path.join(DATA_DIR, 'lsh_index.pkl'), 'rb'))
-demo_titles = ["petit journal", "journal officiel", "le genie civil"]
-
-def get_char_ngrams(text, n=3):
-    return set(text[i:i+n] for i in range(len(text) - n + 1)) if len(text) >= n else {text}
-
-def compute_minhash(text, num_perm=128, n=3):
-    shingles = get_char_ngrams(text, n)
-    m = MinHash(num_perm=num_perm)
-    for shingle in shingles:
-        m.update(shingle.encode("utf-8"))
-    return m
-
-def is_exact_or_covered_query(query, title, token_coverage=0.9, word_similarity_thresh=85):
-    query = query.lower().strip()
-    title = title.lower().strip()
-
-    if query in title:
-        return True
-
-    q_words = query.split()
-    t_words = title.split()
-
-    matched = 0
-    for qw in q_words:
-        if any(fuzz.ratio(qw, tw) >= word_similarity_thresh for tw in t_words):
-            matched += 1
-
-    coverage = matched / len(q_words)
-    return coverage >= token_coverage
-
-def token_level_coverage(query, title, word_thresh=85, min_coverage=0.9):
-    q_tokens = query.lower().strip().split()
-    t_tokens = title.lower().strip().split()
-    
-    matched = 0
-    for qw in q_tokens:
-        if any(fuzz.ratio(qw, tw) >= word_thresh for tw in t_tokens):
-            matched += 1
-    
-    coverage = matched / len(q_tokens) if q_tokens else 0
-    return coverage >= min_coverage, coverage
-
-def find_exact_title_matches(query):
-    # start_time = time.time()
-
-    # # 1st step: roughly find matches using lsh
-    # query_mh = compute_minhash(query.lower(), num_perm=128, n=3)
-    # result_keys = lsh.query(query_mh)
-
-    # # 2nd step: further narrow down using edit distance
-    # candidate_titles = []
-    # for key in result_keys:
-    #     idx = int(key.replace("title_", ""))
-    #     title = titles[idx]
-    #     score = fuzz.ratio(query, title)
-    #     if score >= 0.9:
-    #         candidate_titles.append((title, score/100))
-    
-    # # 3nd step: force token-level matching
-    # final_results = {}
-
-    # for title in candidate_titles[:10]:
-    #     passed, coverage = token_level_coverage(query, title[0], word_thresh=100, min_coverage=0.8)
-    #     if title[0] not in final_results:
-    #         final_results[title[0]] = (coverage + title[1]) / 2
-    
-    # final_results = [(k,v) for k,v in final_results.items()]
-    # final_results.sort(key=lambda x: x[1], reverse=True)
-
-    # end_time = time.time()
-
-    # return [(k,v) for k,v in final_results if v > 0.9], end_time - start_time
-    if query in demo_titles:
-        return query, 0.0
-    else:
-        return '', 0.0
 
 

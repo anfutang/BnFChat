@@ -151,19 +151,17 @@ def call_embedding(query: str):
     ).data[0].embedding]))
 
 @safe_func
-def call_nl2sru(query: str,sru_hint: str,stream_response=False):
-    if sru_hint:
-        messages = prompt_formatting(nl2sru,['\n'.join([f"Query : {query}",f"Hint : {sru_hint}"])])
-    else:
-        messages = prompt_formatting(nl2sru,[f"Query : {query}"]) 
-    # messages = prompt_formatting(nl2sru,[query])
-    # print(messages)
+def call_nl2sru(chat_history: list, stream_response=False):
+    messages = prompt_formatting(nl2sru,[build_conv_paragraph(chat_history)]) 
+
+    print(">>>>>>>>>")
+    print(messages)
 
     if stream_response:
         stream = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=messages,
-            temperature=0.0,
+            temperature=0.3,
             stream=True,
         )
         return stream
@@ -171,7 +169,7 @@ def call_nl2sru(query: str,sru_hint: str,stream_response=False):
         completion = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=messages,
-            temperature=0.1,
+            temperature=0.3,
         )
         # parsed_result = completion.choices[0].message.parsed
         # return (getattr(parsed_result,"reasoning"), getattr(parsed_result,"sru_query"))

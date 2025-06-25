@@ -1,5 +1,7 @@
 import os
+import random
 import time
+import json
 import sqlite3
 from dotenv import load_dotenv
 import openai
@@ -38,12 +40,17 @@ def knn(query,k):
         # print(f'🔵 end faiss {COUNTER}: {time.time()-start_time:.3f} s.')
         # COUNTER += 1
     cosine_sim = get_cosine_sim(D)[0]
+
     if cosine_sim[0] < 0.5:
         return {}
     else:
+        if cosine_sim[0] > 0.8:
+            max_sim = cosine_sim[0]
+        else:
+            max_sim = 0.5
         ix = 0
         while ix < len(cosine_sim):
-            if cosine_sim[ix] < 0.5:
+            if cosine_sim[ix] < max_sim:
                 break
             ix += 1
         return find_facets(cosine_sim[:ix],I[0].tolist()[:ix])
@@ -59,11 +66,12 @@ def find_facets(similarity_scores,target_ids):
         rows = c.fetchall()
         id_to_kv = {row[0]: (row[1], row[2]) for row in rows}
 
-    ordered_kv_dict = {"facet":[],"sru_statements":[],"score":[]}
+    ordered_kv_dict = {"facet":[],"sru":[],"score":[],"id":[]}
     for score, id_ in zip(similarity_scores,target_ids):
         if id_ in id_to_kv:
             k, v = id_to_kv[id_]
-            ordered_kv_dict["score"].append(score)
+            ordered_kv_dict["id"].append(id_)
+            ordered_kv_dict["score"].append(float(score))
             ordered_kv_dict["facet"].append(k)
-            ordered_kv_dict["sru_statements"].append(v)
+            ordered_kv_dict["sru"].append(random.choice(json.loads(v)))
     return ordered_kv_dict

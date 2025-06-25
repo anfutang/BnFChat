@@ -17,7 +17,7 @@ const Login = () => {
       if (!currentUser.profileCompleted) {
         navigate('/profile');
       } else if (currentUser.permissionLevel > 1) {
-        navigate('/admin');
+        navigate('/chat');
       } else {
         navigate('/chat');
       }
@@ -100,11 +100,11 @@ const Login = () => {
           </button>
         </form>
         
-        {/* <div className="auth-links">
+        <div className="auth-links">
           <p>
             Vous n'avez pas de compte ? <Link to="/register" style={{ color:"black", fontWeight:"800" }}>S'inscrire</Link>
           </p>
-        </div> */}
+        </div>
       </div>
     </div>
   );
