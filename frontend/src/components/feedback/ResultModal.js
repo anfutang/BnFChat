@@ -5,48 +5,28 @@ import { VscThumbsdown, VscThumbsdownFilled, VscThumbsup, VscThumbsupFilled } fr
 import './ResultModal.css';
 import MultiTypeForm from './MultiTypeForm';
 
-const ResultModal = ({ resultData, socketRef }) => {
+const ResultModal = ({ resultData, feedbackSubmitted, setFeedbackSubmitted, setExplicitUserInputDisabled, socketRef }) => {
   // State for storing feedback
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  
+  const [showThankYou, setShowThankYou] = useState(false);
   const [renderKey, setRenderKey] = useState(0);
 
-  const baseGallicaURL = "https://gallica.bnf.fr/services/engine/search/sru?operation=searchRetrieve&version=1.2&startRecord=1&maximumRecords=15&page=1&collapsing=true&exactSearch=false&query={sru_query}"
+  const baseGallicaURL = "https://gallica.bnf.fr/services/engine/search/sru?operation=searchRetrieve&version=1.2&startRecord=1&maximumRecords=15&page=1&collapsing=true&exactSearch=false&query={sru_query}";
+  const singleResultGallicaURL = "https://gallica.bnf.fr/services/engine/search/sru?operation=searchRetrieve&version=1.2&query={sru_query}";
 
-  
-  // Force re-render when modal open state changes
-  // useEffect(() => {
-  //   if (isOpen !== prevOpenRef.current) {
-  //     console.log("⭐ Modal open state changed:", { previousState: prevOpenRef.current, currentState: isOpen });
-  //     setRenderKey(prev => prev + 1);
-  //     prevOpenRef.current = isOpen;
-  //   }
-  // }, [isOpen]);
-
-  // Reset feedback state when modal is opened with new data
-  // useEffect(() => {
-  //   if (resultData && !resultData.feedbackSaved) {
-  //     console.log("⭐ Resetting feedback state with new data");
-  //     setFeedbackSubmitted(false);
-  //   }
-  // }, [resultData]);
-
-  // useEffect(() => {
-  //   console.log("⭐ ResultModal state changed:", { 
-  //     hasResultData: !!resultData,
-  //     renderKey,
-  //     feedbackSubmitted
-  //   });
-  // }, [resultData, renderKey, feedbackSubmitted]);
-
-  // // If modal is closed, don't render anything
-  // if (!isOpen) return null;
+  useEffect(() => {
+    // 2025.7.3: If feedback is already submitted, do not show the evaluation form.
+    if (resultData?.chatId && socketRef?.current) {
+      console.log("📩 Checking if feedback submitted for", resultData.chatId);
+      
+      socketRef.current.emit("get_feedback_status", { chatId: resultData.chatId });
+    }
+  }, [resultData]);
 
   const handleSubmitConvFeedback = async (feedback) => {
     // Use the passed socketRef instead of window.socket
     if (socketRef?.current) {
       console.log("⭐ Submitting feedback...");
-      // console.log(formData);
-      // console.log(">>>>", feedback, resultData.chatId);
 
       socketRef.current.emit('submit_conv_feedback', {
         feedback: feedback,
@@ -55,19 +35,24 @@ const ResultModal = ({ resultData, socketRef }) => {
       
       // Immediately show submitted state
       setFeedbackSubmitted(true);
+      setShowThankYou(true);
     } else {
       console.error('Socket not available');
       alert('Connection error. Please try again.');
     }
   };
 
-  // Only allow closing if loading or no result data yet
-  // const handleCloseModal = () => {
-  //   if (isLoading || !resultData) {
-  //     onClose();
-  //   }
-  //   // Don't allow closing if we have results - user must submit feedback
-  // };
+  useEffect(() => {
+    if (showThankYou) {
+      setExplicitUserInputDisabled(true); 
+      const timer = setTimeout(() => {
+        setShowThankYou(false);
+        setExplicitUserInputDisabled(false); 
+      }, 2000);
+  
+      return () => clearTimeout(timer); 
+    }
+  }, [showThankYou]);
 
   // avoid displaying too long texts
   const truncateText = (text, maxLength = 200) => {
@@ -76,36 +61,53 @@ const ResultModal = ({ resultData, socketRef }) => {
   };
   
 
-  return (
-    <div className="result-container">
-      <p className="result-headline">Conversation terminée. Voici les sujets les plus proches de votre intention :</p>
-      <div className="facet-container">
-        {resultData.facet.map((facet,index) => {
-          const sru = resultData.sru[index];
-          const facetURL = baseGallicaURL.replace("{sru_query}", encodeURIComponent(sru));
-          return (<button 
-            key={facet}
-            className="facet-btn"
-            onClick={() => window.open(facetURL,'_blank')}
-          >
-            {facet}
-          </button>);
-        })}
-      </div>
-      {feedbackSubmitted ? (
-        <p className="result-headline" style={{ fontStyle:"italic", color:"gold" }}>
-          Merci pour votre retour ! 
-        </p>
-      ) : (
-      <div className="feedback-area">
-        <p className="result-headline">Est-ce que cette conversation vous semble utile ?</p>
-        <div className="feedback-btn-container">
-          <button key="eval-dislike" className="feedback-btn" onClick={() => handleSubmitConvFeedback("dislike")}><VscThumbsdown size={20} color="white"/></button>
-          <button key="eval-like" className="feedback-btn" onClick={() => handleSubmitConvFeedback("like")}><VscThumbsup size={20} color="white" /></button>
+  return (<div className="result-container">
+      {resultData && Object.keys(resultData).some(key => key !== "chatId") && (
+      <>
+        <p className="result-headline">Conversation terminée. Voici les sujets les plus proches de votre intention :</p>
+        <div className="facet-container">
+          {resultData.facet.map((facet,index) => {
+            const sru = resultData.sru[index];
+            const numRecord = resultData.num_records[index];
+            const facetURL = numRecord > 15
+                              ? baseGallicaURL.replace("{sru_query}", encodeURIComponent(sru))
+                              : singleResultGallicaURL.replace("{sru_query}", encodeURIComponent(sru));
+            return (<button 
+              key={facet}
+              className="facet-btn"
+              onClick={() => window.open(facetURL,'_blank')}
+            >
+              {facet}
+            </button>);
+          })}
         </div>
-      </div>)}
-    </div>
-  );
+      </>)}
+      {showThankYou ? (
+        <p className="result-headline" style={{ fontStyle: "italic", color: "gold" }}>
+          Merci pour votre retour ! En cours de sauvegarde...
+        </p>
+      ) : !feedbackSubmitted ? (
+        <div className="feedback-area">
+          <p className="result-headline">Est-ce que cette conversation vous semble utile ?</p>
+          <div className="feedback-btn-container">
+            <button
+              key="eval-dislike"
+              className="feedback-btn"
+              onClick={() => handleSubmitConvFeedback("dislike")}
+            >
+              <VscThumbsdown size={20} color="white" />
+            </button>
+            <button
+              key="eval-like"
+              className="feedback-btn"
+              onClick={() => handleSubmitConvFeedback("like")}
+            >
+              <VscThumbsup size={20} color="white" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>);
 };
 
 export default ResultModal;

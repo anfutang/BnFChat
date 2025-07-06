@@ -1,0 +1,304 @@
+:root {
+    --account-bg-color: rgb(106, 106, 106);
+    --display-area-bg-color: rgb(50,50,50);
+    --user-btn-color: rgb(241, 241, 241);
+}
+
+.admin-dashboard {
+    position: fixed;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--display-area-bg-color);
+    /* border: 3px solid #ff0000; */
+}
+
+.user-info-container {
+    position: absolute;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 2vw;
+    width: 100%;
+    height: 10%;
+    background-color: rgb(0, 0, 0);
+}
+
+.switch-btn {
+    height: 30%;
+    background-color: rgb(236, 236, 236);
+    border: 1px solid #aaa;
+    border-radius: 5px;
+    color: black;
+    font-family: monospace;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  
+.switch-btn:hover {
+    background-color: antiquewhite;
+}
+
+.espace-sidebar {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    width: 20%;
+    height: 90%;
+    top: 10%;
+    left: 0%;
+    background-color: var(--account-bg-color);
+    /* border: 3px solid red; */
+    border-top: 2px solid white;
+}
+
+.control-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 5vh;
+    border: none;
+    border-radius: 0;
+    background-color: rgb(68, 68, 68);
+    color: white;
+    font-size: 1rem;
+    font-family: monospace;
+}
+
+.control-btn:hover {
+    background-color: rgb(129, 129, 129);
+}
+
+.control-btn.selected {
+    background-color: rgb(27, 27, 27);
+}
+
+.espace-content-area {
+    position: absolute;
+    width: 80%;
+    height: 90%;
+    top: 10%;
+    left: 20%;
+    /* border: 3px solid red; */
+    border-top: 2px solid white;
+}
+
+.reset-status {
+    font-size: 1rem;
+    font-family: monospace;
+    color: black;
+}
+
+.reset-btn-area {
+    display: "flex"; 
+    flex-wrap: 'wrap'; 
+    gap: 10px;
+}
+
+.reset-user-btn {
+    position: relative;
+    width: 10vw;
+    height: 5vh;
+    border: 1px solid #d3d3d3;
+    border-radius: 5px;
+    background-color: white;
+    color: black;
+    margin: 5px;
+    font-size: 0.9rem;
+}
+
+.reset-user-btn:hover {
+    background-color: lemonchiffon;
+}
+
+/* function-specific display area: user profile, chat history, feedback... */ 
+.content-container {
+    position: absolute;
+    display: flex;
+    gap: 0;
+    width: 100%;
+    box-sizing: border-box;
+    background-color: #333;
+}
+
+.table-container {
+    position: relative;
+    width: 20%;
+    max-height: 90vh;
+    overflow-y: auto;
+    /* border: 3px solid yellow; */
+    margin: 0;
+    padding: 0;
+}
+
+.page-control-btn-container {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    height: 5%;
+    width: 100%;
+    background-color: #202020;
+}
+
+.page-control-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2vh;
+    width: 2vh;
+    font-family: monospace;
+    background-color: white;
+    border: none;
+    border-radius: 5px;
+    outline: none;
+}
+
+.page-control-btn:not(:disabled):hover {
+    background-color: antiquewhite;
+    cursor: pointer;
+}
+
+.page-label {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    /* width: 20%; */
+    font-family: monospace;
+    color: white;
+    margin: 10px;
+    padding: 0;
+}
+
+.column-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.column-table th,
+.column-table td {
+    border: 1px solid #ccc;
+    background-color: var(--user-btn-color);
+    padding: 8px;
+    text-align: center;
+}
+
+.column-table thead th {
+    position: sticky;
+    top: 0;
+    background-color: #202020;
+    color: white;
+    z-index: 1;
+  }
+
+.user-btn {
+    background: none;
+    border: none;
+    width: 100%;
+    height: 100%;
+    color: black;
+    cursor: pointer;
+    font: monospace;
+    font-size: 0.9rem;
+    padding: 0;
+    margin: 0;
+    border-radius: 5px;
+    background-color: var(--user-btn-color);
+}
+
+.user-btn:not(:disabled):hover {
+    background-color: antiquewhite;
+}
+
+.content-area {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 80%;
+    border: 1px solid #ccc;
+    padding: 0;
+    margin: 0;
+    background-color: var(--display-area-bg-color);
+    height: 90vh;
+    overflow-y: auto;
+    color: white;
+}
+
+.selected-user-chat-history-area {
+    position: relative;
+    padding: 1%;
+    width: 100%;
+    height: 50%;
+    /* border: 3px solid #ac0c0c; */
+    font-size: 1.1rem;
+    gap: 50px;
+}
+
+.chat-selection-btn-container {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    height: 3%;
+    width: 100%;
+    background-color: transparent;
+    /* border: 2px solid chocolate; */
+}
+
+.chat-selection-btn {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    aspect-ratio: 1;
+    border: 1px solid black;
+    border-radius: 3px;
+    margin: 0;
+    padding: 0;
+}
+
+.chat-selection-btn:not(:disabled):not(.selected):hover {
+    background-color: burlywood;
+    cursor: pointer;
+}
+
+.chat-selection-btn.selected {
+    background-color: burlywood;
+    cursor: default;
+}
+
+.chat-info-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: auto;
+    width: 96%;
+    left: 2%;
+    background-color: transparent;
+    /* border: 2px solid greenyellow; */
+    font-size: 0.9rem;
+    font-family: monospace;
+    color: white;
+    border-top: 2px solid gray;
+    border-bottom: 2px solid gray;
+}
+
+.chat-info-panel p{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 3px;
+}

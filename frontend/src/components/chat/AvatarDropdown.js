@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,7 +10,7 @@ import { GoPlay, GoCheckCircle ,GoCopilot } from "react-icons/go";
 import './AvatarDropdown.css';
 
 
-const AvatarDropdown = ({ currentUser, isConnected, setTutorialDone, handleLogout }) => {
+const AvatarDropdown = ({ currentUser, isConnected, setTutorialDone, handleLogout, setShowAboutInfoModal }) => {
   const navigate = useNavigate();
 
   return (
@@ -31,13 +32,13 @@ const AvatarDropdown = ({ currentUser, isConnected, setTutorialDone, handleLogou
           </DropdownMenu.Label>
 
           <DropdownMenu.Separator className="dropdown-separator" />
-          <DropdownMenu.Item className="dropdown-item" onClick={() => navigate('/admin')}>
+          <DropdownMenu.Item className="dropdown-item" onClick={() => navigate('/espace')}>
             <VscAccount size={20}/>&nbsp;Mon espace
           </DropdownMenu.Item>
           <DropdownMenu.Item className="dropdown-item" onClick={() => setTutorialDone(false)}>
             <GoPlay size={20}/>&nbsp;Tutoriel
           </DropdownMenu.Item>
-          <DropdownMenu.Item className="dropdown-item" onClick={() => navigate('/settings')}>
+          <DropdownMenu.Item className="dropdown-item" onClick={() => {setShowAboutInfoModal(true);}}>
             <VscInfo size={20}/>&nbsp;À propos
           </DropdownMenu.Item>
           

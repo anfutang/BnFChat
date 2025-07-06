@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { FaInfoCircle, FaQuestionCircle, FaAngleDown } from 'react-icons/fa';
+import { FaInfoCircle, FaQuestionCircle, FaAngleDown, FaPencilAlt } from 'react-icons/fa';
 import { VscQuestion } from "react-icons/vsc";
 
 import { useAuth } from '../../context/AuthContext';
@@ -40,13 +40,15 @@ const ChatInterface = () => {
   });
   const setMessageModal = (...args) => setMessageModalRef.current(...args);
 
+  // OTHER INFORMATION MODAL
+  const [showAboutInfoModal, setShowAboutInfoModal] = useState(false);
+  const [showQAModal, setShowQAModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
   // ADD RESULT MODAL STATE
   const [resultData, setResultData] = useState(null);
   const [isResultLoading, setIsResultLoading] = useState(false);
   const [isResultLoaded, setIsResultLoaded] = useState(false);
-
-  // ADD FEEDBACK FORM STATE
-  const [isFeedbackFormOpen, setIsFeedbackFormOpen] = useState(false);
 
   // ADD TUTORIAL STATE
   const [tutorialDone, setTutorialDone] = useState(true);
@@ -59,18 +61,17 @@ const ChatInterface = () => {
     isStreaming,
     setIsStreaming,
     explicitUserInputDisabled,
+    setExplicitUserInputDisabled,
     error,
     // STATUS
     assistantStatus,
     detectedUserIntent,
     setDetectedUserIntent,
+    setAssistantStatus,
     userData,
     setUserData,
-    setAssistantStatus,
-    generatedSRU,
-    setGeneratedSRU,
-    sruValidnessMessage,
-    setSruValidnessMessage,
+    feedbackSubmitted,
+    setFeedbackSubmitted,
     // ACTIONS
     sendMessage,
     getChatState,
@@ -94,10 +95,6 @@ const ChatInterface = () => {
     
     sendMessage(message);
     setUserInput('');
-    if (userData.mode === "search") {
-      setGeneratedSRU(null);
-      setSruValidnessMessage(null);
-    }
     
   }, [sendMessage,userData]);
 
@@ -111,10 +108,6 @@ const ChatInterface = () => {
     setIsResultLoaded(false);
     setIsResultLoading(false);
     startNewChat(end_chat_reason);
-    if (userData.mode === "search") {
-      setGeneratedSRU(null);
-      setSruValidnessMessage(null);
-    }
   }, [userData.mode, startNewChat]);
 
   // Mode change
@@ -194,11 +187,18 @@ const ChatInterface = () => {
     <div className="chat-page">
       <div className="chat-layout">       
         <div className="info-bar" id="info-bar">
-            <img src="/logo_bnfchat_rectangle.png" className='logo-img' style={{ height:"6vh" }}/>
+            <img src="/logo_bnfchat_rectangle.png" className='logo-bnfchat' style={{ height:"6vh" }}/>
             <div className="app-btn-container">
               <ModeSelector userData={userData} handleModeChange={handleModeChange}/>
-              <button className="app-btn"><VscQuestion size={30} color="white"/></button>
-              <AvatarDropdown currentUser={currentUser} isConnected={isConnected} handleLogout={handleLogout} setTutorialDone={setTutorialDone} />
+              <button className="app-btn" onClick={() => setShowQAModal(true)}><VscQuestion size={30} color="white"/></button>
+              <button className="app-btn" onClick={() => setShowFeedbackModal(true)}><FaPencilAlt size={20} color="white"/></button>
+              <AvatarDropdown 
+                currentUser={currentUser} 
+                isConnected={isConnected} 
+                handleLogout={handleLogout} 
+                setTutorialDone={setTutorialDone}
+                setShowAboutInfoModal={setShowAboutInfoModal} 
+              />
             </div>
         </div>
         
@@ -208,20 +208,30 @@ const ChatInterface = () => {
             messages={messages}
             assistantStatus={assistantStatus}
             detectedUserIntent={detectedUserIntent}
-            generatedSRU={generatedSRU}
-            sruValidnessMessage={sruValidnessMessage}
             userInput={userInput}
             setUserInput={setUserInput}
             onSendMessage={handleSendMessage}
             isConnected={isConnected}
             isStreaming={isStreaming}
             explicitUserInputDisabled={explicitUserInputDisabled}
+            setExplicitUserInputDisabled={setExplicitUserInputDisabled}
             currentChatId={currentChatId}
             handleNewChat={handleNewChat}
             resultData={resultData}
+            setResultData={setResultData}
             isResultLoading={isResultLoading}
+            setIsResultLoading={setIsResultLoading}
             isResultLoaded={isResultLoaded}
+            setIsResultLoaded={setIsResultLoaded}
+            feedbackSubmitted={feedbackSubmitted}
+            setFeedbackSubmitted={setFeedbackSubmitted}
             socketRef={socketRef}
+            showAboutInfoModal={showAboutInfoModal}
+            setShowAboutInfoModal={setShowAboutInfoModal}
+            showQAModal={showQAModal}
+            setShowQAModal={setShowQAModal}
+            showFeedbackModal={showFeedbackModal}
+            setShowFeedbackModal={setShowFeedbackModal}
           />
         </div>
       </div>

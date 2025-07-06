@@ -5,7 +5,6 @@ from .utils.constant import get_topic_name
 import datetime
 
 class ChatManager:
-    
     @staticmethod
     def get_ongoing_chat(user_id):
         """Get ongoing chat for user in current session"""

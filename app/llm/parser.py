@@ -2,7 +2,7 @@ import pydantic
 from pydantic import BaseModel
 from typing import List
 
-class ConvActionDetection(BaseModel):
+class convActionDetection(BaseModel):
     action: str
 
 class entityDisambiguation(BaseModel):
@@ -15,6 +15,9 @@ class NL2SRU(BaseModel):
 
 class convSummarization(BaseModel):
     reformulated_query: str
+
+class sruConvSummarization(BaseModel):
+    summarization: str
 
 class relevanceChecker(BaseModel):
     conclusion: str

@@ -61,17 +61,19 @@ def find_facets(similarity_scores,target_ids):
         c = db.cursor()
 
         placeholders = ', '.join(['?'] * len(target_ids))
-        search_query = f"SELECT id, key, value FROM kv_mapping WHERE id IN ({placeholders})"
+        search_query = f"SELECT id, key, value, num_record FROM kv_mapping WHERE id IN ({placeholders})"
         c.execute(search_query, target_ids)
         rows = c.fetchall()
-        id_to_kv = {row[0]: (row[1], row[2]) for row in rows}
+        id_to_kv = {row[0]: (row[1], row[2], row[3]) for row in rows}
 
-    ordered_kv_dict = {"facet":[],"sru":[],"score":[],"id":[]}
+    ordered_kv_dict = {"facet":[],"sru":[],"score":[],"id":[],"num_records":[]}
     for score, id_ in zip(similarity_scores,target_ids):
         if id_ in id_to_kv:
-            k, v = id_to_kv[id_]
+            k, v, nr = id_to_kv[id_]
             ordered_kv_dict["id"].append(id_)
             ordered_kv_dict["score"].append(float(score))
             ordered_kv_dict["facet"].append(k)
-            ordered_kv_dict["sru"].append(random.choice(json.loads(v)))
+            rand_index = random.choice(list(range(len(json.loads(nr)))))
+            ordered_kv_dict["sru"].append(json.loads(v)[rand_index])
+            ordered_kv_dict["num_records"].append(json.loads(nr)[rand_index])
     return ordered_kv_dict

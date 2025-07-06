@@ -3,11 +3,14 @@
 import json
 import datetime
 import random
+from math import ceil
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import Column, Integer, String, Boolean, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import load_only
 from .db import db
 from .utils.constant import PROFILE_KEYS
+from .llm.rag import find_facets
 
 class User(db.Model):
     __tablename__ = 'user'
@@ -22,8 +25,8 @@ class User(db.Model):
     request_reset_password = db.Column(db.Boolean, nullable=False, default=False)
     allowed_reset_password = db.Column(db.Boolean, nullable=False, default=False)
     profile_created = db.Column(db.Boolean, nullable=True, default=False)
-    feedback = db.Column(db.JSON, nullable=True)
     profile = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
     
     # Relationship
     chats = db.relationship('Chat', backref='user', lazy=True)
@@ -34,6 +37,7 @@ class User(db.Model):
         self.permission_level = permission_level
         self.avatar_seed = 1
         self.profile_created = profile_created
+        self.created_at = datetime.datetime.now()
     
     def check_password(self, password):
         """Check if provided password matches stored hash"""
@@ -55,12 +59,10 @@ class Chat(db.Model):
     mode = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='ongoing')
     user_intent = db.Column(db.Text, nullable=True)
-    generated_sru = db.Column(db.Text, nullable=True)
     chat_history = db.Column(db.JSON, nullable=False, default=list)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
     result = db.Column(db.JSON,nullable=True)
-    feedback = db.Column(db.String(20), nullable=True) 
     
     def __init__(self, user_id, mode, status='ongoing'):
         self.user_id = user_id
@@ -93,18 +95,31 @@ class Chat(db.Model):
         # from sqlalchemy.orm.attributes import flag_modified
         # flag_modified(self, 'chat_history')
     
-    def add_result(self, result, user_intent, generated_sru):
+    def add_result(self, result, user_intent):
         if result:
             self.result = {"id":[int(ix) for ix in result["id"]]}
         if user_intent:
             self.user_intent = user_intent
-        if generated_sru:
-            self.generated_sru = generated_sru
         self.updated_at = datetime.datetime.now()
     
     def __repr__(self):
         return f'<Chat {self.id} - User {self.user_id}>'
 
+class Feedback(db.Model):
+    __tablename__ = 'feedback'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
+    content = db.Column(db.Text, nullable=False) 
+    
+    def __init__(self, user_id, content):
+        self.user_id = user_id
+        self.content = content
+        self.created_at = datetime.datetime.now()
+    
+    def __repr__(self):
+        return f'<Feedback {self.id} - User {self.user_id}>'
 
 def create_user(username, password):
     """Create a new user and save to database"""
@@ -130,22 +145,104 @@ def update_user(user, profile_data):
     
     return user
 
-def get_all_user_chats():
+def get_all_users(offset,per_page,level_threshold):
+    total_users = User.query.filter(User.permission_level <= level_threshold).count()
+    total_pages = ceil(total_users / per_page)
+
+    users = (
+        User.query
+        .filter(User.permission_level <= level_threshold)
+        .options(load_only(User.id, User.username, User.permission_level))
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
     result = []
-    users = User.query.all()
     for user in users:
-        chats = Chat.query.filter_by(user_id=user.id).all()
         result.append({
-            'user_id': user.id,
+            'id': user.id,
             'username': user.username,
-            'chats': [{'chat_id': c.id, 
-                       'chat_history': [msg["content"] for msg in c.chat_history], 
-                       'user_intent': c.user_intent,
-                       'sru_query': c.sru_query, 
-                       'feedback': c.feedback
-                       } for c in chats]
+            'permissionLevel': user.permission_level
         })
-    return result
+
+    return {
+            'user': result,
+            'total_pages': total_pages
+        }
+
+def get_all_user_profiles(offset,per_page,level_threshold):
+    total_users = User.query.filter(User.permission_level <= level_threshold).count()
+    total_pages = ceil(total_users / per_page)
+
+    users = (
+        User.query
+        .filter(User.permission_level <= level_threshold)
+        .options(load_only(User.id, User.username, User.permission_level, User.profile))
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    result = []
+    for user in users:
+        result.append({
+            'id': user.id,
+            'username': user.username,
+            'permissionLevel': user.permission_level,
+            'profile': user.profile  
+        })
+
+    return {
+            'profile': result,
+            'total_pages': total_pages
+        }
+
+def get_all_user_chats(user_id, offset, per_page):
+    total_chats = Chat.query.filter_by(user_id=user_id).count()
+    total_pages = ceil(total_chats / per_page)
+
+    chats = (
+        Chat.query
+        .filter_by(user_id=user_id)
+        .order_by(Chat.id.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    result = []
+    for idx, c in enumerate(chats):
+        if c.mode == "search" or c.result is None:
+            result.append({
+                "chat_id": idx+1,
+                "mode":c.mode,
+                "status": c.status,
+                "user_intent": c.user_intent,
+                "chat_history": c.chat_history, 
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+                "result":{},
+                "feedback": c.feedback,
+            })
+        else:
+            result.append({
+                "chat_id": idx+1,
+                "mode":c.mode,
+                "status": c.status,
+                "user_intent": c.user_intent,
+                "chat_history": c.chat_history, 
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+                "result": find_facets([0]*len(c.result["id"]),c.result["id"]),
+                "feedback": c.feedback,
+            })
+
+    return {
+        "chats": result,
+        "total_pages": total_pages,
+    }
+
 
 def get_all_user_feedback():
     users = User.query.all()
@@ -156,6 +253,17 @@ def get_all_user_feedback():
         }
         for u in users
     ]
+
+# 2025.7.6: create a seperate and independant feedback table.
+def create_feedback(user_id, content):
+    """Create a feedback save to database"""
+    try:
+        feedback = Feedback(user_id=user_id, content=content)
+        db.session.add(feedback)
+        db.session.commit()
+        return "success"
+    except Exception as e:
+        return e
 
 def reset_user_password(user_id):
     user = User.query.filter_by(id=user_id).first()

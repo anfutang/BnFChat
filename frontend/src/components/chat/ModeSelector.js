@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { VscChevronDown, VscComment, VscSearch } from "react-icons/vsc";
 
 import './ModeSelector.css';
+import { useState } from 'react';
 
 const MODES = {
   search: {
@@ -10,20 +11,20 @@ const MODES = {
     icon: <VscSearch size={20} />
   },
   chat: {
-    label: 'Conversation',
-    description: 'Pour les exploiteurs',
+    label: 'Exploration',
+    description: 'Pour les curieux',
     icon: <VscComment size={20} />
   }
 };
 
 const ModeSelector = ({ userData, handleModeChange }) => {
   const currentMode = userData.mode;
-
+  
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button className="mode-trigger">
-          <VscChevronDown size={25}/>&nbsp;
+          <VscChevronDown size={20} color="white"/>&nbsp;
           {MODES[currentMode]?.label}
         </button>
       </DropdownMenu.Trigger>

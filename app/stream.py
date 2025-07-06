@@ -5,7 +5,7 @@ from flask import session
 from flask_socketio import emit, disconnect, join_room, leave_room
 from .chat_manager import ChatManager
 from .db import db
-from .models import User, Chat
+from .models import User, Chat, create_feedback
 from .llm.graph import build_graph
 from .utils.constant import *
 from .utils.retriever import retrieve_result_page
@@ -130,70 +130,6 @@ def register_socketio_events():
         except Exception as e:
             print(f"Error getting topics: {str(e)}")
             emit('error', {'error': 'Error getting topics'})
-
-    # ========== TOPIC SELECTION (moved from HTTP) ==========
-    @socketio.on('select_topic')
-    @socketio_auth_required
-    def handle_select_topic(data):
-        try:
-            user_id = session.get('user_id')
-            topic_id = data.get('topicId')
-            
-            if topic_id is None or topic_id < 0:
-                emit('error', {'error': 'Valid topic ID required'})
-                return
-            
-            user = User.query.get(user_id)
-            if not user:
-                emit('error', {'error': 'User not found'})
-                return
-            
-            # Validate topic for current session
-            if user.session_id in TOPICS and topic_id > 0:
-                topic_info = next((t for t in TOPICS[user.session_id] if t["id"] == topic_id), None)
-                if not topic_info:
-                    emit('error', {'error': 'Invalid topic for current session'})
-                    return
-            
-            # End any ongoing chat before topic change
-            ongoing_chat = Chat.query.filter_by(
-                user_id=user_id,
-                session_id=user.session_id,
-                status="ongoing"
-            ).first()
-            
-            if ongoing_chat:
-                ChatManager.end_chat(ongoing_chat.id, "end:topic_change", user_id)
-            
-            # Update user's topic selection
-            if user.session_id == 2:
-                user.exercise_topic_id = topic_id
-            elif user.session_id == 3:
-                user.test_topic_id = topic_id
-            
-            db.session.commit()
-            
-            topic_info = None
-            if topic_id > 0 and user.session_id in TOPICS:
-                topic_info = next((t for t in TOPICS[user.session_id] if t["id"] == topic_id), None)
-            
-            # Clear chat UI
-            emit('ongoing_chats_terminated', {
-                'reason': 'topic_change',
-                'message': 'Chat ended by topic change'
-            })
-            
-            emit('topic_selected', {
-                'success': True,
-                'topicId': topic_id,
-                'topicInfo': topic_info,
-                'chatEnded': ongoing_chat is not None
-            })
-            
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error selecting topic: {str(e)}")
-            emit('error', {'error': 'Error selecting topic'})
 
     # ========== CHAT OPERATIONS ==========
     @socketio.on('send_message')
@@ -334,9 +270,11 @@ def register_socketio_events():
             print(f"Error in handle_session_change: {str(e)}")
             emit('error', {'error': str(e)})
 
+    # Feedback events
     @socketio.on('submit_conv_feedback')
     @socketio_auth_required
     def handle_submit_conv_feedback(data):
+        # Per-conversation feedback
         try:
             chat_id = data.get('chatId')
             feedback = data.get('feedback')
@@ -345,12 +283,12 @@ def register_socketio_events():
             chat = Chat.query.get(chat_id)
             if chat:
                 chat.feedback = feedback
-                chat.status = "end:user_feedback"
+                # chat.status = "end:user_feedback"
                 chat.updated_at = datetime.datetime.now()
                 db.session.commit()
                 
                 # Emit feedback saved first
-                emit('feedback_saved', {
+                emit('conv_feedback_saved', {
                     'success': True,
                     'chatId': chat_id
                 })
@@ -363,30 +301,38 @@ def register_socketio_events():
         except Exception as e:
             emit('error', {'error': str(e)})
 
-    @socketio.on('submit_final_feedback')
+    @socketio.on('get_feedback_status')
     @socketio_auth_required
-    def handle_submit_final_feedback(data):
+    def handle_get_feedback_status(data):
+        try:
+            chat_id = data.get('chatId')
+            chat = Chat.query.get(chat_id)
+            
+            if chat:
+                emit('feedback_status', {
+                    'submitted': chat.feedback is not None
+                })
+            else:
+                emit('error', {'error': f"Chat {chat_id} NOT FOUND. Error fetching user feedback status."})
+        except Exception as e:
+            emit('error', {'error': str(e)})
+
+    @socketio.on('submit_user_feedback')
+    @socketio_auth_required
+    def handle_submit_user_feedback(data):
         try:
             user_id = data.get('userId')
-            feedback_data = {
-                **data.get('formData'),
-                'timestamp': datetime.datetime.now().isoformat()
-            }
-            
-            # Save feedback and end chat
-            user = User.query.get(user_id)
-            if user:
-                user.feedback = feedback_data
-                db.session.commit()
-                
-                # Emit feedback saved first
-                emit('final_feedback_saved', {
+            feedback = data.get('feedback')
+
+            # Save feedback
+            save_result = create_feedback(user_id,feedback)
+            if type(save_result) is Exception:
+                emit('error', {'error': str(e)})
+            else:
+                emit('user_feedback_saved', {
                     'success': True,
                     'userId': user_id
                 })
-                
-                # Then end the chat
-                emit('test_ended_success', {})
         except Exception as e:
             emit('error', {'error': str(e)})
 
@@ -427,6 +373,7 @@ def process_chat_message(user_id, chat_id, mode):
 
         if chat.mode == "search":
             generated_sru_query = state.get("generated_sru_query", "")
+            gallica_retrieval_message = state.get("gallica_retrieval_message", "")
 
             # Save generated SRU
             success, error = ChatManager.add_message_to_chat(chat_id, 'sru', generated_sru_query)
@@ -434,6 +381,15 @@ def process_chat_message(user_id, chat_id, mode):
                 print(f"[process_chat_message] Failed to save generated sru: {error}")
                 socketio.emit('error', {'error': f'Failed to save generated sru: {error}'}, room=f'user_{user_id}')
                 return
+            
+            # Save also the message showing the number of corresponding Gallica bibliographic records
+            success, error = ChatManager.add_message_to_chat(chat_id, 'gallica', gallica_retrieval_message)
+            if not success:
+                print(f"[process_chat_message] Failed to save gallica-related retrieval message: {error}")
+                socketio.emit('error', {'error': f'Failed to save generated sru: {error}'}, room=f'user_{user_id}')
+                return
+            
+            socketio.emit('results_data', {"chatId":chat_id}, room=f'user_{user_id}')
         
         # Handle special statuses
         status_tag = state.get("status", "").split(':')[0]

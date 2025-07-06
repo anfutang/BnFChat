@@ -12,12 +12,14 @@ export const useChat = ({setMessageModal}) => {
   const [explicitUserInputDisabled, setExplicitUserInputDisabled] = useState(false);
   const [assistantStatus, setAssistantStatus] = useState('');
   const [detectedUserIntent, setDetectedUserIntent] = useState('');
-  const [generatedSRU, setGeneratedSRU] = useState(null);
-  const [sruValidnessMessage, setSruValidnessMessage] = useState(null);
   
-  // User data 
+  // User Data 
   const [userData, setUserData] = useState({});
   
+  // User Feedback
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
+  // Socket Ref
   const socketRef = useRef(null);
 
   // ADD RESULT EVENT CALLBACKS
@@ -139,9 +141,9 @@ export const useChat = ({setMessageModal}) => {
         })
 
         socket.on('generated_sru', (data) => {
-          setGeneratedSRU(data.sru);
+          // setGeneratedSRU(data.sru);
 
-          // Add assistant message
+          // Add SRU message
           const sruMessage = {
             id: `sru_${Date.now()}`,
             role: 'sru', 
@@ -160,8 +162,24 @@ export const useChat = ({setMessageModal}) => {
           });
         })
 
-        socket.on('tentative_retrieval_message', (data) => {
-          setSruValidnessMessage(data.message);
+        socket.on('gallica_retrieval_message', (data) => {
+          // Add SRU message
+          const gallicaMessage = {
+            id: `gallica_${Date.now()}`,
+            role: 'gallica', 
+            content: data.message,
+            timestamp: new Date().toISOString()
+          };
+          
+          setMessages(prev => {
+            if (prev[prev.length - 1].role === 'sru') {
+              const updated = [...prev, gallicaMessage];
+              return updated;
+            } else {
+              console.warn("⚠️ repeatitive adding message");
+              return prev;
+            }
+          });
         })
 
         // ========== RESULT EVENTS ==========
@@ -187,15 +205,20 @@ export const useChat = ({setMessageModal}) => {
         });
 
         // ========== FEEDBACK EVENTS ==========
-        socket.on('feedback_saved', (data) => {
+        socket.on('conv_feedback_saved', (data) => {
           console.log('Feedback saved successfully:', data);
           if (feedbackSavedCallbackRef.current) {
             feedbackSavedCallbackRef.current(data);
           }
         });
 
-        socket.on('final_feedback_saved', (data) => {
-          console.log('Final feedback saved successfully', data);
+        socket.on('feedback_status', (data) => {
+          console.log(`📩 Feedback stauts: ${data.submitted}`);
+          setFeedbackSubmitted(data.submitted);
+        })
+
+        socket.on('user_feedback_saved', (data) => {
+          console.log(`User feedback saved successfully; user id: ${data.userId}`);
         })
 
         // ========== CHAT END EVENTS ==========
@@ -351,17 +374,16 @@ export const useChat = ({setMessageModal}) => {
     isStreaming,
     setIsStreaming,
     explicitUserInputDisabled,
+    setExplicitUserInputDisabled,
     error,
     assistantStatus,
     detectedUserIntent,
     setDetectedUserIntent,
     setAssistantStatus,
-    generatedSRU,
-    setGeneratedSRU,
-    sruValidnessMessage,
-    setSruValidnessMessage,
     userData,
     setUserData,
+    feedbackSubmitted,
+    setFeedbackSubmitted,
     
     // Refs
     socketRef,

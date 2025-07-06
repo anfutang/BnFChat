@@ -41,7 +41,7 @@
   flex-direction: column;
   /* border: 3px solid green; */
   padding-top: 10px;
-  border-top: 1px solid silver;
+  /* border-top: 1px solid silver; */
 }
 
 .result-headline {
@@ -53,6 +53,7 @@
   font-family: monospace;
   font-size: 1rem;
   color: white;
+  border-top: 1px solid silver;
 }
 
 .facet-container {

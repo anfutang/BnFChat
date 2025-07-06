@@ -10,13 +10,15 @@ THRES_TITLE_SAMPLING = 50
 MAX_NUM_PAGES_TO_RETRIEVAL = 2
 RAG_EMBED_DIM = 512
 METADATA_DIR = "./instance/"
+USERS_PER_PAGE = 20
+CHATS_PER_PAGE = 10
 
 chatmode2ky = {"select":"reformulated_queries",
                "respond":"clarification_question",
                "select+respond":"clarification_questions"}
 
 DEFAULT_USERS = [
-    {'username': 'atang', 'password': 'aft0609', 'permission_level': 2, 'profile_created': True},
+    {'username': 'atang', 'password': 'aft0609', 'permission_level': 3, 'profile_created': True},
     {'username': 'admin', 'password': 'admin', 'permission_level': 2, 'profile_created': True},
     {'username': 'racousin', 'password': 'qwe', 'permission_level': 2, 'profile_created': True},
     {'username': 'guest', 'password': 'guest', 'permission_level': 1,  'profile_created': False},

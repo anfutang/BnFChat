@@ -39,6 +39,16 @@ def is_fisrt_input(conv_history: list):
 # session change
 # change topic
 
+def get_gallica_retrieval_message(num_gallica_records):
+    message = ""
+    if num_gallica_records == -1:
+        message = "🟡 Validation bloquée pour l'instant, mais vous pouvez cliquer pour voir sur Gallica."
+    elif num_gallica_records == 0:
+        message = "🔴 Nul documents trouvé pour le SRU généré. Veuillez indiquer comment améliorer."
+    elif num_gallica_records > 0: 
+        message = f"🟢 {num_gallica_records} résultats correspondants pour ce SRU."
+    return message 
+
 # --- State definition ---
 def build_graph(socketio, user_id, mode):
     class State(TypedDict, total=False):
@@ -60,7 +70,7 @@ def build_graph(socketio, user_id, mode):
         status: Optional[str] # used as an argument for prompt chain routers
         search_result:  Optional[Tuple[List[Dict], List[Dict]]]
         generated_sru_query: Optional[str]
-        num_gallica_records: Optional[int]
+        gallica_retrieval_message: Optional[str]
 
         # error
         error_message: Optional[str]
@@ -246,6 +256,15 @@ def build_graph(socketio, user_id, mode):
     def nl2sru(state: State) -> State:
         conv_history = state.get("conv_history")
         
+        # if len(conv_history) > 1:
+        #     socketio.emit("graph_update", {
+        #     "node": "nl2sru",
+        #     "info": "Résumé en cours…"}
+        #     )
+        #     summary = call_sru_conv_summarization(conv_history)
+        # else:
+        #     summary = conv_history[0]
+
         socketio.emit("graph_update", {
             "node": "nl2sru",
             "info": "Analyse en cours…"
@@ -319,18 +338,16 @@ def build_graph(socketio, user_id, mode):
         
         try:
             num_records, _ = retrieve_with_gallica(generated_sru_query,True)
-            state["num_gallica_records"] = num_records
-            if not num_records:
-                tentative_retrieval_message = "🔴 Nul documents trouvé pour le SRU généré. Veuillez indiquer comment améliorer."
-            else:
-                tentative_retrieval_message = f"🟢 {num_records} résultats correspondants pour ce SRU."
         except Exception as e:
             state["status"] = "error"
             state["error_message"] = "node: search -> retrieval [Gallica API]. ✖️"+fetch_error(e) 
-            tentative_retrieval_message = "🟡 Validation bloquée pour l'instant, mais vous pouvez cliquer pour voir sur Gallica."
+            num_records = -1
 
-        socketio.emit("tentative_retrieval_message", {
-                "message": tentative_retrieval_message
+        gallica_retrieval_message = get_gallica_retrieval_message(num_records)
+        state["gallica_retrieval_message"] = gallica_retrieval_message
+
+        socketio.emit("gallica_retrieval_message", {
+                "message": gallica_retrieval_message
             }, room=f'user_{user_id}')
         return state
             

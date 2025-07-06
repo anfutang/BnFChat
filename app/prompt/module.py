@@ -70,7 +70,7 @@ Utilisez les exemples fournis pour comprendre le raisonnement à suivre à chaqu
 examples = """
 User: biographie de Flaubert.
 
-#Analysis: The user query focuses on biographies of Flaubert, the author is therefore not necessarily Flaubert himself, so dc.creator should not be used. For a biography, it is very possible that the keyword "Flaubert" appears in both dc.title and dc.subject. The document type corresponding to a biography should be "monographie".
+#Analysis: La requête de l’utilisateur porte sur des biographies de Flaubert, donc l’auteur n’est pas nécessairement Flaubert lui-même, ainsi dc.creator ne doit pas être utilisé. Pour une biographie, il est très possible que le mot-clé "Flaubert" apparaisse à la fois dans dc.title et dc.subject. Le type de document correspondant à une biographie devrait être "monographie".
 #Field: dc.title, dc.subject, dc.type.
 #SRU-like: dc.title adj flaubert, dc.subject adj flaubert, dc.type all monographie
 #Reasoning: "dc.type all monographie" is mandantory. "dc.title all flaubert" only is okay, but adding "dc.subject all flaubert" is more accurate. All conditions must be satisfied. 
@@ -78,7 +78,7 @@ User: biographie de Flaubert.
 
 User: estampes de Watteau.
 
-#Analysis: The user query focuses on engraving prints of Watteau, the author should therefore be Jongkind. Since engraving prints are often visual works, the most appropriate document type keyword from the provided list is "image". The subject field is not involved, since the query does not involve specific subjects. Searching the keyword "estampe" in title is acceptable, which may help precise the search.
+#Analysis: La requête de l’utilisateur porte sur des estampes de Watteau, l’auteur devrait donc être Jongkind. Comme les estampes sont souvent des œuvres visuelles, le mot-clé de type de document le plus approprié parmi la liste fournie est "image". Le champ subject n’est pas concerné, puisque la requête ne porte pas sur des sujets spécifiques. La recherche du mot-clé "estampe" dans le champ title est acceptable, ce qui peut aider à préciser la recherche.
 #Field: dc.creator, dc.type, dc.title.
 #SRU-like: dc.creator adj jongkind, dc.type all image, dc.title all estampe
 #Reasoning: the two conditions should both be satisfied, therefore using and.
@@ -86,26 +86,35 @@ User: estampes de Watteau.
 
 User: Le Figaro avant l'année 1900.
 
-#Analysis: Since Le Figaro is a newspaper, therefore the most appropriate dc.type from the provided list should be "fascicule", and "le figaro" must appear in dc.title. Before the year of 1900 sets a time period of searching, gallicapublication_date should be used.
+#Analysis: Puisque Le Figaro est un journal, le dc.type le plus approprié parmi la liste fournie devrait donc être "fascicule", et "le figaro" doit apparaître dans dc.title. La condition "avant l’année 1900" définit une période de recherche, gallicapublication_date doit donc être utilisée. Comme aucune date précise n’est donnée, utiliser "1900/1/1".
 #Field: dc.title, dc.type, gallicapublication_date.
-#SRU-like: dc.title adj "le figaro" and (dc.type all fascicule) and (gallicapublication_date <= "1900")
+#SRU-like: dc.title adj "le figaro" and (dc.type all fascicule) and (gallicapublication_date <= "1900/1/1")
 #Reasoning: all conditions must be satisfied.
-#SRU: dc.title adj "le figaro" and (dc.type all "fascicule") and (gallicapublication_date <= "1900")
+#SRU: dc.title adj "le figaro" and (dc.type all "fascicule") and (gallicapublication_date <= "1900/1/1")
 
 User: critques sur les œuvres de Flaubert.
 
-#Analysis: The user searches for critical work on Flaubert, therefore Flaubert should not be the creator. "Flaubert" should appear in dc.subject or dc.description. The keyword "critique" could appear in dc.subject, dc.title or dc.description. Remove "s" from the keyword "critiques".
+#Analysis: L’utilisateur recherche des travaux critiques sur Flaubert, donc Flaubert ne doit pas être le créateur. "Flaubert" devrait apparaître dans dc.subject ou dc.description. Le mot-clé "critique" pourrait apparaître dans dc.subject, dc.title ou dc.description. Retirer le "s" du mot-clé "critiques".
 #Field: dc.subject, dc.title, dc.description.
 #SRU-like: dc.subject adj "flaubert", dc.description adj "flaubert", dc.subject all "critique", dc.description all "critique", dc.title all "critique".
 #Reasoning: Both "flaubert" and "critique" should appear in the metadata.
 #SRU: (dc.subject adj "flaubert" or dc.description adj "flaubert") and (dc.subject all "critique" or dc.description all "critique" or dc.title all "critique")
 
 User: notre dame de paris de victor hugo.
-#Analysis: The user focuses on the work "notre dame de paris" written by Victor Hugo. Therefore, "notre dame de paris" should appear in dc.title and "adj" should be used since it involves an entity (exact work title). Victor Hugo should appear in dc.creator. To improve matching accuracy, Victor Hugo could also appear in dc.title and dc.subject, in case the dc.creator field is missing.
+
+#Analysis: L’utilisateur se concentre sur l’œuvre Notre-Dame de Paris écrite par Victor Hugo. Par conséquent, "notre dame de paris" devrait apparaître dans dc.title et "adj" devrait être utilisé puisqu’il s’agit d’une entité (titre exact d’une œuvre). Victor Hugo devrait apparaître dans dc.creator. Pour améliorer la précision du rapprochement, Victor Hugo pourrait également apparaître dans dc.title et dc.subject, au cas où le champ dc.creator serait manquant.
 #Field: dc.creator, dc.subject, dc.title.
-#SRU-like: dc.title adj "notre dame de paris", dc.creator adj "victor hugo", dc.subject adj "victor hugo", dc.title adj "victor hugo"
+#SRU-like: dc.title adj "notre dame de paris", (dc.creator adj "victor hugo" or dc.subject adj "victor hugo" or dc.title adj "victor hugo")
 #Reasoning: Both "notre dame de paris" and "victor hugo" should be matched.
 #SRU: dc.title adj "notre dame de paris" and (dc.creator adj "victor hugo" or dc.subject adj "victor hugo" or dc.title adj "victor hugo")
+
+User: Chercher les presses qui traitent de l’évolution en 1848.
+
+#Analysis: L’utilisateur recherche des journaux ayant mentionné la révolution de 1848, donc dc.type devrait être "fascicule". La période temporelle est l’année 1848, ce qui peut être fixé en définissant gallicapublication_date entre 1848/1/1 et 1848/12/31. Puisque le type est "fascicule", dc.subject ne doit pas être utilisé. Le mot-clé "la révolution de 1848" est susceptible d’apparaître dans le texte brut, mais pas dans la description ni dans le titre, car il s’agit simplement d’un contenu présent dans le journal.
+#Field: dc.type, gallicapublication_date, text.
+#SRU-like: dc.type all "fascicule", (gallicapublication_date >= "1848/1/1" and gallicapublication_date <= "1848/12/31"), text all "l'évolution de 1948".
+#Reasoning: both the document type, time period constraints and keyword matching are required.
+#SRU: dc.type all "fascicule" and (gallicapublication_date >= "1848/1/1" and gallicapublication_date <= "1848/12/31") and (text all "l'évolution de 1948")
 """
 
 nl2sru = f"""Task: Convert the following French natural language query into an SRU query.
@@ -118,13 +127,14 @@ Rules:
 - For entities (e.g., names, titles), use the adj operator with quotation marks, e.g., dc.creator adj "Flaubert", dc.title adj "Le Figaro". In other cases, use 'all' (e.g. for topic-related keywords).
 - For dc.type, always use the all operator instead of adj.
 - For non-entity terms, avoid using the plural form. For example, use "correspondance" instead of "correspondances".
-- For date constraints (typically years), use gallicapublication_date, e.g., gallicapublication_date < "1900". Always enclose the date in quotation marks.
+- For date constraints (typically years), use gallicapublication_date, however always set a specific date (1/1 if no specific date is required), e.g., gallicapublication_date < "1900/1/1". Always enclose the date in quotation marks.
 - For topic-related queries, use the provided SRU queries hint as a reference. Choose SRU queries that are coherent with your reasoning as suggestions. 
 - Use dc.type and dc.date only when the user query directly concerns date or type conditions.
 - Ensure the generated SRU query is clear and human-readable, even for people without prior knowledge of the documents.
+- In case when dc.type is "fascicule", avoid using dc.subject since there is no subject for periodicals in bibliographic records.
 
 Steps:
-#Analysis: Analyze the user query - whether it requires operation directly on Dublin Core fields or topic-related. Then identify main keywords and named entities (e.g., authors, titles, topics).
+#Analysis: Analyze the user query - whether it requires operation directly on Dublin Core fields or topic-related. Then identify main keywords and named entities (e.g., authors, titles, topics). Your analysis should be in French.
 #Field: Assign appropriate Dublin Core fields to each identified term.
 #SRU-like: Write individual SRU-compatible statements without logical connectors. Use SRU query hint as reference and revise it if necessary.
 #Reasoning: How to connect the SRU statements using logical connectors (and, or) to most accurately reflect the input query in natural language.
@@ -191,6 +201,14 @@ Constraints:
 
 Refer to the following examples for guidance:
 {conv_summarization_fs_examples}
+"""
+
+sru_conv_summarization = f"""Given a conversation history in French, summarize the user's intent in terms of search focus and restrictions on SRU formulation. 
+
+Constraints:
+- If there is a topic shift (e.g., the user starts referring to a different entity), focus only on the most recent part of the conversation after the shift, and ignore previous restrictions about SRU conversion assigned by the user.
+- The summarization should be in French.
+- Output must be in JSON format with a single key: "summarization". No additional text should be included.
 """
 
 conv_action_detection = """I will provide a dialogue between a user and a virtual assistant in a conversational search system. The assistant's role is to help the user refine their query by asking clarification questions. However, the user may sometimes want to abandon the conversation due to poor interaction quality, or proceed to search immediately without further clarification.

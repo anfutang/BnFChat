@@ -62,7 +62,7 @@ def call_conv_action_detection(chat_history: list):
     completion = client.beta.chat.completions.parse(
             model=model_id,
             messages=messages,
-            response_format=ConvActionDetection,
+            response_format=convActionDetection,
             temperature=0.0
         )
     parsed_result = completion.choices[0].message.parsed
@@ -104,6 +104,19 @@ def call_conv_summarization(chat_history: list):
         )
     parsed_result = completion.choices[0].message.parsed
     return getattr(parsed_result,"reformulated_query")
+
+@safe_func
+def call_sru_conv_summarization(chat_history: list):
+    messages = prompt_formatting(sru_conv_summarization,[build_conv_paragraph(chat_history)])
+    # print(messages)
+    completion = client.beta.chat.completions.parse(
+            model=model_id,
+            messages=messages,
+            response_format=sruConvSummarization,
+            temperature=0.1
+        )
+    parsed_result = completion.choices[0].message.parsed
+    return getattr(parsed_result,"summarization")
 
 @safe_func
 def call_relevance_checker(user_intent: str, facets: list):
@@ -152,10 +165,11 @@ def call_embedding(query: str):
 
 @safe_func
 def call_nl2sru(chat_history: list, stream_response=False):
-    messages = prompt_formatting(nl2sru,[build_conv_paragraph(chat_history)]) 
+    # messages = prompt_formatting(nl2sru,[f"User: {intent}"]) 
+    messages = prompt_formatting(nl2sru,chat_history)
 
-    print(">>>>>>>>>")
-    print(messages)
+    # print(">>>>>>>>>")
+    # print(messages)
 
     if stream_response:
         stream = client.chat.completions.create(

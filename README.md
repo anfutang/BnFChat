@@ -40,3 +40,12 @@ node test.js
 Cannot change to send requests from the frontend to Gallica due to CORS limitation (Access to fetch at 'https://gallica.bnf.fr/SRU?version=1.2&operation=searchRetrieve&query=gallica%20all%20la%20bible&maximumRecords=5&startRecord=1' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.)
 
 All Gallica requests are still processed at backend; therefore risks being rate limited.
+
+### 💡 Several examples to test (mode "Recherche")
+- bandes dessinés Astérix
+- portrait d'une bourgeoise sous Louis XVI
+- carte aquitaine au 19ème siècle
+- critiques sur Madame Bovary
+- septième croisade de Saint Louis (should instruct to change "septième" by "7e" after the first translation)
+
+### 
