@@ -1,7 +1,7 @@
 import time
 import json
 from flask import Blueprint, request
-from flask import session
+from flask import (g, session)
 from flask_socketio import emit, disconnect, join_room, leave_room
 from .chat_manager import ChatManager
 from .db import db
@@ -13,7 +13,6 @@ import datetime
 
 bp = Blueprint('stream', __name__)
 socketio = None
-# REMOVED: socket_user_sessions = {}
 
 def init_socketio(socketio_instance):
     global socketio
@@ -22,7 +21,6 @@ def init_socketio(socketio_instance):
 
 def socketio_auth_required(f):
     def decorated_function(*args, **kwargs):
-        # Use Flask-SocketIO's session instead of global dict
         user_id = session.get('user_id')
         if not user_id:
             emit('error', {'error': 'Not authenticated'})
@@ -34,8 +32,6 @@ def register_socketio_events():
     
     @socketio.on('connect')
     def handle_connect(auth):
-        print(f'Client connected: {request.sid}')
-        
         user_id = None
         if auth and 'userId' in auth:
             user_id = auth['userId']
@@ -99,37 +95,6 @@ def register_socketio_events():
         except Exception as e:
             print(f"Error getting user data: {str(e)}")
             emit('error', {'error': 'Error getting user data'})
-
-    # ========== TOPICS (moved from HTTP) ==========
-    @socketio.on('get_topics')
-    @socketio_auth_required
-    def handle_get_topics():
-        try:
-            user_id = session.get('user_id')
-            user = User.query.get(user_id)
-            
-            if not user:
-                emit('error', {'error': 'User not found'})
-                return
-            
-            session_topics = TOPICS.get(user.session_id, [])
-            
-            # Get current selected topic
-            current_topic_id = 0
-            if user.session_id == 2:
-                current_topic_id = user.exercise_topic_id
-            elif user.session_id == 3:
-                current_topic_id = user.test_topic_id
-            
-            emit('topics_response', {
-                'topics': session_topics,
-                'currentTopicId': current_topic_id,
-                'sessionId': user.session_id
-            })
-            
-        except Exception as e:
-            print(f"Error getting topics: {str(e)}")
-            emit('error', {'error': 'Error getting topics'})
 
     # ========== CHAT OPERATIONS ==========
     @socketio.on('send_message')

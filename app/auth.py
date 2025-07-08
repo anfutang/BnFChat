@@ -6,7 +6,8 @@ from flask import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from .db import db
-from .models import User, create_user, update_user
+from .models import (User, create_user, update_user, request_reset_user_password, reset_user_password, 
+                     delete_user, login_user, logout_user, get_number_of_online_users)
 from .utils.constant import *
 from .utils.utils import *
 
@@ -21,6 +22,17 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+@bp.before_app_request
+def load_logged_in_user():
+    """Load user data before each request"""
+    user_id = session.get("user_id")
+
+    if user_id is None:
+        g.user = None
+    else:
+        g.user = User.query.get(user_id)
+
+# IMPORTANT: socket-io calls this route function to build connection, relying on user_id
 @bp.route('/check-auth', methods=['GET'])
 def check_auth():
     """Check if user is authenticated and return user details including profile completion status"""
@@ -35,7 +47,7 @@ def check_auth():
     return jsonify({
         "authenticated": True,
         "user": {
-            "id": user.id,
+            "userId": user.id,
             "username": user.username,
             "permissionLevel": user.permission_level,
             "avatarSeed": user.avatar_seed,
@@ -43,6 +55,19 @@ def check_auth():
         }
     })
 
+@bp.route('/check-username', methods=['POST'])
+def check_username_availability():
+    """Check if username is available"""
+    username = request.json.get('username')
+    user = User.query.filter_by(username=username).first()
+    
+    if user is None:
+        return jsonify({'available': True})
+    else:
+        return jsonify({'available': False,
+                        'user':{"request_reset_password": user.request_reset_password,
+                                "allowed_reset_password": user.allowed_reset_password
+                       }})
 
 @bp.route('/register', methods=['POST'])
 def register():
@@ -57,56 +82,55 @@ def register():
     
     # Create the user in the database
     user = create_user(username, password)
-    
-    print("========USER CREATED")
 
     # Store user ID in session
-    session["user_id"] = user.id
+    # session["user_id"] = user.id
     session["username"] = username
-    session["avatar-seed"] = 1
     
     return jsonify({
         "success": True,
         "username": username,
-        "avatarSeed": 1,
         "profileCompleted": False
     })
 
-@bp.route('/check-username', methods=['POST'])
-def check_username_availability():
-    """Check if username is available"""
-    username = request.json.get('username')
-    user = User.query.filter_by(username=username).first()
-    
-    return jsonify({'available': user is None})
-
 @bp.route('/profile-submit', methods=['POST'])
-@login_required
 def profile_submit():
     """Update user profile data for authenticated user"""
     user_profile_data = request.json.get('userProfileData', {})
     
     # User must be authenticated to reach this point due to @login_required
-    user = g.user
+    user = User.query.filter_by(username=session["username"]).first()
     
-    # Update user with profile data
-    update_user(user, user_profile_data)
-    
-    # Update session data
-    session["avatar_seed"] = user.avatar_seed
-    
-    return jsonify({
-        "success": True,
-        "username": user.username,
-        "permissionLevel": user.permission_level,
-        "avatarSeed":user.avatar_seed,
-        "profileCompleted": True
-    })
+    try:
+        # Update user with profile data
+        update_user(user, user_profile_data)
+        nb_online_users = get_number_of_online_users()
+        allowed_login = nb_online_users < MAXIMUM_NUM_ONLINE_USERS
+        
+        # Update session data
+        if allowed_login:
+            session["user_id"] = user.id
+            session["permission_level"] = user.permission_level
+            session["avatar_seed"] = user.avatar_seed
+        
+        return jsonify({
+            "success": True,
+            "username": user.username,
+            "avatarSeed":user.avatar_seed,
+            "permissionLevel": user.permission_level,
+            "requestResetPassword": user.request_reset_password,
+            "allowedResetPassword": user.allowed_reset_password,
+            "profileCompleted": True,
+            'allowedLogin': allowed_login
+        })
+    except:
+        return jsonify({
+            "success":False
+        })
 
 @bp.route('/login', methods=['POST'])
 def login():
     """User login endpoint"""
-    print("=======USER LOGIN")
     session.clear()
     data = request.json
     username = data.get("username")
@@ -115,44 +139,92 @@ def login():
     user = User.query.filter_by(username=username).first()
 
     if user is None:
-        return jsonify({'error': 'User not found'}), 401
+        return jsonify({'error': "L'utilisateur n'existe pas"}), 401
     elif not user.check_password(password):
-        return jsonify({'error': 'Incorrect password'}), 401
+        return jsonify({'error': 'Mot de passe incorrect'}), 401
+    
+    try: 
+        allowed_login = login_user(user)
 
-    # Login success
-    session["user_id"] = user.id
-    session["username"] = username
-    session["permission_level"] = user.permission_level
-    session["avatar_seed"] = user.avatar_seed
-    # session["first_input"] = True
-    # session["annotation_submitted"] = True
-    # session["chat_mode"] = "respond"
-    # session["process"] = []
-    # session["dev_mode"] = IS_DEV_MODE
-    clear_current_turn()
+        if allowed_login:
+            session["user_id"] = user.id
+            session["username"] = username
+            session["permission_level"] = user.permission_level
+            session["avatar_seed"] = user.avatar_seed
 
-    # Return user data
-    return jsonify({
-        'success': True,
-        'username': username,
-        'avatarSeed': user.avatar_seed,
-        'permissionLevel': user.permission_level,
-        'profileCompleted': user.profile_created
-    })
+        # Return user data
+        return jsonify({
+            'success': True,
+            'userId': user.id,
+            'username': username,
+            'avatarSeed': user.avatar_seed,
+            'permissionLevel': user.permission_level,
+            'requestResetPassword': user.request_reset_password,
+            'allowedResetPassword': user.allowed_reset_password,
+            'profileCompleted': user.profile_created,
+            'allowedLogin': allowed_login
+        })
+    except:
+        return jsonify({
+            'success':False,
+            'userId': user.id
+        })
+
+@bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """Reset user password"""
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+    
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        return jsonify({"error": "L'utilisateur n'existe pas"}), 400
+    
+    try:
+        reset_user_password(user, password)
+        return jsonify({"success": True})
+    except:
+        return jsonify({"success":False})
+
+@bp.route('/request-reset-password', methods=['POST'])
+def request_reset_password():
+    """Send user request for password reset"""
+    data = request.json
+    username = data.get("username")
+    
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        return jsonify({"error": "L'utilisateur n'existe pas"}), 400
+    
+    try:
+        request_reset_user_password(user)
+        return jsonify({"success": True})
+    except:
+        return jsonify({"success":False})
+
+@bp.route('/cancel', methods=['POST'])
+def cancel():
+    username = session.get('username')
+    try:
+        delete_user(username)
+        return jsonify({
+            'success':True,
+            'username': username
+        })
+    except:
+        return jsonify({"success":False})
 
 @bp.route('/logout', methods=['POST'])
 def logout():
     """Logout user"""
-    session.clear()
-    return jsonify({"success": True})
-
-@bp.before_app_request
-def load_logged_in_user():
-    """Load user data before each request"""
-    user_id = session.get("user_id")
-
-    if user_id is None:
-        g.user = None
-    else:
-        g.user = User.query.get(user_id)
+    data = request.json
+    user_id = data.get("userId")
+    try:
+        user = User.query.get(user_id)
+        logout_user(user)
+        session.clear()
+        return jsonify({"success": True})
+    except:
+        return jsonify({"success": False})
 

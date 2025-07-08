@@ -32,7 +32,7 @@ const AvatarDropdown = ({ currentUser, isConnected, setTutorialDone, handleLogou
           </DropdownMenu.Label>
 
           <DropdownMenu.Separator className="dropdown-separator" />
-          <DropdownMenu.Item className="dropdown-item" onClick={() => navigate('/espace')}>
+          <DropdownMenu.Item className="dropdown-item" onClick={() => navigate('/account')}>
             <VscAccount size={20}/>&nbsp;Mon espace
           </DropdownMenu.Item>
           <DropdownMenu.Item className="dropdown-item" onClick={() => setTutorialDone(false)}>

@@ -4,7 +4,7 @@
     --user-btn-color: rgb(241, 241, 241);
 }
 
-.admin-dashboard {
+.account-dashboard {
     position: fixed;
     width: 100vw;
     height: 100vh;
@@ -12,7 +12,7 @@
     /* border: 3px solid #ff0000; */
 }
 
-.user-info-container {
+.account-info-container {
     position: absolute;
     display: flex;
     flex-direction: row;
@@ -39,7 +39,7 @@
     background-color: antiquewhite;
 }
 
-.espace-sidebar {
+.account-sidebar {
     position: absolute;
     display: flex;
     flex-direction: column;
@@ -77,8 +77,9 @@
     background-color: rgb(27, 27, 27);
 }
 
-.espace-content-area {
+.account-display-area {
     position: absolute;
+    flex: 1;
     width: 80%;
     height: 90%;
     top: 10%;
@@ -232,16 +233,6 @@
     color: white;
 }
 
-.selected-user-chat-history-area {
-    position: relative;
-    padding: 1%;
-    width: 100%;
-    height: 50%;
-    /* border: 3px solid #ac0c0c; */
-    font-size: 1.1rem;
-    gap: 50px;
-}
-
 .chat-selection-btn-container {
     position: relative;
     display: flex;
@@ -301,4 +292,250 @@
     align-items: center;
     justify-content: center;
     margin: 3px;
+}
+
+/* Feedback */
+
+.feedback-area {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 90%;
+    left: 5%;
+    height: auto;
+    border: 1px solid #ccc;
+    padding: 15px;
+    margin: 0;
+    background-color: transparent;
+    overflow-y: auto;
+    color: white;
+    font-family: monospace;
+    font-size: 1rem;
+    border: none;
+    max-height: 100%;
+}
+
+/* Avatar Selection */
+.current-avatar {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 20%;
+    width: 90%;
+    left: 5%;
+    background-color: transparent;
+}
+
+.avatar-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    cursor: default;
+    border: none;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgb(252, 250, 228);
+}
+
+.avatar-icon img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-headline {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.5rem;
+    width: 90%;
+    color: white;
+    font-size: 1.2rem;
+    font-family: monospace;
+}
+
+.avatar-update-message {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.5rem;
+    width: 90%;
+    color: white;
+    font-size: 0.9rem;
+    font-style: italic;
+    font-family: monospace;
+}
+
+.avatar-grid-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    height: 50%;
+    width: 90%;
+    left: 5%;
+    background-color: transparent;
+}
+
+.avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+}
+
+.avatar-item {
+    width: 5rem;
+    height: 5rem;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+
+.avatar-item:hover {
+    transform: scale(1.1);
+}
+
+.avatar-item.selected {
+    border-color: #000000;
+    transform: scale(1.1);
+    opacity: 1.2;
+}
+
+.avatar-item img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* Admin Panel */
+.admin-operation-message {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 90%;
+    left: 5%;
+    height: 3.5%;
+    font-size: 0.9rem;
+    font-style: italic;
+    font-family: monospace;
+    color: white;
+    background-color: transparent;
+    margin: 0;
+}
+
+.admin-action-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid black;
+    border-radius: 3px;
+    font-size: 0.87rem;
+    font-family: monospace;
+    background-color: beige;
+    transition: all 0.2s;
+    outline: none;
+}
+
+.admin-action-btn:not(:disabled):hover {
+    background-color: antiquewhite;
+}
+
+.admin-action-btn:disabled {
+    border: 1px solid gray;
+}
+
+/* Activity Panel */
+.activity-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 3rem;
+    color: white;
+    font-size: 1.1rem;
+    font-size: monospace;
+    /* border: 3px solid red; */
+}
+
+.activity-refresh-button {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    margin-left: 5px;
+    background-color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.5rem;
+    width: 1.5rem;
+    border: none;
+    outline: none;
+    border-radius: 5px;
+    color: black;
+}
+
+.activity-refresh-button:hover {
+    background-color: antiquewhite;
+    cursor: pointer;
+}
+
+.activity-refresh-message {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2rem;
+    margin: 0.5rem;
+    font-size: 1rem;
+    font-style: italic;
+}
+
+.recent-user-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    height: 80%;
+    width: 90%;
+    left: 5%;   
+    border: 3px solid white;
+    gap: 0;
+}
+
+.recent-user {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 3rem;
+    width: 100%;
+    border: 1px solid white;
+    border-radius: 0px;
+    color: white;
+    font-size: 1.1rem;
+    gap: 15px;
+}
+
+.recent-user p {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
 }

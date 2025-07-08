@@ -37,20 +37,51 @@ const UserChat = ({ currentUser }) => {
     }
   };
 
+  const fetchUsers = () => {
+    fetch(`/api/account/user-list?page=${userPage}&threshold=${currentUser.permissionLevel}`)
+      .then(response => response.json())
+      .then(data => {
+        const fetchedUsers = data.user;
+        setUserList([...fetchedUsers, ...Array(usersPerPage - fetchedUsers.length).fill(null)]);
+        setTotalUserPages(data.total_pages);
+      })
+      .catch(error => {
+        console.error('Error fetching user list:', error);
+      });
+  };
+
+  const fetchUser = () => {
+    fetch(`/api/account/fetch-user?userId=${currentUser.userId}`)
+      .then(response => response.json())
+      .then(data => {
+        handleSelectUser(data);
+      })
+      .catch(error => {
+        console.error('Error fetching the specified user:', error);
+      });
+  };
+
   useEffect(() => {
-    if (isAdmin) {
-      fetch(`/api/account/user-list?page=${userPage}&threshold=${currentUser.permissionLevel}`)
-        .then((res) => res.json())
-        .then((data) => {
-          const fetchedUsers = data.user;
-          setUserList([...fetchedUsers, ...Array(usersPerPage - fetchedUsers.length).fill(null)]);
-          setTotalUserPages(data.total_pages);
-          // console.log("chat",data.user);
-        });
-    } else {
-      setUserList([currentUser]);
+    if (isAdmin) fetchUsers();
+    else {
+      fetchUser();
     }
   }, [userPage, isAdmin, currentUser]);
+
+  // useEffect(() => {
+  //   if (isAdmin) {
+  //     fetch(`/api/account/user-list?page=${userPage}&threshold=${currentUser.permissionLevel}`)
+  //       .then((res) => res.json())
+  //       .then((data) => {
+  //         const fetchedUsers = data.user;
+  //         setUserList([...fetchedUsers, ...Array(usersPerPage - fetchedUsers.length).fill(null)]);
+  //         setTotalUserPages(data.total_pages);
+  //         // console.log("chat",data.user);
+  //       });
+  //   } else {
+  //     setUserList([currentUser]);
+  //   }
+  // }, [userPage, isAdmin, currentUser]);
 
   const handleSelectUser = (user) => {
     setSelectedUser(user);
@@ -76,11 +107,11 @@ const UserChat = ({ currentUser }) => {
   return (
     <div className="content-container">
       {/* User list*/}
-      <div className="table-container">
+      {isAdmin && (<div className="table-container">
         <table className="column-table">
           <thead>
             <tr>
-              <th>username</th>
+              <th>Nom utilisateur</th>
             </tr>
           </thead>
           <tbody>
@@ -106,10 +137,10 @@ const UserChat = ({ currentUser }) => {
           <p className="page-label">{userPage} / {totalUserPages}</p>
           <button className="page-control-btn" onClick={() => setUserPage(userPage + 1)} disabled={userPage === totalUserPages}><FaAngleRight /></button>
         </div>
-      </div>
+      </div>)}
 
       {/* Chat list */}
-      <div className="content-area">
+      <div className="content-area" style={{ width:isAdmin ? "80%" : "100%" }}>
         {selectedUser && (
           <>
             <div className="page-control-btn-container">

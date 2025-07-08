@@ -122,28 +122,30 @@
   gap: 10px;
 }
 
-.avatar-item {
+.avatar-btn {
   width: 60px;
   height: 60px;
   border-radius: 50%;
   cursor: pointer;
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   transition: all 0.2s;
   display: flex;
   justify-content: center;
   align-items: center;
+  background-color: rgb(245, 226, 201);
 }
 
-.avatar-item:hover {
+.avatar-btn:hover {
   transform: scale(1.05);
 }
 
-.avatar-item.selected {
+.avatar-btn.selected {
   border-color: #000000;
   transform: scale(1.1);
+  background-color: lemonchiffon;
 }
 
-.avatar-item img {
+.avatar-btn img {
   width: 100%;
   height: 100%;
   border-radius: 50%;

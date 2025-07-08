@@ -13,13 +13,19 @@ const Register = () => {
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   
-  const { register, currentUser } = useAuth();
+  const { register, currentUser, setCurrentUser } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
+    setCurrentUser(null);
+  }, []);
+
+  useEffect(() => {
     // Only redirect to chat if user is logged in AND has completed their profile
-    if (currentUser && currentUser.profileCompleted) {
-      navigate('/chat');
+    if (currentUser) {
+      if (currentUser.profileCompleted === false) {
+        navigate('/profile');
+      }
     }
   }, [currentUser, navigate]);
 
@@ -84,7 +90,7 @@ const Register = () => {
       const result = await register(username, password);
       
       if (result.success) {
-        navigate('/profile');
+        // navigate('/profile');
       } else {
         setError(result.message || "Échec de l'inscription");
       }
@@ -114,7 +120,17 @@ const Register = () => {
               type="text"
               id="username"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                e.target.setCustomValidity(''); 
+              }}
+              onInvalid={(e) => {
+                  if (!e.target.value) {
+                      e.target.setCustomValidity("Veuillez saisir votre nom d'utilisateur");
+                  } else if (e.target.value.length < 3) {
+                      e.target.setCustomValidity("Le nom d'utilisateur doit contenir au moins 3 caractères");
+                  }
+              }}
               disabled={isLoading}
               required
               minLength={3}
@@ -131,7 +147,17 @@ const Register = () => {
               type="password"
               id="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                e.target.setCustomValidity(''); 
+              }}
+              onInvalid={(e) => {
+                if (!e.target.value) {
+                    e.target.setCustomValidity("Veuillez saisir votre mot de passe");
+                } else if (e.target.value.length < 3) {
+                    e.target.setCustomValidity("Le mot de passe doit contenir au moins 6 caractères ou chiffres");
+                }
+              }}
               disabled={isLoading}
               required
               minLength={6}
@@ -145,7 +171,15 @@ const Register = () => {
               type="password"
               id="confirmPassword"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                e.target.setCustomValidity(''); 
+              }}
+              onInvalid={(e) => {
+                if (!e.target.value) {
+                    e.target.setCustomValidity("Veuillez resaisir votre mot de passe pour confirmation");
+                }
+              }}
               disabled={isLoading}
               required
               style={{ width:"90%" }}

@@ -15,34 +15,61 @@ import AvatarSelectionStep from './wizard/AvatarSelectionStep';
 const ProfileWizard = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [profileData, setProfileData] = useState({
-    'age': '',
-    'diplome': '',
-    'situation': '',
-    'recherche_academique': false,
-    'recherche_amateur': false,
-    'utilise_gallica': false,
-    'usage_gallica': '',
-    'frequence_gallica': '',
-    'contact_autorise': false,
+    'age': null,
+    'diplome': null,
+    'situation': null,
+    'recherche_academique': null,
+    'recherche_amateur': null,
+    'utilise_gallica': null,
+    'usage_gallica': null,
+    'frequence_gallica': null,
+    'contact_autorise': null,
     'avatar_seed': null
   });
   
   const [error, setError] = useState('');
+  const fillUncompletedErrorInfo = 'Veuillez remplir tous les champs';
   const [isLoading, setIsLoading] = useState(false);
-  const { submitProfile, currentUser, logout } = useAuth();
+  const { submitProfile, currentUser, setCurrentUser, cancel } = useAuth();
   const navigate = useNavigate();
 
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [notificationInfo, setNotificationInfo] = useState('');
+
+  const [profileCompleted, setProfileCompleted] = useState(false);
+  const [seconds, setSeconds] = useState(5);
+
   useEffect(() => {
-    // Redirect to login if not authenticated
-    if (!currentUser) {
+    if (!showInfoModal) return;
+  
+    if (seconds === 0) {
       navigate('/login');
       return;
     }
-    
+  
+    const timer = setTimeout(() => {
+      setSeconds((prev) => prev - 1);
+    }, 1000);
+  
+    return () => clearTimeout(timer);
+  }, [seconds, showInfoModal, navigate]);
+
+  useEffect(() => {
     // If user has already completed profile, redirect to chat
-    if (currentUser.profileCompleted) {
-      navigate('/chat');
+    if (currentUser) {
+      if (!currentUser.profileCompleted) return;
+
+      if (currentUser.allowedLogin === false) {
+        setNotificationInfo("Votre inscription a réussi, mais la connexion est momentanément impossible car le nombre maximal d’utilisateurs en ligne a été atteint. Veuillez réessayer de vous connecter ultérieurement. Vous allez être redirigé vers la page de connexion. Merci de votre compréhension.");
+        setShowInfoModal(true); 
+        setSeconds(10);
+      } 
+
+      if (currentUser.allowedLogin) {
+        navigate('/chat');
+      }
     }
+    
   }, [currentUser, navigate]);
 
   const handleChange = (name, value) => {
@@ -56,7 +83,35 @@ const ProfileWizard = () => {
     // Validation par étape (peut être adaptée selon les besoins)
     if (currentStep === 1) {
       if (!profileData.age || !profileData.diplome) {
-        setError('Veuillez remplir tous les champs obligatoires');
+        setError(fillUncompletedErrorInfo);
+        return;
+      }
+    }
+
+    if (currentStep === 2) {
+      if (!profileData.situation) {
+        setError(fillUncompletedErrorInfo);
+        return;
+      }
+    }
+
+    if (currentStep === 3) {
+      if (profileData.recherche_academique === null || profileData.recherche_amateur === null) {
+        setError(fillUncompletedErrorInfo);
+        return;
+      }
+    }
+
+    if (currentStep === 4) {
+      if (profileData.utilise_gallica === null || (profileData.utilise_gallica && (!profileData.usage_gallica || !profileData.frequence_gallica))) {
+        setError(fillUncompletedErrorInfo);
+        return;
+      }
+    }
+
+    if (currentStep === 5) {
+      if (profileData.contact_autorise === null) {
+        setError(fillUncompletedErrorInfo);
         return;
       }
     }
@@ -70,6 +125,13 @@ const ProfileWizard = () => {
   };
 
   const handleSubmit = async () => {
+    if (currentStep === 6) {
+      if (!profileData.avatar_seed) {
+        setError('Veuillez choisir un avatar');
+        return;
+      }
+    }
+
     setError('');
     setIsLoading(true);
 
@@ -77,14 +139,14 @@ const ProfileWizard = () => {
       // Formatage des données pour le backend
       const completeProfileData = {
         ...profileData,
-        'avatar_seed': profileData.avatar_seed || Math.floor(Math.random() * 1000),
         'profile_created': true
       };
 
       const result = await submitProfile(completeProfileData);
       
       if (result.success) {
-        navigate('/chat');
+        // navigate('/chat');
+        setProfileCompleted(true);
       } else {
         setError(result.message || 'Échec de la soumission du profil');
       }
@@ -98,7 +160,11 @@ const ProfileWizard = () => {
 
   const handleCancel = async () => {
     // If user cancels profile creation, log them out
-    await logout();
+    await cancel();
+    setCurrentUser(prev => ({
+      ...prev, 
+      registrationCanceled: true
+    }));
     navigate('/login');
   };
 
@@ -153,9 +219,9 @@ const ProfileWizard = () => {
   };
 
   // Show loading or not found message if not authenticated
-  if (!currentUser) {
-    return <div className="auth-container">Chargement...</div>;
-  }
+  // if (!currentUser) {
+  //   return <div className="auth-container" style={{ color:"white" }}>Chargement...</div>;
+  // }
 
   return (
     <div className="auth-container">
@@ -184,7 +250,7 @@ const ProfileWizard = () => {
               type="button" 
               className="wizard-button secondary" 
               onClick={prevStep}
-              disabled={isLoading}
+              disabled={isLoading || profileCompleted}
             >
               Précédent
             </button>
@@ -215,13 +281,22 @@ const ProfileWizard = () => {
               type="button" 
               className="wizard-button primary" 
               onClick={handleSubmit}
-              disabled={isLoading}
+              disabled={isLoading || profileCompleted}
             >
               {isLoading ? 'Enregistrement...' : 'Terminer'}
             </button>
           )}
         </div>
       </div>
+
+      {showInfoModal && (<div className="notification-modal" style={{ height:"20%" }}>
+        <div className="notification-modal-content" style={{ color:"black" }}>
+            {notificationInfo}
+        </div>
+        <div className="notification-modal-footer" style={{ color:"orangered" }}>
+          Redirection dans {seconds} secondes
+        </div>
+      </div>)}
     </div>
   );
 };

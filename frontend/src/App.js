@@ -6,15 +6,16 @@ import axios from 'axios';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ProfileWizard from './components/auth/ProfileWizard';
+import ResetPassword from './components/auth/ResetPassword';
 
 // App Components
 import ChatInterface from './components/chat/ChatInterface';
-import FeedbackForm from './components/feedback/FeedbackForm';
+// import FeedbackForm from './components/feedback/FeedbackForm';
 import AccountPanel from './components/account/Account';
-
 
 // Context
 import { AuthProvider } from './context/AuthContext';
+import useAutoLogout from './hooks/useAutoLogout';
 
 // Style
 import './App.css';
@@ -41,93 +42,51 @@ const ProtectedRoute = ({ children }) => {
   }, []);
 
   if (isLoading) {
-    return <div className="loading">Chargement...</div>;
+    return <div className="loading" style={{ color:"white" }}>Chargement...</div>;
   }
 
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
-// Admin Route component
-// const AdminRoute = ({ children }) => {
-//   const [userData, setUserData] = useState(null);
-//   const [isLoading, setIsLoading] = useState(true);
-
-//   useEffect(() => {
-//     const checkAdmin = async () => {
-//       try {
-//         const authResponse = await axios.get('/api/auth/check-auth');
-        
-//         if (authResponse.data.authenticated) {
-//           setUserData({
-//             isAdmin: authResponse.data.user.permissionLevel > 1,
-//             permissionLevel: authResponse.data.user.permissionLevel
-//           });
-//           return;
-//         }
-
-//         // const sessionResponse = await axios.get('/api/dev/session-data');
-//         // setUserData({
-//         //   isAdmin: sessionResponse.data.permissionLevel > 1,
-//         //   permissionLevel: sessionResponse.data.permissionLevel
-//         // });
-//       } catch (error) {
-//         setUserData({ isAdmin: false });
-//       } finally {
-//         setIsLoading(false);
-//       }
-//     };
-
-//     checkAdmin();
-//   }, []);
-
-//   // console.log(userData);
-
-//   if (isLoading) {
-//     return <div className="loading">Chargement...</div>;
-//   }
-
-//   return userData && userData.isAdmin ? children : <Navigate to="/chat" />;
-// };
-
 function App() {
+  useAutoLogout();
+
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <Routes>
-            {/* Auth Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/profile" element={<ProfileWizard />} />
-            
-            {/* App Routes */}
-            <Route path="/chat" element={
-              <ProtectedRoute>
-                <ChatInterface />
-              </ProtectedRoute>
-            } />
-            
-            {/* Feedback Route */}
-            <Route path="/feedback" element={
-              <ProtectedRoute>
-                <FeedbackForm />
-              </ProtectedRoute>
-            } />
-            
-            {/* Admin Routes */}
-            <Route path="/espace" element={
-              <ProtectedRoute>
-                <AccountPanel />
-              </ProtectedRoute>
-            } />
-            
-            {/* Default Redirect */}
-            <Route path="/" element={<Navigate to="/login" />} />
-            <Route path="*" element={<Navigate to="/login" />} />
-          </Routes>
-        </div>
-      </Router>
-    </AuthProvider>
+    <div className="App">
+      <Routes>
+        {/* Auth Routes */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        <Route path="/profile" element={<ProfileWizard />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        
+        {/* App Routes */}
+        <Route path="/chat" element={
+          <ProtectedRoute>
+            <ChatInterface />
+          </ProtectedRoute>
+        } />
+        
+        {/* Feedback Route
+        <Route path="/feedback" element={
+          <ProtectedRoute>
+            <FeedbackForm />
+          </ProtectedRoute>
+        } /> */}
+        
+        {/* Admin Routes */}
+        <Route path="/account" element={
+          <ProtectedRoute>
+            <AccountPanel />
+          </ProtectedRoute>
+        } />
+        
+        {/* Default Redirect */}
+        <Route path="/" element={<Navigate to="/login" />} />
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    </div>
   );
 }
 

@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '@chatscope/chat-ui-kit-react';
 
 import { FaAddressCard, FaPencilAlt, FaUserLock } from "react-icons/fa";
-import { FaUserAstronaut, FaRegCommentDots } from "react-icons/fa6";
+import { FaUserAstronaut, FaRegCommentDots, FaFeather } from "react-icons/fa6";
 import { FiArrowUpLeft } from "react-icons/fi";
 import { VscSnake } from "react-icons/vsc";
 
@@ -17,9 +17,10 @@ import UserAvatar from "./Avatar";
 import UserChat from "./Chat";
 import UserFeedback from "./Feedback";
 import AdminPanel from "./Admin";
+import RecentUsers from './RecentUsers';
 
 const AccountPanel = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, setCurrentUser } = useAuth();
   const navigate = useNavigate();
 
   const [activeSection, setActiveSection] = useState(1);
@@ -29,14 +30,21 @@ const AccountPanel = () => {
       case "profile":
         return <UserProfile key={activeSection} currentUser={currentUser} />;
       case "avatar":
-        return <UserAvatar key={activeSection} currentUser={currentUser} />;
+        return <UserAvatar key={activeSection} currentUser={currentUser} setCurrentUser={setCurrentUser} />;
       case "chat-history":
         return <UserChat key={activeSection} currentUser={currentUser} />;
       case "feedback":
         return <UserFeedback key={activeSection} currentUser={currentUser} />;
       case "admin-panel":
         return currentUser.permissionLevel > 1 ? (
-          <AdminPanel key={activeSection} currentUser={currentUser} />
+          <AdminPanel 
+            key={activeSection} 
+            currentUser={currentUser} 
+          />
+        ) : null;
+      case "activity":
+        return currentUser.permissionLevel > 1 ? (
+          <RecentUsers key={activeSection} currentUser={currentUser}/>
         ) : null;
       default:
         return null;
@@ -44,8 +52,8 @@ const AccountPanel = () => {
   };
 
 return (
-    <div className="admin-dashboard">
-      <div className="user-info-container">
+    <div className="account-dashboard">
+      <div className="account-info-container">
         <img src="/logo_bnfchat_rectangle.png" className='logo-bnfchat' style={{ height:"6vh" }}/>
         <p style={{ color:"white", fontWeight:"500", fontSize:"1.2rem"}}>Mon Compte</p>
         <Avatar 
@@ -53,19 +61,22 @@ return (
             name={currentUser?.username} 
             status='available'
         />
-        {currentUser.permissionLevel > 1 && (<span style={{ fontStyle: 'bold', textAlign: 'left', color: "white" }}>{currentUser?.username} <br></br><span style={{ fontStyle: 'italic' }}>Vous êtes administrateur·trice</span></span>)}
+        <span style={{ fontStyle: 'bold', textAlign: 'left', color: "white" }}>Bienvenu.e, {currentUser?.username} <br></br>{currentUser.permissionLevel > 1 && (<span style={{ fontStyle: 'italic' }}>Vous êtes administrateur·trice</span>)}</span>
         <button className='switch-btn' onClick={() => {navigate('/chat');}}><FiArrowUpLeft /></button>
       </div>
-      <div className="espace-sidebar">
+      <div className="account-sidebar">
         <button className={`control-btn ${activeSection === "profile" ? 'selected' : ''}`} onClick={() => setActiveSection("profile")}><FaAddressCard size={25}/>&nbsp;Profil</button>
         <button className={`control-btn ${activeSection === "avatar" ? 'selected' : ''}`} onClick={() => setActiveSection("avatar")}><FaUserAstronaut size={23}/>&nbsp;Avatar</button>
-        <button className={`control-btn ${activeSection === "chat-history" ? 'selected' : ''}`} onClick={() => setActiveSection("chat-history")}><FaRegCommentDots size={23}/>&nbsp;Historique</button>
-        <button className={`control-btn ${activeSection === "feedback" ? 'selected' : ''}`} onClick={() => setActiveSection("feedback")}><FaPencilAlt size={20}/>&nbsp;Avis</button>
+        <button className={`control-btn ${activeSection === "chat-history" ? 'selected' : ''}`} onClick={() => setActiveSection("chat-history")}><FaRegCommentDots size={23}/>&nbsp;Conversations</button>
+        <button className={`control-btn ${activeSection === "feedback" ? 'selected' : ''}`} onClick={() => setActiveSection("feedback")}><FaFeather size={20}/>&nbsp;Avis</button>
         {currentUser.permissionLevel > 1 && (
           <button className={`control-btn ${activeSection === "admin-panel" ? 'selected' : ''}`} onClick={() => setActiveSection("admin-panel")}><FaUserLock size={25}/>&nbsp;Gestion</button>
         )}
+        {currentUser.permissionLevel > 1 && (
+          <button className={`control-btn ${activeSection === "activity" ? 'selected' : ''}`} onClick={() => setActiveSection("activity")}><FaUserLock size={25}/>&nbsp;Activité</button>
+        )}
       </div>
-      <div className="espace-content-area" style={{ flex: 1 }}>{renderContent()}</div>
+      <div className="account-display-area" style={{ flex: 1 }}>{renderContent()}</div>
     </div>
   );
 };

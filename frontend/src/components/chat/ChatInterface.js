@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { FaInfoCircle, FaQuestionCircle, FaAngleDown, FaPencilAlt } from 'react-icons/fa';
+import { FaFeather } from 'react-icons/fa';
 import { VscQuestion } from "react-icons/vsc";
 
 import { useAuth } from '../../context/AuthContext';
@@ -173,10 +173,10 @@ const ChatInterface = () => {
     }
   }, [logout, navigate]);
 
-  const handleCloseResultModal = useCallback(() => {
-    setResultData(null);
-    setIsResultLoading(false);
-  }, []);
+  // const handleCloseResultModal = useCallback(() => {
+  //   setResultData(null);
+  //   setIsResultLoading(false);
+  // }, []);
 
   // // Show loading while waiting for session data
   // if (!sessionData) {
@@ -191,7 +191,7 @@ const ChatInterface = () => {
             <div className="app-btn-container">
               <ModeSelector userData={userData} handleModeChange={handleModeChange}/>
               <button className="app-btn" onClick={() => setShowQAModal(true)}><VscQuestion size={30} color="white"/></button>
-              <button className="app-btn" onClick={() => setShowFeedbackModal(true)}><FaPencilAlt size={20} color="white"/></button>
+              <button className="app-btn" onClick={() => setShowFeedbackModal(true)}><FaFeather size={23} color="white"/></button>
               <AvatarDropdown 
                 currentUser={currentUser} 
                 isConnected={isConnected} 

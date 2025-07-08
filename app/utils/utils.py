@@ -11,11 +11,6 @@ import numpy as np
 
 from .constant import *
 
-def clear_current_turn():
-    session["user_input"] = ''
-    session["llm_responses"] = []
-    session["evals"] = {}
-
 def update_chat_history(prev_chat_history):
     # newly received conversation
     if session["chat_mode"] == "select" and not session["first_input"]:

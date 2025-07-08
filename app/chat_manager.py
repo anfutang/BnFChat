@@ -73,14 +73,14 @@ class ChatManager:
             return False, str(e)
     
     @staticmethod
-    def save_search_result(chat_id, result={}, user_intent='', generated_sru=''):
+    def save_search_result(chat_id, result={}, user_intent=''):
         """Save (facet, SRU) results to the existing chat"""
         try:
             chat = Chat.query.get(chat_id)
             if not chat:
                 return False, "Chat not found"
             
-            chat.add_result(result, user_intent, generated_sru)
+            chat.add_result(result, user_intent)
             db.session.commit()
             
             return True, None

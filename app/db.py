@@ -50,12 +50,14 @@ def create_default_users():
         password = user_data.get('password')
         permission_level = user_data.get('permission_level')
         profile_created = user_data.get('profile_created', False)
+        save_password_in_plain_text = user_data.get('save_password_in_plain_text', False)
         # Create user with appropriate permissions
         new_user = User(
             username=username, 
             password=password,
             permission_level=permission_level,
-            profile_created=profile_created
+            profile_created=profile_created,
+            save_password_in_plain_text=save_password_in_plain_text
         )
         db.session.add(new_user)
     

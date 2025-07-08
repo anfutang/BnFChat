@@ -9,13 +9,12 @@ const ResultModal = ({ resultData, feedbackSubmitted, setFeedbackSubmitted, setE
   // State for storing feedback
   
   const [showThankYou, setShowThankYou] = useState(false);
-  const [renderKey, setRenderKey] = useState(0);
 
   const baseGallicaURL = "https://gallica.bnf.fr/services/engine/search/sru?operation=searchRetrieve&version=1.2&startRecord=1&maximumRecords=15&page=1&collapsing=true&exactSearch=false&query={sru_query}";
   const singleResultGallicaURL = "https://gallica.bnf.fr/services/engine/search/sru?operation=searchRetrieve&version=1.2&query={sru_query}";
 
   useEffect(() => {
-    // 2025.7.3: If feedback is already submitted, do not show the evaluation form.
+    // 2025.7.3: If feedback is already submitted, do not show the evaluation form again.
     if (resultData?.chatId && socketRef?.current) {
       console.log("📩 Checking if feedback submitted for", resultData.chatId);
       

@@ -49,7 +49,7 @@ export const useChat = ({setMessageModal}) => {
 
         const socket = io(process.env.REACT_APP_SOCKET_URL || '', {
           auth: {
-            userId: authData.user.id
+            userId: authData.user.userId
           }
         });
 

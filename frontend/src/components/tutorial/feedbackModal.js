@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { FaArrowUp } from "react-icons/fa6";
+import { FaArrowUp, FaFeather } from "react-icons/fa6";
 
 const FeedbackModal = ({ userData, setShowFeedbackModal, socketRef }) => {
   const [feedbackText, setFeedbackText] = useState('');
@@ -23,7 +23,7 @@ const FeedbackModal = ({ userData, setShowFeedbackModal, socketRef }) => {
       });
 
       setShowThankYou(true);
-      setMessage("Merci pour votre retour ! Votre avis nous intéresse.");
+      setMessage("Merci pour votre retour ! Votre avis nous intéresse. Sauvegarde...");
     } else {
       console.error('Socket not available');
       alert('Connection error. Please try again.');
@@ -58,7 +58,7 @@ const FeedbackModal = ({ userData, setShowFeedbackModal, socketRef }) => {
       <div className="info-modal" onClick={(e) => e.stopPropagation()} style={{ height: "60%", width: "45%", padding: "1%" }}>
         <div className="about-info-modal-content" style={{ height: "100%", display: 'flex', flexDirection: 'column' }}>
           
-          <span className="feedback-headline">Donner votre avis</span>
+          <span className="feedback-headline"><FaFeather />&nbsp;Donner votre avis</span>
 
           <span className="feedback-message" style={{ color: showThankYou ? "green" : "black" }}>{message}</span>
 

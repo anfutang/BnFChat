@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, session
 from flask_socketio import SocketIO
 from .db import init_app, ensure_database_exists
 from . import account, auth, stream
@@ -59,9 +59,13 @@ def create_app():
     stream.init_socketio(socketio)
     app.register_blueprint(stream.bp, url_prefix='/api/stream')
     
-    @app.route('/status')
+    @app.route('/status',methods=['GET'])
     def status():
         return jsonify({"status": "ok"})
+    
+    # @app.route('/session')
+    # def debug_session():
+    #     return jsonify(session) 
 
     # Only add React serving routes in production
     if is_production:

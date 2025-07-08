@@ -1,8 +1,6 @@
-import os
+from .default_users import DEFAULT_USERS
 
 DEV_MODE = True
-MAX_NUM_REFRESH = 3
-USER_MODES = ["select","respond","select+respond"]
 IS_DEV_MODE = False
 THRES_OPEN_GENERATION = 500
 THRES_STOPPING = 20
@@ -12,39 +10,8 @@ RAG_EMBED_DIM = 512
 METADATA_DIR = "./instance/"
 USERS_PER_PAGE = 20
 CHATS_PER_PAGE = 10
-
-chatmode2ky = {"select":"reformulated_queries",
-               "respond":"clarification_question",
-               "select+respond":"clarification_questions"}
-
-DEFAULT_USERS = [
-    {'username': 'atang', 'password': 'aft0609', 'permission_level': 3, 'profile_created': True},
-    {'username': 'admin', 'password': 'admin', 'permission_level': 2, 'profile_created': True},
-    {'username': 'racousin', 'password': 'qwe', 'permission_level': 2, 'profile_created': True},
-    {'username': 'guest', 'password': 'guest', 'permission_level': 1,  'profile_created': False},
-    {'username': 'tester', 'password': 'tester', 'permission_level': 1,  'profile_created': False},
-    {'username': 'bnf-scai-1', 'password': '7atsua', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-2', 'password': 'sn6moj', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-3', 'password': 'a63u38', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-4', 'password': 'tkzo3h', 'permission_level': 1, 'profil_created': False},
-    {'username': 'bnf-scai-5', 'password': 'uqbwky', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-6', 'password': 'cunhkb', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-7', 'password': '3w7w0w', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-8', 'password': 'aqz85b', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-9', 'password': 'mtnmpj', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-10', 'password': 'dh38uu', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-11', 'password': 'ixhxwu', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-12', 'password': 'm06ypg', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-13', 'password': 'gznxby', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-14', 'password': 'fokery', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-15', 'password': 'tmouj8', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-16', 'password': '9uq2d7', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-17', 'password': 'f8hint', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-18', 'password': 'ny39ed', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-19', 'password': 'jn6gdx', 'permission_level': 1, 'profil_created': False}, 
-    {'username': 'bnf-scai-20', 'password': '8793vv', 'permission_level': 1, 'profil_created': False}
-]
-
+FEEDBACKS_PER_PAGE = 10
+MAXIMUM_NUM_ONLINE_USERS = 5
 PROFILE_KEYS =  ['age', 'diplome', 'situation', 'recherche_academique', 'recherche_amateur', 'utilise_gallica', 'usage_gallica', 'frequence_gallica', 'contact_autorise']
 
 ABANDON_RESPONSE = "Vous avez décidé d'abondonner le dialogue. Votre conversation sera réinitialisée."
