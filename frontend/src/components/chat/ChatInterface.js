@@ -187,11 +187,11 @@ const ChatInterface = () => {
     <div className="chat-page">
       <div className="chat-layout">       
         <div className="info-bar" id="info-bar">
-            <img src="/logo_bnfchat_rectangle.png" className='logo-bnfchat' style={{ height:"6vh" }}/>
+            <img src="/logo_bnfchat_black.png" className='logo-bnfchat' style={{ height:"6vh" }}/>
             <div className="app-btn-container">
               <ModeSelector userData={userData} handleModeChange={handleModeChange}/>
-              <button className="app-btn" onClick={() => setShowQAModal(true)}><VscQuestion size={30} color="white"/></button>
-              <button className="app-btn" onClick={() => setShowFeedbackModal(true)}><FaFeather size={23} color="white"/></button>
+              <button id="faq-trigger" className="app-btn" onClick={() => setShowQAModal(true)}><VscQuestion size={30} color="white"/></button>
+              <button id="feedback-trigger" className="app-btn" onClick={() => setShowFeedbackModal(true)}><FaFeather size={23} color="white"/></button>
               <AvatarDropdown 
                 currentUser={currentUser} 
                 isConnected={isConnected} 

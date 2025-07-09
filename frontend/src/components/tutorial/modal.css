@@ -1,6 +1,6 @@
 /* info modal */
 :root {
-    --info-modal-bg-color: #f5ebdf;
+    --info-modal-bg-color: rgb(241, 234, 226);
 }
 
 
@@ -198,6 +198,109 @@
     gap: 1rem;
     /* border: 3px solid red; */
     margin: 2%;
+}
+
+.qa-info-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial;
+    font-size: 1.5rem;
+    font-weight: 1000;
+    border: 2%;
+}
+
+.main-question-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* border: 3px solid lemonchiffon; */
+    gap: 8px;
+    height: auto;
+    width: 70%;
+}
+
+.main-question-container button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2rem;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 1.1rem;
+    color: black;
+    padding: 6px;
+    border: 1.5px solid black;
+    border-radius: 6px;
+    background-color: blanchedalmond;
+    width: 80%;
+    height: 5vh;
+    transition: all 1s;
+}
+
+.main-question-container button:hover {
+    background-color: burlywood;
+    cursor: pointer;
+}
+
+.subquestion {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-family: 'Times New Roman', Times, serif;
+    /* border: 3px solid salmon; */
+    margin: 1rem;
+}
+
+.answer-area {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    height: 90%;
+    width: 86%;
+    border: 2px solid black;
+    border-radius: 6px;
+    overflow-y: auto;
+    padding: 5px;
+    margin: 1rem;
+    text-align: left;
+}
+
+.answer-page-controller {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 10%;
+    width: 30%;
+    /* border: 3px solid goldenrod; */
+    margin: 1rem;
+    gap: 3px;
+}
+
+.answer-page-controller button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid black;
+    border-radius: 3px;
+    height: 1.5rem;
+    font-size: 1rem;
+    font-family: times;
+    background-color: antiquewhite;
+    transition: all 0.5s;
+}
+
+.answer-page-controller button:hover {
+    background-color: gold;
+    cursor: pointer;
 }
 
 .feedback-headline {

@@ -27,8 +27,9 @@ def fetch_user():
 def get_users():
     page = int(request.args.get('page', 1))
     thres = int(request.args.get('threshold', 1))
+    table = request.args.get('table')
     offset = (page - 1) * USERS_PER_PAGE
-    return jsonify(get_all_users(offset,USERS_PER_PAGE,thres))
+    return jsonify(get_all_users(offset,USERS_PER_PAGE,thres,table))
 
 @bp.route('/user-profile', methods=['GET'])
 def get_user_profiles():

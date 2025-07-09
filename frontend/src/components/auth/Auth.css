@@ -111,8 +111,11 @@
 .auth-logo-container {
   display: flex;
   flex-direction: row;
-  height: 10vh;
+  align-items: center;
   justify-content: center;
+  height: 15vh;
+  justify-content: center;
+  align-items: center;
   gap: 1vw;
   /* border: 3px solid black; */
 }
@@ -120,9 +123,17 @@
 .img-container {
   position: relative;
   display: flex;
+  align-items: center;
+  justify-content: center;
   height: 60%;
-  top: 10%;
+  width: 100%;
   /* border: 3px solid greenyellow; */
+}
+
+.img-container img {
+  max-width: 60%;
+  height: auto;
+  display: block;
 }
 
 .auth-button {

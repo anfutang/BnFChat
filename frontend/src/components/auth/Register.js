@@ -106,10 +106,9 @@ const Register = () => {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-logo-container">
-          <div className="img-container"><img src="/blossom.png" alt="Logo" /></div>
-          <h1>BnFChat</h1>
+          <div className="img-container"><img src="/logo_bnfchat_white.png" alt="Logo" /></div>
         </div>
-        <h2>Inscriptioin</h2>
+        <h2>Inscription</h2>
         
         {error && <div className="auth-error">{error}</div>}
         

@@ -11,7 +11,7 @@ METADATA_DIR = "./instance/"
 USERS_PER_PAGE = 20
 CHATS_PER_PAGE = 10
 FEEDBACKS_PER_PAGE = 10
-MAXIMUM_NUM_ONLINE_USERS = 5
+MAXIMUM_NUM_ONLINE_USERS = 25
 PROFILE_KEYS =  ['age', 'diplome', 'situation', 'recherche_academique', 'recherche_amateur', 'utilise_gallica', 'usage_gallica', 'frequence_gallica', 'contact_autorise']
 
 ABANDON_RESPONSE = "Vous avez décidé d'abondonner le dialogue. Votre conversation sera réinitialisée."

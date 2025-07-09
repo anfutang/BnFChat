@@ -170,6 +170,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const ping = async () => {
+    try {
+      const response = await axios.post('/api/auth/ping', { userId: currentUser.userId });
+      return { success: response.data.success };
+    } catch (error) {
+      console.error('Ping failed:', error);
+      return { success: false };
+    }
+  };
+
   const value = {
     currentUser,
     setCurrentUser,
@@ -179,7 +189,8 @@ export const AuthProvider = ({ children }) => {
     submitProfile,
     resetPassword,
     cancel,
-    logout
+    logout,
+    ping
   };
 
   return (

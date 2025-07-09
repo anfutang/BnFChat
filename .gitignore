@@ -24,3 +24,5 @@ prev_chat_history.json
 current_chat_history.json
 
 /instance/bnfchat.sqlite
+
+/app/utils/default_users.py

@@ -15,6 +15,10 @@ const Login = () => {
   const [notificationInfo, setNotificationInfo] = useState('');
 
   useEffect(() => {
+      setCurrentUser(null);
+    }, []);
+
+  useEffect(() => {
     // If user is already logged in, redirect to the appropriate page
     if (currentUser) {
       // 1. If the user has requested reset password, deny.
@@ -34,7 +38,7 @@ const Login = () => {
       } else if (currentUser.allowedLogin === false) {
         setNotificationInfo("Nous sommes désolés, mais en raison des limitations de capacité de notre application actuelle, le nombre maximal d'utilisateurs en ligne a été atteint. Veuillez réessayer de vous connecter à un autre moment. Merci beaucoup pour l’intérêt que vous portez à notre application.");
         setShowInfoModal(true);
-      } else if (!currentUser.profileCompleted) {
+      } else if (currentUser.profileCompleted === false) {
         navigate('/profile');
       } else if (currentUser.allowedLogin) {
         navigate('/chat');
@@ -74,8 +78,9 @@ const Login = () => {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-logo-container">
-          <div className="img-container"><img src="/blossom.png" alt="Logo" /></div>
-          <h1>BnFChat</h1>
+          <div className="img-container">
+            <img src="/logo_bnfchat_white.png" alt="Logo" />
+          </div>
         </div>
         <h2>Connexion</h2>
         

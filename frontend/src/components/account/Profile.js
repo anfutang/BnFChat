@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
-import { FaAngleLeft, FaAngleRight, FaKey } from "react-icons/fa";
+import { FaAngleLeft, FaAngleRight, FaKey, FaRegClock, FaRegMoon, FaBirthdayCake, FaGraduationCap, 
+         FaBriefcase, FaUniversity, FaLightbulb
+ } from "react-icons/fa";
 import { FaUser } from "react-icons/fa6";
+import { BiSolidGame } from "react-icons/bi";
+import { RiUserVoiceLine } from "react-icons/ri";
+import { HiOutlineDocumentSearch } from 'react-icons/hi';
+import { TbRepeat, TbHourglassLow } from 'react-icons/tb';
+import { BsSearch } from 'react-icons/bs';
+
 
 const UserProfile = ({ currentUser }) => {
   const usersPerPage = 20;
@@ -82,19 +90,20 @@ const UserProfile = ({ currentUser }) => {
 
       <div className="content-area" style={{ width:isAdmin ? "80%" : "100%" }}>
         {selectedUser && (
-          <div style={{ padding: "10px" }}>
+          <div className="profile-card">
             <h3 style={{  display:"flex", alignItems:"center", justifyContent:"center" }}><FaUser />&nbsp;{selectedUser.username}</h3>
-            <p><strong>Cree le :</strong>&nbsp;{selectedUser.created_at}</p>
+            <p><FaRegClock />&nbsp;<strong>Créé le :</strong>&nbsp;{selectedUser.created_at}</p>
             {selectedUser.plaintext_password && (<p><strong><FaKey />&nbsp;Mot de Passe :</strong>&nbsp;{selectedUser.plaintext_password}</p>)}
-            <p><strong>Âge :</strong>&nbsp;{selectedUser.profile?.age}</p>
-            <p><strong>Éducation :</strong>&nbsp;{selectedUser.profile?.diplome}</p>
-            <p><strong>Statut professionnel :</strong>&nbsp;{selectedUser.profile?.situation}</p>
-            <p><strong>Recherche académique :</strong>&nbsp;{selectedUser.profile ? selectedUser.profile?.recherche_academique ? "✔" : "✖" : null}</p>
-            <p><strong>Recherche amateur :</strong>&nbsp;{selectedUser.profile ? selectedUser.profile?.recherche_amateur ? "✔" : "✖" : null}</p>
-            <p><strong>Utilisation de Gallica :</strong>&nbsp;{selectedUser.profile ? selectedUser.profile?.utilise_gallica ? "✔" : "✖" : null}</p>
-            <p><strong>Objectif d'utilisation de Gallica :</strong>&nbsp;{selectedUser.profile?.usage_gallica}</p>
-            <p><strong>Fréquence d'utilisation de Gallica :</strong>&nbsp;{selectedUser.profile?.frequence_gallica}</p>
-            <p><strong>Accord pour un contact futur : </strong>&nbsp;{selectedUser.profile ? selectedUser.profile?.contact_autorise ? "✔" : "✖" : null}</p>
+            <p><FaRegMoon />&nbsp;<strong>Dernière connexion le : </strong>&nbsp;{selectedUser.last_connection_at ? selectedUser.last_connection_at : "Jamais connecté"}</p>
+            <p><FaBirthdayCake />&nbsp;<strong>Âge :</strong>&nbsp;{selectedUser.profile?.age}</p>
+            <p><FaGraduationCap size={20} />&nbsp;<strong>Éducation :</strong>&nbsp;{selectedUser.profile?.diplome}</p>
+            <p><FaBriefcase />&nbsp;<strong>Statut professionnel :</strong>&nbsp;{selectedUser.profile?.situation}</p>
+            <p><FaUniversity />&nbsp;<strong>Recherche académique :</strong>&nbsp;{selectedUser.profile ? selectedUser.profile?.recherche_academique ? "✔" : "✖" : null}</p>
+            <p><BiSolidGame />&nbsp;<strong>Recherche amateur :</strong>&nbsp;{selectedUser.profile ? selectedUser.profile?.recherche_amateur ? "✔" : "✖" : null}</p>
+            <p><BsSearch size={18} />&nbsp;<strong>Utilisation de Gallica :</strong>&nbsp;{selectedUser.profile ? selectedUser.profile?.utilise_gallica ? "✔" : "✖" : null}</p>
+            <p><FaLightbulb size={15} />&nbsp;<strong>Objectif d'utilisation de Gallica :</strong>&nbsp;{selectedUser.profile?.usage_gallica}</p>
+            <p><TbRepeat size={20} />&nbsp;<strong>Fréquence d'utilisation de Gallica :</strong>&nbsp;{selectedUser.profile?.frequence_gallica}</p>
+            <p><RiUserVoiceLine size={20} />&nbsp;<strong>Accord pour un contact futur : </strong>&nbsp;{selectedUser.profile ? selectedUser.profile?.contact_autorise ? "✔" : "✖" : null}</p>
           </div>
         )}
       </div>

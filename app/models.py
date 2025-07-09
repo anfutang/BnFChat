@@ -5,7 +5,7 @@ import datetime
 import random
 from math import ceil
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import Column, Integer, String, Boolean, Text, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Boolean, Text, DateTime, ForeignKey, JSON, select
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import load_only
 from .db import db
@@ -28,7 +28,7 @@ class User(db.Model):
     profile_created = db.Column(db.Boolean, nullable=True, default=False)
     profile = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
-    last_login_at = db.Column(db.DateTime, nullable=True)
+    last_connection_at = db.Column(db.DateTime, nullable=True)
     
     # Relationship
     chats = db.relationship('Chat', backref='user', lazy=True)
@@ -164,11 +164,11 @@ def login_user(user):
     #     User.username == user.username
     # ).first() is not None
     # admin users can always log in
-    # print(">>>>>>>>",nb_online_users,MAXIMUM_NUM_ONLINE_USERS,is_user_already_online)
-    if user.permission_level < 2 and nb_online_users > MAXIMUM_NUM_ONLINE_USERS:
+    # print("🔴",user.username,nb_online_users,MAXIMUM_NUM_ONLINE_USERS)
+    if user.permission_level < 2 and nb_online_users >= MAXIMUM_NUM_ONLINE_USERS:
         return False
     user.online = True
-    user.last_login_at = datetime.datetime.now()
+    user.last_connection_at = datetime.datetime.now()
     db.session.commit()
     return True
 
@@ -205,6 +205,13 @@ def approve_reset_user_password(user_id):
         user.allowed_reset_password = True
         db.session.commit()
 
+# log user connection (user refreshing ONLY, for logging out users automatically; however cannot distinuguishing refreshing or closing page only by detecting "beforeunload" event
+# in the frontend)
+def log_connection(user):
+    user.last_connection_at = datetime.datetime.now()
+    user.online = True
+    db.session.commit()
+
 # fetch user and user-related infos
 def get_user_activities(level_threshold):
     nb_online_users = User.query.filter_by(online=True).count()
@@ -212,9 +219,9 @@ def get_user_activities(level_threshold):
     users = (
         User.query
         .filter(User.permission_level <= level_threshold)
-        .filter(User.last_login_at != None) 
-        .order_by(User.last_login_at.desc())
-        .options(load_only(User.username, User.permission_level, User.last_login_at, User.online))
+        .filter(User.last_connection_at != None) 
+        .order_by(User.last_connection_at.desc())
+        .options(load_only(User.username, User.permission_level, User.last_connection_at, User.online))
         .limit(15)
         .all()
     )
@@ -224,7 +231,7 @@ def get_user_activities(level_threshold):
         result.append({
             'username': user.username,
             'permission_level': user.permission_level,
-            'last_login_at': user.last_login_at.strftime("%Y-%m-%d %H:%M:%S"),
+            'last_connection_at': user.last_connection_at.strftime("%Y-%m-%d %H:%M:%S"),
             'online': user.online
         })
 
@@ -232,50 +239,6 @@ def get_user_activities(level_threshold):
         'users': result,
         'nb_online_users': nb_online_users
     }
-
-def get_number_of_online_users():
-    return User.query.filter(User.permission_level < 2).filter_by(online=True).count()
-
-def get_single_user(user_id):
-    user = User.query.filter_by(id=user_id).first()
-
-    return {
-        'id': user.id,
-        'username': user.username,
-        'created_at': user.created_at,
-        'plaintext_password': user.plaintext_password,
-        'permissionLevel': user.permission_level,
-        'profile': user.profile  
-    }
-
-def get_all_users(offset,per_page,level_threshold):
-    total_users = User.query.filter(User.permission_level <= level_threshold).count()
-    total_pages = ceil(total_users / per_page)
-
-    users = (
-        User.query
-        .filter(User.permission_level <= level_threshold)
-        .options(load_only(User.id, User.username, User.permission_level))
-        .offset(offset)
-        .limit(per_page)
-        .all()
-    )
-
-    result = []
-    for user in users:
-        result.append({
-            'id': user.id,
-            'username': user.username,
-            'created_at': user.created_at,
-            'permissionLevel': user.permission_level,
-            'request_reset_password': user.request_reset_password,
-            "allowed_reset_password": user.allowed_reset_password
-        })
-
-    return {
-            'user': result,
-            'total_pages': total_pages
-        }
 
 def get_all_user_profiles(offset,per_page,level_threshold):
     total_users = User.query.filter(User.permission_level <= level_threshold).count()
@@ -296,6 +259,7 @@ def get_all_user_profiles(offset,per_page,level_threshold):
             'id': user.id,
             'username': user.username,
             'created_at': user.created_at,
+            'last_connection_at': user.last_connection_at,
             'plaintext_password': user.plaintext_password,
             'permissionLevel': user.permission_level,
             'profile': user.profile  
@@ -303,6 +267,93 @@ def get_all_user_profiles(offset,per_page,level_threshold):
 
     return {
             'profile': result,
+            'total_pages': total_pages
+        }
+
+def get_number_of_online_users():
+    return User.query.filter(User.permission_level < 2).filter_by(online=True).count()
+
+def get_single_user(user_id):
+    user = User.query.filter_by(id=user_id).first()
+
+    return {
+        'id': user.id,
+        'username': user.username,
+        'created_at': user.created_at,
+        'last_connection_at': user.last_connection_at,
+        'plaintext_password': user.plaintext_password,
+        'permissionLevel': user.permission_level,
+        'profile': user.profile  
+    }
+
+def get_all_users(offset,per_page,level_threshold, table):
+    if table:
+        table_map = {
+            'chat': Chat,
+            'feedback': Feedback
+        }
+
+        target_table = table_map[table]
+        # if table is not None, fetch only users that have conversations or feedbacks
+        target_user_ids = (
+            db.session.query(target_table.user_id)
+            .distinct()
+            .all()
+        )
+        target_user_ids = [uid[0] for uid in target_user_ids]
+
+        query = (
+            User.query
+            .filter(User.id.in_(target_user_ids)) 
+            .filter(User.permission_level <= level_threshold)
+        )
+
+        total_users = query.count()
+        total_pages = ceil(total_users / per_page)
+
+        users = (
+            query
+            .filter(User.permission_level <= level_threshold)
+            .options(load_only(User.id, User.username, User.permission_level))
+            .offset(offset)
+            .limit(per_page)
+            .all()
+        )
+    else:
+        total_users = User.query.filter(User.permission_level <= level_threshold).count()
+        total_pages = ceil(total_users / per_page)
+
+        users = (
+            User.query
+            .filter(User.permission_level <= level_threshold)
+            .options(load_only(User.id, User.username, User.permission_level))
+            .offset(offset)
+            .limit(per_page)
+            .all()
+        )
+
+        users = (
+            User.query
+            .filter(User.permission_level <= level_threshold)
+            .options(load_only(User.id, User.username, User.permission_level))
+            .offset(offset)
+            .limit(per_page)
+            .all()
+        )
+
+    result = []
+    for user in users:
+        result.append({
+            'id': user.id,
+            'username': user.username,
+            'created_at': user.created_at,
+            'permissionLevel': user.permission_level,
+            'request_reset_password': user.request_reset_password,
+            "allowed_reset_password": user.allowed_reset_password
+        })
+
+    return {
+            'user': result,
             'total_pages': total_pages
         }
 

@@ -66,7 +66,7 @@ const RecentUsers = ({ currentUser }) => {
             {user.permission_level > 1 ? (<FaUserShield color="white" />): (<FaUser color="white" />)}</p>
             <p style={{ margin:"0;1rem" }}>{user && (<FaCircle color={user.online ? 'green' : 'crimson'} />)}</p>
             <span style={{ color: '#ccc', fontSize: '0.9em' }}>
-              Dernière connexion : {user.last_login_at}
+              Dernière connexion : {user.last_connection_at}
             </span>
           </div>
         ))}

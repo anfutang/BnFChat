@@ -54,15 +54,15 @@ const AccountPanel = () => {
 return (
     <div className="account-dashboard">
       <div className="account-info-container">
-        <img src="/logo_bnfchat_rectangle.png" className='logo-bnfchat' style={{ height:"6vh" }}/>
-        <p style={{ color:"white", fontWeight:"500", fontSize:"1.2rem"}}>Mon Compte</p>
+        <img src="/logo_bnfchat_black.png" className='logo-bnfchat' style={{ height:"6vh" }}/>
+        <p style={{ color:"white", fontWeight:"500", fontSize:"1.2rem"}}>Mon Espace</p>
         <Avatar 
             src={`https://api.dicebear.com/7.x/micah/svg?seed=${currentUser?.avatarSeed || 'default'}`} 
             name={currentUser?.username} 
             status='available'
         />
         <span style={{ fontStyle: 'bold', textAlign: 'left', color: "white" }}>Bienvenu.e, {currentUser?.username} <br></br>{currentUser.permissionLevel > 1 && (<span style={{ fontStyle: 'italic' }}>Vous êtes administrateur·trice</span>)}</span>
-        <button className='switch-btn' onClick={() => {navigate('/chat');}}><FiArrowUpLeft /></button>
+        <button className='switch-btn' onClick={() => {navigate('/chat');}}><FiArrowUpLeft size={20} />Retour</button>
       </div>
       <div className="account-sidebar">
         <button className={`control-btn ${activeSection === "profile" ? 'selected' : ''}`} onClick={() => setActiveSection("profile")}><FaAddressCard size={25}/>&nbsp;Profil</button>

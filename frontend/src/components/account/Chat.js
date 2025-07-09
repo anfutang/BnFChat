@@ -1,7 +1,9 @@
 // UserChat.js (两步式逻辑：先选用户，再分页查看对话)
 import { useState, useEffect } from "react";
-import { FaAngleLeft, FaAngleRight } from "react-icons/fa";
-import { MdThumbUp, MdThumbDown } from 'react-icons/md'
+import { FaAngleLeft, FaAngleRight, FaRegClock, FaRegStar, FaBullseye } from "react-icons/fa";
+import { MdThumbUp, MdThumbDown, MdUpdate } from 'react-icons/md';
+import { AiOutlinePaperClip } from 'react-icons/ai';
+import { GiBrain } from 'react-icons/gi';
 
 import "../chat/ChatArea.css"
 import '../feedback/ResultModal.css';
@@ -38,7 +40,7 @@ const UserChat = ({ currentUser }) => {
   };
 
   const fetchUsers = () => {
-    fetch(`/api/account/user-list?page=${userPage}&threshold=${currentUser.permissionLevel}`)
+    fetch(`/api/account/user-list?page=${userPage}&threshold=${currentUser.permissionLevel}&table=chat`)
       .then(response => response.json())
       .then(data => {
         const fetchedUsers = data.user;
@@ -164,11 +166,11 @@ const UserChat = ({ currentUser }) => {
         )}
 
         {selectedChat && (<div className="chat-info-panel">
-          <p>Cree le : {selectedChat.created_at}</p>
-          <p>Mise a jour le : {selectedChat.updated_at}</p>
-          <p>Statut: {selectedChat.status}</p>
-          {selectedChat.user_intent && (<p>Intention : {selectedChat.user_intent}</p>)}
-          {selectedChat.feedback && <p>Feedback : {selectedChat.feedback === "like" ? <MdThumbUp /> : <MdThumbDown /> }</p>}
+          <p><FaRegClock />&nbsp;Créé le : {selectedChat.created_at}</p>
+          <p><MdUpdate size={20}/>&nbsp;Mis à jour le : {selectedChat.updated_at}</p>
+          <p><AiOutlinePaperClip size={20}/>&nbsp;Statut: {selectedChat.status}</p>
+          {selectedChat.user_intent && (<p><FaBullseye size={15}/>&nbsp;Intention : {selectedChat.user_intent}</p>)}
+          {selectedChat.feedback && <p><FaRegStar size={15} />&nbsp;Feedback : {selectedChat.feedback === "like" ? <MdThumbUp /> : <MdThumbDown /> }</p>}
         </div>)}
 
         {selectedChat && (() => {

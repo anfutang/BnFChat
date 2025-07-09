@@ -1,13 +1,17 @@
 # app/auth.py
 
 import functools
+import time
+import datetime 
+import threading
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for, jsonify
+    Blueprint, flash, g, redirect, render_template, request, session, url_for, jsonify, current_app
 )
 from werkzeug.security import generate_password_hash, check_password_hash
+
 from .db import db
 from .models import (User, create_user, update_user, request_reset_user_password, reset_user_password, 
-                     delete_user, login_user, logout_user, get_number_of_online_users)
+                     delete_user, login_user, logout_user, get_number_of_online_users, log_connection)
 from .utils.constant import *
 from .utils.utils import *
 
@@ -54,6 +58,17 @@ def check_auth():
             "profileCompleted": user.profile_created
         }
     })
+
+@bp.route('/ping',methods=['POST'])
+def ping():
+    data = request.json
+    user_id = data.get("userId")
+    try:
+        user = User.query.get(user_id)
+        log_connection(user)
+        return jsonify({"success": True})
+    except:
+        return jsonify({"success": False})
 
 @bp.route('/check-username', methods=['POST'])
 def check_username_availability():
@@ -104,8 +119,7 @@ def profile_submit():
     try:
         # Update user with profile data
         update_user(user, user_profile_data)
-        nb_online_users = get_number_of_online_users()
-        allowed_login = nb_online_users < MAXIMUM_NUM_ONLINE_USERS
+        allowed_login = login_user(user)
         
         # Update session data
         if allowed_login:
@@ -115,6 +129,7 @@ def profile_submit():
         
         return jsonify({
             "success": True,
+            'userId': user.id,
             "username": user.username,
             "avatarSeed":user.avatar_seed,
             "permissionLevel": user.permission_level,
@@ -227,4 +242,33 @@ def logout():
         return jsonify({"success": True})
     except:
         return jsonify({"success": False})
+    
+# only for logout when user closes the page or navigator (frontend sendBeacon method)
+@bp.route('/auto-logout', methods=['POST'])
+def auto_logout():
+    user_id = request.form.get("userId")
+    logout_trigger_time = datetime.datetime.now()
+    print(f"📡 Beacon logout received: userId={user_id} at {logout_trigger_time:.3f}.")
+
+    def check_if_user_refreshes():
+        with current_app.app_context():
+            time.sleep(0.5) # may be to be increased with the user load
+
+            last_ping_time = User.query.get(user_id).last_connection_at
+
+            # Distinguishing refreshing & closing: whether the user connects (send ping requests) in 1s after refreshing / closing page
+            if last_ping_time > logout_trigger_time:
+                print(f"🟡 Skipped logout: user {user_id} refreshed page.")
+            else:
+                try:
+                    user = User.query.get(user_id)
+                    logout_user(user)
+                    session.clear()
+                    print(f"🟢 Auto logout success: user {user_id}")
+                except Exception as e:
+                    print(f"🔴 Auto logout failed: {e}")
+
+    check_if_user_refreshes()
+    # threading.Thread(target=check_if_user_returns).start()
+    return '', 204
 

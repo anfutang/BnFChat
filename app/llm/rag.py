@@ -9,7 +9,6 @@ import faiss
 import numpy as np
 from gevent.lock import Semaphore
 
-
 from ..utils.utils import normalize, get_cosine_sim
 from ..utils.constant import METADATA_DIR, RAG_EMBED_DIM
 # from ..utils.rag_db_utils import get_rag_db

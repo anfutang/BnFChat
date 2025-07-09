@@ -145,7 +145,7 @@ const ChatArea = ({
               return userData.mode === "search" ? (
                 <div key={index} className="sru-btn-container">
                   <p className="sru-validness-msg">{msg.content}</p>
-                  <button
+                  {!msg.content.startsWith('🔴') && (<button
                     className="sru-btn"
                     onClick={() =>
                       window.open(
@@ -158,7 +158,7 @@ const ChatArea = ({
                   >
                     <VscArrowSmallRight size={20} />
                     Gallica
-                  </button>
+                  </button>)}
                 </div>
               ) : null;
             }
@@ -217,10 +217,10 @@ const ChatArea = ({
             }}
             disabled={(!isConnected || isStreaming || isResultLoading || (userData.mode === "chat" && isResultLoaded) || explicitUserInputDisabled)}
           />
-          <button onClick={handleSend} className="send-btn" disabled={(!userInput?.trim() || !isConnected || isStreaming || isResultLoading || (userData.mode === "chat" && isResultLoaded) || explicitUserInputDisabled)}>
+          <button onClick={handleSend} className="send-btn" id="send-button" disabled={(!userInput?.trim() || !isConnected || isStreaming || isResultLoading || (userData.mode === "chat" && isResultLoaded) || explicitUserInputDisabled)}>
             <FaPaperPlane size={20} color="black" />
           </button>
-          <button className="new-chat-btn" onClick={() => {handleNewChat("end:user_new_chat");}} disabled={isStreaming || messages.length === 0}>
+          <button className="new-chat-btn" id="erase-button" onClick={() => {handleNewChat("end:user_new_chat");}} disabled={isStreaming || messages.length === 0}>
             <FaEraser size={20} color="black" />
           </button>
         </div>

@@ -21,7 +21,7 @@ const UserFeedback = ({ currentUser }) => {
   const isAdmin = currentUser.permissionLevel > 1;
 
   const fetchUsers = () => {
-    fetch(`/api/account/user-list?page=${userPage}&threshold=${currentUser.permissionLevel}`)
+    fetch(`/api/account/user-list?page=${userPage}&threshold=${currentUser.permissionLevel}&table=feedback`)
       .then(response => response.json())
       .then(data => {
         const fetchedUsers = data.user;

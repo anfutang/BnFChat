@@ -16,7 +16,7 @@ const AvatarDropdown = ({ currentUser, isConnected, setTutorialDone, handleLogou
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <div className="avatar-button">
+        <div id="avatar-button" className="avatar-button">
           <Avatar 
             src={`https://api.dicebear.com/7.x/micah/svg?seed=${currentUser?.avatarSeed || 'default'}`} 
             name={currentUser?.username} 

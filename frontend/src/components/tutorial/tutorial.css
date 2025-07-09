@@ -2,10 +2,10 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    left: 25%;
-    top: 5%;
-    height: 88%;
-    width: 50%;
+    left: 30%;
+    top: 20%;
+    height: 50%;
+    width: 40%;
     border: 5px solid black;
     border-radius: 6px; 
     background-color: rgb(251, 245, 236);
@@ -16,7 +16,7 @@
     display: flex;
     justify-content: flex-start;
     align-items: center;
-    height: 5%;
+    height: 10%;
     width: 100%;
     margin: 0;
     background-color: black;
@@ -29,10 +29,10 @@
 
 .text-tutorial-content {
     position: absolute;
-    height: 82%;
+    height: 70%;
     width: 96%;
     left: 1%; 
-    top: 6%;
+    top: 11%;
     padding: 1%;
     margin: 0;
     border-bottom: 2px solid rgb(209, 209, 209);
@@ -50,7 +50,7 @@
     display: flex;
     flex-direction: column;
     align-items: space-between;
-    height: 6%;
+    height: 10%;
     width: 20%;
     bottom: 2%;
     right: 1%;

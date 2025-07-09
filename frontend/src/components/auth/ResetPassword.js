@@ -134,8 +134,7 @@ const ResetPassword = () => {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-logo-container">
-          <div className="img-container"><img src="/blossom.png" alt="Logo" /></div>
-          <h1>BnFChat</h1>
+          <div className="img-container"><img src="/logo_bnfchat_white.png" alt="Logo" /></div>
         </div>
         <h2>Réinitialiser le mot de passe</h2>
 

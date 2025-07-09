@@ -23,7 +23,7 @@ const ModeSelector = ({ userData, handleModeChange }) => {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button className="mode-trigger">
+        <button id="mode-trigger" className="mode-trigger">
           <VscChevronDown size={20} color="white"/>&nbsp;
           {MODES[currentMode]?.label}
         </button>

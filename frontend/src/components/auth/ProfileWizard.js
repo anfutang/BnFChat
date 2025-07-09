@@ -54,6 +54,14 @@ const ProfileWizard = () => {
     return () => clearTimeout(timer);
   }, [seconds, showInfoModal, navigate]);
 
+  // console.log("enter profile:", currentUser);
+
+  useEffect(() => {
+    if (!currentUser) {
+      handleCancel();
+    }
+  });
+
   useEffect(() => {
     // If user has already completed profile, redirect to chat
     if (currentUser) {
@@ -227,7 +235,7 @@ const ProfileWizard = () => {
     <div className="auth-container">
       <div className="auth-card wizard-card">
         <h2>Complétez votre profil</h2>
-        <p className="wizard-welcome">Bienvenue, {currentUser.username}! Veuillez compléter votre profil pour continuer.</p>
+        <p className="wizard-welcome">Bienvenue, {currentUser?.username}! Veuillez compléter votre profil pour continuer.</p>
         
         {error && <div className="auth-error">{error}</div>}
         
