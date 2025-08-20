@@ -8,7 +8,7 @@ const TextTutorial = ({ currentStep, onNextStep, onComplete }) => {
     {
       id: 1,
       title: "Tutoriel",
-      content: "<u><strong>Ce tutoriel a pour but de vous guider rapidement dans la découverte de cette interface.</strong></u>Il présente les différentes zones et la fonction des principaux boutons, mais n’est en aucun cas obligatoire.<br><br>L’interface est simple : vous pouvez parfaitement choisir d’ignorer le tutoriel et explorer par vous-même.<br><br>À noter que ce tutoriel ne fournit aucune information sur le fonctionnement du système de dialogue.Si vous avez des questions concernant la qualité des réponses, le choix du mode ou la manière d’interagir avec le système, cliquez sur l’icône ❓ en haut à droite pour consulter la FAQ.",
+      content: "<u><strong>Ce tutoriel a pour but de vous guider rapidement dans la découverte de cette interface.</strong></u>Il présente les différentes zones et la fonction des principaux boutons, mais n’est en aucun cas obligatoire.<br><br>L’interface est simple : vous pouvez parfaitement choisir d’ignorer le tutoriel et explorer par vous-même.<br><br>À noter que ce tutoriel ne fournit aucune information sur le fonctionnement du système de dialogue. Si vous avez des questions concernant la qualité des réponses, le choix du mode ou la manière d’interagir avec le système, cliquez sur l’icône ❓ en haut à droite pour consulter la FAQ.",
     },
   ];
 
